@@ -8,6 +8,15 @@ import { createMcpServer } from './tools.js'
 const MCP_PATH = '/mcp'
 const JSON_RPC_VERSION = '2.0'
 
+/** Constant-time string comparison that never leaks length via timing-sensitive paths. */
+function tokenEquals(presented: string | undefined, expected: string): boolean {
+  if (presented === undefined) return false
+  const presentedBuf = Buffer.from(presented, 'utf8')
+  const expectedBuf = Buffer.from(expected, 'utf8')
+  if (presentedBuf.length !== expectedBuf.length) return false
+  return timingSafeEqual(presentedBuf, expectedBuf)
+}
+
 /**
  * Constant-time comparison of a presented bearer token against the expected secret.
  * Returns false for any missing/malformed header or length mismatch without leaking timing.
@@ -15,18 +24,19 @@ const JSON_RPC_VERSION = '2.0'
 export function checkBearer(authorization: string | undefined, expected: string): boolean {
   if (!authorization) return false
   const match = /^Bearer (.+)$/.exec(authorization)
-  const presentedToken = match?.[1]
-  if (presentedToken === undefined) return false
-  const presented = Buffer.from(presentedToken, 'utf8')
-  const expectedBuf = Buffer.from(expected, 'utf8')
-  if (presented.length !== expectedBuf.length) return false
-  return timingSafeEqual(presented, expectedBuf)
+  return tokenEquals(match?.[1], expected)
 }
 
-/** Express middleware factory enforcing the MCP bearer token. */
+/**
+ * Express middleware enforcing the MCP token. Accepts EITHER the
+ * `Authorization: Bearer <token>` header OR a `?token=<token>` query param (for
+ * clients that can't set custom headers). The header is preferred — a token in
+ * the URL can leak into access logs.
+ */
 function requireBearer(expected: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    if (checkBearer(req.headers.authorization, expected)) {
+    const queryToken = typeof req.query.token === 'string' ? req.query.token : undefined
+    if (checkBearer(req.headers.authorization, expected) || tokenEquals(queryToken, expected)) {
       next()
       return
     }
