@@ -398,6 +398,21 @@ describe('ActivityPub Inbox — per actor', () => {
     expect(res.status).toBe(401)
   })
 
+  it('rejects a Follow whose actor does not match the signer (impersonation) with 401', async () => {
+    // Validly signed by the remote key (signature + digest + apex host all pass),
+    // but the activity claims a DIFFERENT actor than the signer — a forged
+    // identity. Must be rejected before any follower is persisted.
+    const body = JSON.stringify({
+      id: 'https://remote.example/activities/follow/spoof',
+      type: 'Follow',
+      actor: 'https://victim.example/users/victim',
+      object: writerId,
+    })
+    const res = await postInbox(`/users/${WRITER_USERNAME}/inbox`, body)
+    expect(res.status).toBe(401)
+    expect(await FollowerModel.countDocuments({})).toBe(0)
+  })
+
   it('Undo(Follow) removes only the scoped follower', async () => {
     await FollowerModel.create({ actorUsername: WRITER_USERNAME, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
     await FollowerModel.create({ actorUsername: NEWS, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })

@@ -84,12 +84,19 @@ export function createInboxService(deps: InboxServiceDeps): InboxService {
       if (!keyId) return { status: 401, reason: 'Missing or unparseable Signature keyId' }
 
       let publicKeyPem: string
+      // The identities the verified signature actually proves ownership of: the
+      // fetched signer actor's id and the key's declared owner. An inbound
+      // activity may only claim `actor` values among these (see binding below).
+      let signerActorId: string
+      let signerKeyOwner: string | undefined
       try {
         const remote = await fetchRemoteActor(actorUrlFromKeyId(keyId), fetchOptions)
         if (!remote.publicKey?.publicKeyPem) {
           return { status: 401, reason: 'Remote actor exposes no public key' }
         }
         publicKeyPem = remote.publicKey.publicKeyPem
+        signerActorId = remote.id
+        signerKeyOwner = remote.publicKey.owner
       } catch (err) {
         const reason = err instanceof Error ? err.message : 'Could not fetch signing actor'
         logger.warn('activitypub inbox: failed to fetch signer', { keyId, reason })
@@ -106,10 +113,27 @@ export function createInboxService(deps: InboxServiceDeps): InboxService {
         return { status: 401, reason: verification.reason }
       }
 
-      // 5. Parse and dispatch the activity by type.
+      // 5. Parse the activity.
       const parsed = InboundActivitySchema.safeParse(parseBody(input.rawBody))
       if (!parsed.success) return { status: 400, reason: 'Malformed activity' }
 
+      // 6. Bind the signer to the claimed actor. A valid signature only proves
+      // the holder of `keyId` signed the request — without this check that holder
+      // could forge activities (Follow/Undo/Delete) as ANY actor by setting a
+      // different `activity.actor`. The claimed actor must be the signer itself
+      // (its actor id) or the identity that owns the signing key.
+      const claimedActor = parsed.data.actor
+      if (!claimedActor) return { status: 400, reason: 'Activity has no actor' }
+      if (claimedActor !== signerActorId && claimedActor !== signerKeyOwner) {
+        logger.warn('activitypub inbox: signer/actor mismatch', {
+          keyId,
+          claimedActor,
+          signerActorId,
+        })
+        return { status: 401, reason: 'Signer does not match activity actor' }
+      }
+
+      // 7. Dispatch the verified, signer-bound activity by type.
       return dispatch(parsed.data, input.targetActor, deps)
     },
   }

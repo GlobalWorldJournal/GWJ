@@ -18,9 +18,14 @@ permissions:
   id-token: write   # for OIDC role assumption
   contents: read
 
+# GWJ runs in its own isolated gwj-* resources on the Oxy AWS account. These are
+# non-secret infrastructure identifiers (the OIDC role's trust policy — not this
+# ARN — gates who may assume it), so they live in the workflow rather than repo
+# variables, which keeps the deploy self-contained and reproducible.
 env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+  AWS_REGION: us-west-2
+  ECS_CLUSTER: oxy-cluster
+  AWS_DEPLOY_ROLE_ARN: arn:aws:iam::237343248947:role/gwj-github-deploy
 
 jobs:
   deploy:
@@ -29,18 +34,18 @@ jobs:
       matrix:
         include:
           - app: backend
-            ecr: ${{ vars.ECR_BACKEND }}
-            service: ${{ vars.ECS_SERVICE_BACKEND }}
+            ecr: gwj-backend
+            service: gwj-backend
           - app: mcp
-            ecr: ${{ vars.ECR_MCP }}
-            service: ${{ vars.ECS_SERVICE_MCP }}
+            ecr: gwj-mcp
+            service: gwj-mcp
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
