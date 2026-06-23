@@ -82,6 +82,8 @@ describe('GWJ MCP tools', () => {
     const client = mockClient()
     const created = sampleArticle({ id: 'created-1' })
     vi.mocked(client.createArticle).mockResolvedValue(created)
+    // create_article now publishes immediately by default.
+    vi.mocked(client.publishArticle).mockResolvedValue(sampleArticle({ id: 'created-1' }))
     mcpClient = await connect(client)
 
     const result = await mcpClient.callTool({
@@ -95,6 +97,7 @@ describe('GWJ MCP tools', () => {
     })
 
     expect(client.createArticle).toHaveBeenCalledTimes(1)
+    expect(client.publishArticle).toHaveBeenCalledWith('created-1')
     const passed = vi.mocked(client.createArticle).mock.calls[0]?.[0]
     expect(passed?.title).toBe('Markets rally on rate-cut hopes')
     expect(passed?.category).toBe(CATEGORIES[2])
@@ -113,6 +116,7 @@ describe('GWJ MCP tools', () => {
   it('auto-assigns a roster byline when create_article omits the author', async () => {
     const client = mockClient()
     vi.mocked(client.createArticle).mockResolvedValue(sampleArticle({ id: 'auto-1' }))
+    vi.mocked(client.publishArticle).mockResolvedValue(sampleArticle({ id: 'auto-1' }))
     mcpClient = await connect(client)
 
     const title = 'Chipmakers post record quarterly revenue'

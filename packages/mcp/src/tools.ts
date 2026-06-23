@@ -66,6 +66,10 @@ const CreateArticleShape = {
     .min(1)
     .optional()
     .describe('Byline; auto-assigned from the writer roster by category when omitted'),
+  draft: z
+    .boolean()
+    .optional()
+    .describe('Hold as a draft instead of publishing. Default: false (publish immediately).'),
 }
 
 const UpdateArticleShape = {
@@ -108,12 +112,17 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'create_article',
     {
       description:
-        'Create a new article (defaults to draft). The byline is auto-assigned from the writer roster by category when `author` is omitted. Returns the created article.',
+        'Create and PUBLISH a new article immediately (pass draft:true to hold it back instead). The byline is auto-assigned from the writer roster by category when `author` is omitted. Returns the published article.',
       inputSchema: CreateArticleShape,
     },
     (args) => {
-      const author = args.author ?? pickWriter(args.category, args.title).name
-      return guard(async () => jsonResult(await client.createArticle({ ...args, author })))
+      const { draft, ...rest } = args
+      const author = rest.author ?? pickWriter(rest.category, rest.title).name
+      return guard(async () => {
+        const created = await client.createArticle({ ...rest, author })
+        if (draft) return jsonResult(created)
+        return jsonResult(await client.publishArticle(created.id))
+      })
     },
   )
 
