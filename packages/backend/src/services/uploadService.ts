@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { PutObjectCommand, S3Client, type S3ClientConfig } from '@aws-sdk/client-s3'
 import { v4 as uuidv4 } from 'uuid'
 import { type UploadResponse } from '@gwj/shared-types'
 import { type Env } from '../env'
@@ -24,13 +24,16 @@ export interface UploadService {
  * are addressed publicly through the CDN base URL.
  */
 export function createUploadService(env: Env): UploadService {
-  const client = new S3Client({
-    region: env.AWS_REGION,
-    credentials: {
+  const config: S3ClientConfig = { region: env.AWS_REGION }
+  // Only set static credentials when BOTH keys are provided (local dev). When
+  // absent, the SDK's default provider chain resolves the ECS task role.
+  if (env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY) {
+    config.credentials = {
       accessKeyId: env.AWS_ACCESS_KEY_ID,
       secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-    },
-  })
+    }
+  }
+  const client = new S3Client(config)
 
   return {
     async uploadImage(buffer, filename, contentType) {

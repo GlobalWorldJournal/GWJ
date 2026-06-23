@@ -31,8 +31,10 @@ function setTestEnv(): Env {
   process.env.ADMIN_USERNAME = ADMIN_USERNAME
   process.env.ADMIN_PASSWORD = ADMIN_PASSWORD
   process.env.AWS_REGION = 'us-east-1'
-  process.env.AWS_ACCESS_KEY_ID = 'test-key'
-  process.env.AWS_SECRET_ACCESS_KEY = 'test-secret'
+  // AWS static keys are optional (ECS uses the task role); omit them here so the
+  // app boots without them. Upload itself is exercised via a fake upload service.
+  delete process.env.AWS_ACCESS_KEY_ID
+  delete process.env.AWS_SECRET_ACCESS_KEY
   process.env.S3_BUCKET = 'test-bucket'
   process.env.CDN_BASE_URL = 'https://cdn.example.test'
   process.env.CORS_ORIGINS = 'https://globalworldjournal.com'

@@ -12,6 +12,20 @@ const requiredSecret = (name: string) =>
     .min(1, `${name} is required`)
     .refine((v) => v !== '-', `${name} must not be the placeholder '-'`)
 
+/**
+ * An optional secret. Absent OR empty string is treated as "not provided"
+ * (→ `undefined`), so a `.env` copied from `.env.example` with blank values boots
+ * fine. When a NON-empty value is provided, the placeholder `'-'` is rejected.
+ * Used for static AWS keys, which are only needed for local dev — in production
+ * (ECS Fargate) the SDK uses the task role via the default credential chain.
+ */
+const optionalSecret = (name: string) =>
+  z
+    .string()
+    .transform((v) => (v.length === 0 ? undefined : v))
+    .refine((v) => v !== '-', `${name} must not be the placeholder '-'`)
+    .optional()
+
 const DEFAULT_PORT = 4000
 
 const EnvSchema = z.object({
@@ -22,8 +36,8 @@ const EnvSchema = z.object({
   ADMIN_USERNAME: requiredSecret('ADMIN_USERNAME'),
   ADMIN_PASSWORD: requiredSecret('ADMIN_PASSWORD'),
   AWS_REGION: requiredSecret('AWS_REGION'),
-  AWS_ACCESS_KEY_ID: requiredSecret('AWS_ACCESS_KEY_ID'),
-  AWS_SECRET_ACCESS_KEY: requiredSecret('AWS_SECRET_ACCESS_KEY'),
+  AWS_ACCESS_KEY_ID: optionalSecret('AWS_ACCESS_KEY_ID'),
+  AWS_SECRET_ACCESS_KEY: optionalSecret('AWS_SECRET_ACCESS_KEY'),
   S3_BUCKET: requiredSecret('S3_BUCKET'),
   CDN_BASE_URL: requiredSecret('CDN_BASE_URL').refine(
     (v) => /^https?:\/\//.test(v),
