@@ -67,6 +67,11 @@ data "aws_iam_policy_document" "ecs_task_s3" {
     sid       = "GwjMediaList"
     actions   = ["s3:ListBucket"]
     resources = [aws_s3_bucket.media.arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["articles/*"]
+    }
   }
 }
 
@@ -113,12 +118,19 @@ data "aws_iam_policy_document" "mongo_ec2" {
     resources = ["arn:aws:kms:${var.region}:${var.account_id}:alias/aws/ssm"]
   }
   statement {
-    sid     = "MongoBackupsRW"
-    actions = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
-    resources = [
-      aws_s3_bucket.media.arn,
-      "${aws_s3_bucket.media.arn}/mongo-backups/*",
-    ]
+    sid       = "MongoBackupsList"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.media.arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["mongo-backups/*"]
+    }
+  }
+  statement {
+    sid       = "MongoBackupsRW"
+    actions   = ["s3:PutObject", "s3:GetObject"]
+    resources = ["${aws_s3_bucket.media.arn}/mongo-backups/*"]
   }
 }
 
@@ -133,7 +145,7 @@ resource "aws_iam_instance_profile" "mongo" {
   role = aws_iam_role.mongo.name
 }
 
-# === GitHub OIDC deploy role (CI: ECR push + ecs:UpdateService + SSM sync) ===
+# === GitHub OIDC deploy role (CI: ECR push + ecs:UpdateService) ===
 # ARN goes to GitHub secret AWS_DEPLOY_ROLE_ARN (see INFRA.md §5).
 data "aws_iam_policy_document" "github_deploy_assume" {
   statement {
@@ -147,10 +159,13 @@ data "aws_iam_policy_document" "github_deploy_assume" {
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
     }
+    # Pin to the main branch only — a PR, fork, or other ref cannot assume the
+    # deploy role. deploy-aws.yml runs on push to main + workflow_dispatch (also
+    # from main), both of which present sub = repo:<repo>:ref:refs/heads/main.
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:*"]
+      values   = ["repo:${var.github_repo}:ref:refs/heads/main"]
     }
   }
 }
@@ -179,11 +194,9 @@ data "aws_iam_policy_document" "github_deploy" {
     ]
     resources = [for r in aws_ecr_repository.app : r.arn]
   }
-  statement {
-    sid       = "SsmPut"
-    actions   = ["ssm:PutParameter"]
-    resources = ["arn:aws:ssm:${var.region}:${var.account_id}:parameter/gwj/*"]
-  }
+  # NOTE: CI does NOT write SSM. App secrets under /gwj/* are owned by Terraform
+  # (ssm.tf); the deploy role intentionally has NO ssm:PutParameter so a
+  # compromised workflow can't overwrite JWT_SECRET / ADMIN_PASSWORD / MONGO_URI.
   statement {
     sid     = "EcsDeploy"
     actions = ["ecs:UpdateService", "ecs:DescribeServices"]

@@ -32,6 +32,16 @@ resource "aws_instance" "mongo" {
     encrypted   = true
   }
 
+  # Enforce IMDSv2 (token-required) + a 1-hop limit. hop_limit=1 also blocks the
+  # Dockerized Mongo container (hop 2) from reaching instance metadata / role
+  # credentials — defense against SSRF/credential exfiltration. The host's
+  # userdata aws-cli (hop 1) still reads /gwj/mongo_* fine.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   tags = {
     Name = "${var.prefix}-mongo"
     Role = "mongo"
