@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { CATEGORIES, categorySlug, type Article, type Category } from '@gwj/shared-types'
 import { getArticles } from '../lib/api'
 import { ArticleCard } from '../components/ArticleCard'
+import { AdSlot } from '../components/AdSlot'
 import { StatusMessage } from '../components/StatusMessage'
 import { HomeSkeleton } from '../components/Skeletons'
 
@@ -77,6 +78,7 @@ export function Home() {
               />
             </div>
           ))}
+          <AdSlot variant="inline" className="pt-5" />
         </div>
 
         {/* CENTER — lead story with hero image + related bullets */}
@@ -137,9 +139,14 @@ function SectionBands({ articles }: { articles: Article[] }) {
 
   return (
     <div className="mt-12 flex flex-col gap-10">
-      {sections.slice(0, visible).map((category) => {
+      {sections.slice(0, visible).map((category, idx) => {
         const inCategory = articles.filter((a) => a.category === category).slice(0, 5)
-        return <CategorySection key={category} name={category} articles={inCategory} />
+        return (
+          <Fragment key={category}>
+            <CategorySection name={category} articles={inCategory} />
+            {idx % 2 === 1 ? <AdSlot variant="leaderboard" className="my-2" /> : null}
+          </Fragment>
+        )
       })}
       {visible < sections.length ? <div ref={sentinelRef} aria-hidden className="h-px" /> : null}
     </div>
@@ -173,6 +180,7 @@ function OpinionRail({ articles }: { articles: Article[] }) {
           </li>
         ))}
       </ul>
+      <AdSlot variant="mrec" className="mt-6" />
     </aside>
   )
 }
