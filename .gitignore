@@ -1,1 +1,29 @@
+# dependencies
+node_modules
+**/node_modules
+
+# builds
+dist
+**/dist
+.cache
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+
+# editor / os
+.DS_Store
+.idea
+.vscode
+
+# brainstorming companion
 .superpowers/
+
+# misc
+coverage
+*.tsbuildinfo

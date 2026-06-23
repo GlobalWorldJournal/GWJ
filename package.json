@@ -1,0 +1,17 @@
+{
+  "name": "gwj",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Global World Journal — WSJ-style news site (reader + admin CMS + MCP)",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "test": "bun run --filter '*' test",
+    "typecheck": "bun run --filter '*' typecheck",
+    "dev": "bun run --filter '*' dev",
+    "seed": "bun run --filter '@gwj/backend' seed"
+  },
+  "engines": {
+    "bun": ">=1.3.14"
+  }
+}
