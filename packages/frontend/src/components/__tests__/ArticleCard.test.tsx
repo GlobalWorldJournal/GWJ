@@ -13,7 +13,7 @@ function makeArticle(overrides: Partial<Article> = {}): Article {
     kicker: 'Markets',
     category: 'Markets',
     author: 'Jane Reporter',
-    body: [{ type: 'paragraph', text: 'Stocks rose.' }],
+    body: 'Stocks rose.',
     status: 'published',
     featured: 0,
     tags: [],

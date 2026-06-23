@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -6,7 +6,6 @@ import {
   type Article,
   type ArticleInput,
   type Category,
-  type ContentBlock,
   type HeroImage,
 } from '@gwj/shared-types'
 import {
@@ -19,8 +18,6 @@ import {
 import { useAuth } from './useAuth'
 import { StatusMessage } from '../components/StatusMessage'
 
-type BlockType = ContentBlock['type']
-
 interface EditorForm {
   title: string
   deck: string
@@ -30,7 +27,8 @@ interface EditorForm {
   tags: string
   featured: number
   heroImage: HeroImage | null
-  body: ContentBlock[]
+  /** Article body as GitHub-flavored Markdown. */
+  body: string
 }
 
 function emptyForm(): EditorForm {
@@ -43,7 +41,7 @@ function emptyForm(): EditorForm {
     tags: '',
     featured: 0,
     heroImage: null,
-    body: [],
+    body: '',
   }
 }
 
@@ -58,25 +56,6 @@ function formFromArticle(article: Article): EditorForm {
     featured: article.featured,
     heroImage: article.heroImage ?? null,
     body: article.body,
-  }
-}
-
-function newBlock(type: BlockType): ContentBlock {
-  switch (type) {
-    case 'paragraph':
-      return { type: 'paragraph', text: '' }
-    case 'heading':
-      return { type: 'heading', text: '' }
-    case 'image':
-      return { type: 'image', url: '', alt: '' }
-    case 'quote':
-      return { type: 'quote', text: '' }
-    case 'list':
-      return { type: 'list', ordered: false, items: [''] }
-    default: {
-      const _exhaustive: never = type
-      return _exhaustive
-    }
   }
 }
 
@@ -308,7 +287,7 @@ function EditorForm({ initial, articleId }: EditorFormProps) {
           onRemove={() => update('heroImage', null)}
         />
 
-        <BlockEditor blocks={form.body} onChange={(body) => update('body', body)} />
+        <BodyField value={form.body} onChange={(body) => update('body', body)} />
       </div>
     </div>
   )
@@ -331,17 +310,6 @@ function TextInput({ value, onChange }: { value: string; onChange: (value: strin
       type="text"
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="border border-ink bg-paper px-3 py-2 font-body text-ink outline-none focus:border-accent"
-    />
-  )
-}
-
-function TextArea({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return (
-    <textarea
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      rows={3}
       className="border border-ink bg-paper px-3 py-2 font-body text-ink outline-none focus:border-accent"
     />
   )
@@ -414,218 +382,23 @@ function HeroImageField({
   )
 }
 
-/* ---------- block editor ---------- */
+/* ---------- body (markdown) ---------- */
 
-const BLOCK_TYPES: BlockType[] = ['paragraph', 'heading', 'image', 'quote', 'list']
-
-function BlockEditor({
-  blocks,
-  onChange,
-}: {
-  blocks: ContentBlock[]
-  onChange: (blocks: ContentBlock[]) => void
-}) {
-  function replaceAt(index: number, block: ContentBlock) {
-    onChange(blocks.map((existing, i) => (i === index ? block : existing)))
-  }
-
-  function move(index: number, delta: number) {
-    const target = index + delta
-    if (target < 0 || target >= blocks.length) {
-      return
-    }
-    const next = [...blocks]
-    const [removed] = next.splice(index, 1)
-    if (removed) {
-      next.splice(target, 0, removed)
-      onChange(next)
-    }
-  }
-
-  function removeAt(index: number) {
-    onChange(blocks.filter((_, i) => i !== index))
-  }
-
+function BodyField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <section className="mt-4">
-      <h2 className="label mb-3 border-t-3 border-ink pt-2 text-sm text-ink">Body</h2>
-
-      <div className="flex flex-col gap-4">
-        {blocks.map((block, index) => (
-          <BlockRow
-            key={index}
-            block={block}
-            index={index}
-            total={blocks.length}
-            onChange={(next) => replaceAt(index, next)}
-            onMoveUp={() => move(index, -1)}
-            onMoveDown={() => move(index, 1)}
-            onRemove={() => removeAt(index)}
-          />
-        ))}
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {BLOCK_TYPES.map((type) => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => onChange([...blocks, newBlock(type)])}
-            className="label border border-rule px-3 py-2 text-[0.625rem] text-ink-soft transition-colors hover:border-accent hover:text-accent"
-          >
-            + {type}
-          </button>
-        ))}
-      </div>
+      <h2 className="label mb-1 border-t-3 border-ink pt-2 text-sm text-ink">Body</h2>
+      <p className="label mb-3 text-[0.625rem] text-muted">
+        GitHub-flavored Markdown — headings, lists, links, quotes, images.
+      </p>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={20}
+        spellCheck
+        placeholder={'## A subhead\n\nWrite the story here in Markdown…'}
+        className="w-full resize-y border border-ink bg-paper px-3 py-2 font-body text-[1rem] leading-relaxed text-ink outline-none focus:border-accent"
+      />
     </section>
-  )
-}
-
-interface BlockRowProps {
-  block: ContentBlock
-  index: number
-  total: number
-  onChange: (block: ContentBlock) => void
-  onMoveUp: () => void
-  onMoveDown: () => void
-  onRemove: () => void
-}
-
-function BlockRow({ block, index, total, onChange, onMoveUp, onMoveDown, onRemove }: BlockRowProps) {
-  return (
-    <div className="border border-rule p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="label text-[0.625rem] text-accent">{block.type}</span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={index === 0}
-            onClick={onMoveUp}
-            aria-label="Move block up"
-            className="label text-[0.75rem] text-ink-soft disabled:opacity-30"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            disabled={index === total - 1}
-            onClick={onMoveDown}
-            aria-label="Move block down"
-            className="label text-[0.75rem] text-ink-soft disabled:opacity-30"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            aria-label="Remove block"
-            className="label text-[0.6875rem] text-muted hover:text-accent"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-      <BlockFields block={block} onChange={onChange} />
-    </div>
-  )
-}
-
-function BlockFields({ block, onChange }: { block: ContentBlock; onChange: (block: ContentBlock) => void }) {
-  switch (block.type) {
-    case 'paragraph':
-      return <TextArea value={block.text} onChange={(text) => onChange({ ...block, text })} />
-    case 'heading':
-      return <TextInput value={block.text} onChange={(text) => onChange({ ...block, text })} />
-    case 'image':
-      return (
-        <div className="flex flex-col gap-2">
-          <Field label="Image URL">
-            <TextInput value={block.url} onChange={(url) => onChange({ ...block, url })} />
-          </Field>
-          <Field label="Alt text">
-            <TextInput value={block.alt} onChange={(alt) => onChange({ ...block, alt })} />
-          </Field>
-          <Field label="Caption">
-            <TextInput
-              value={block.caption ?? ''}
-              onChange={(caption) => onChange({ ...block, caption })}
-            />
-          </Field>
-          <Field label="Credit">
-            <TextInput
-              value={block.credit ?? ''}
-              onChange={(credit) => onChange({ ...block, credit })}
-            />
-          </Field>
-        </div>
-      )
-    case 'quote':
-      return (
-        <div className="flex flex-col gap-2">
-          <Field label="Quote">
-            <TextArea value={block.text} onChange={(text) => onChange({ ...block, text })} />
-          </Field>
-          <Field label="Attribution">
-            <TextInput
-              value={block.attribution ?? ''}
-              onChange={(attribution) => onChange({ ...block, attribution })}
-            />
-          </Field>
-        </div>
-      )
-    case 'list':
-      return <ListFields block={block} onChange={onChange} />
-    default: {
-      const _exhaustive: never = block
-      return _exhaustive
-    }
-  }
-}
-
-function ListFields({
-  block,
-  onChange,
-}: {
-  block: Extract<ContentBlock, { type: 'list' }>
-  onChange: (block: ContentBlock) => void
-}) {
-  const items = useMemo(() => block.items, [block.items])
-
-  function setItem(index: number, value: string) {
-    onChange({ ...block, items: items.map((item, i) => (i === index ? value : item)) })
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <label className="label flex items-center gap-2 text-[0.625rem] text-ink-soft">
-        <input
-          type="checkbox"
-          checked={block.ordered}
-          onChange={(event) => onChange({ ...block, ordered: event.target.checked })}
-        />
-        Ordered list
-      </label>
-      {items.map((item, index) => (
-        <div key={index} className="flex items-center gap-2">
-          <TextInput value={item} onChange={(value) => setItem(index, value)} />
-          <button
-            type="button"
-            disabled={items.length <= 1}
-            onClick={() => onChange({ ...block, items: items.filter((_, i) => i !== index) })}
-            aria-label="Remove list item"
-            className="label text-[0.6875rem] text-muted disabled:opacity-30"
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={() => onChange({ ...block, items: [...items, ''] })}
-        className="label self-start text-[0.625rem] text-accent"
-      >
-        + item
-      </button>
-    </div>
   )
 }

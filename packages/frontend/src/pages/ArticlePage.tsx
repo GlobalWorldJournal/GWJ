@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getArticle, ApiRequestError } from '../lib/api'
 import { Kicker } from '../components/Kicker'
 import { Byline } from '../components/Byline'
-import { ContentBlocks } from '../components/ContentBlocks'
+import { ArticleBody } from '../components/ArticleBody'
 import { StatusMessage } from '../components/StatusMessage'
 import { NotFound } from './NotFound'
 
@@ -73,7 +73,7 @@ export function ArticlePage() {
       ) : null}
 
       <div className="mt-6">
-        <ContentBlocks blocks={data.body} />
+        <ArticleBody markdown={data.body} />
       </div>
     </article>
   )

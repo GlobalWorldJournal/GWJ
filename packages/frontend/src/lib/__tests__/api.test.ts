@@ -12,7 +12,7 @@ const validPayload: PaginatedArticles = {
       kicker: 'World',
       category: 'World',
       author: 'Reporter',
-      body: [{ type: 'paragraph', text: 'Body text.' }],
+      body: 'Body text.',
       status: 'published',
       featured: 0,
       tags: [],
