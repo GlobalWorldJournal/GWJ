@@ -1,0 +1,71 @@
+import { config as loadDotenv } from 'dotenv'
+import { z } from 'zod'
+
+/**
+ * Reject placeholder secret values. A secret set to `'-'` or empty string is a
+ * deploy-time footgun (it silently overwrites real config), so we treat those as
+ * "missing" rather than valid.
+ */
+const requiredSecret = (name: string) =>
+  z
+    .string()
+    .min(1, `${name} is required`)
+    .refine((v) => v !== '-', `${name} must not be the placeholder '-'`)
+
+const DEFAULT_PORT = 4000
+
+const EnvSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_PORT),
+  MONGO_URI: requiredSecret('MONGO_URI'),
+  JWT_SECRET: requiredSecret('JWT_SECRET'),
+  ADMIN_USERNAME: requiredSecret('ADMIN_USERNAME'),
+  ADMIN_PASSWORD: requiredSecret('ADMIN_PASSWORD'),
+  AWS_REGION: requiredSecret('AWS_REGION'),
+  AWS_ACCESS_KEY_ID: requiredSecret('AWS_ACCESS_KEY_ID'),
+  AWS_SECRET_ACCESS_KEY: requiredSecret('AWS_SECRET_ACCESS_KEY'),
+  S3_BUCKET: requiredSecret('S3_BUCKET'),
+  CDN_BASE_URL: requiredSecret('CDN_BASE_URL').refine(
+    (v) => /^https?:\/\//.test(v),
+    'CDN_BASE_URL must be an absolute http(s) URL',
+  ),
+  CORS_ORIGINS: z.string().default(''),
+})
+
+export type Env = z.infer<typeof EnvSchema>
+
+let cached: Env | null = null
+
+/**
+ * Parse and validate environment configuration.
+ *
+ * Lazy by design: configuration is read on first call (typically at bootstrap),
+ * not at import time, so tests can inject `process.env` before invoking it.
+ * Throws with a readable message listing every missing/invalid variable.
+ */
+export function loadEnv(): Env {
+  if (cached) return cached
+  loadDotenv()
+  const parsed = EnvSchema.safeParse(process.env)
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`)
+      .join('\n')
+    throw new Error(`Invalid environment configuration:\n${issues}`)
+  }
+  cached = parsed.data
+  return cached
+}
+
+/** Reset the cached env. Test-only helper for re-evaluating after mutating process.env. */
+export function resetEnvCache(): void {
+  cached = null
+}
+
+/** Parse the CORS_ORIGINS comma-separated allowlist into a trimmed, non-empty array. */
+export function parseCorsOrigins(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((o) => o.trim())
+    .filter((o) => o.length > 0)
+}
