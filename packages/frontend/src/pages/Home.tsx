@@ -48,9 +48,9 @@ export function Home() {
   return (
     <div>
       {/* TOP STORIES — WSJ 3-column grid: news stack | lead+image | Opinion rail.
-          Uniform gap-8 gutters, no per-column horizontal padding; the vertical
+          Uniform gap-6 gutters, no per-column horizontal padding; the vertical
           rules sit in the gutter via border-r so every column aligns. */}
-      <section className="grid grid-cols-1 gap-8 lg:grid-cols-[17rem_minmax(0,1fr)_18rem]">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[17rem_minmax(0,1fr)_18rem]">
         {/* LEFT — mixed stack: a feature with photo, text headlines, then a
             thumbnail list (varied card types like WSJ). */}
         <div className="flex flex-col divide-y divide-rule">
@@ -79,7 +79,7 @@ export function Home() {
         </div>
 
         {/* CENTER — lead story with hero image + related bullets */}
-        <div className="lg:border-l lg:border-rule lg:pl-8">
+        <div className="lg:border-l lg:border-rule lg:pl-6">
           <ArticleCard article={lead} variant="lead" showImage showDeck showByline />
           {leadBullets.length > 0 ? (
             <ul className="mt-4 flex flex-col divide-y divide-rule border-t border-rule">
@@ -148,7 +148,7 @@ function SectionBands({ articles }: { articles: Article[] }) {
 function OpinionRail({ articles }: { articles: Article[] }) {
   if (articles.length === 0) return null
   return (
-    <aside className="lg:border-l lg:border-rule lg:pl-8">
+    <aside className="lg:border-l lg:border-rule lg:pl-6">
       <div className="mb-3 border-t-3 border-ink pt-2">
         <h2 className="headline text-2xl text-ink">Opinion</h2>
       </div>
@@ -194,7 +194,7 @@ function CategorySection({ name, articles }: { name: Category; articles: Article
           More {name}
         </Link>
       </div>
-      <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
         {featured ? (
           <div>
             <ArticleCard
@@ -206,12 +206,12 @@ function CategorySection({ name, articles }: { name: Category; articles: Article
           </div>
         ) : null}
         {secondary ? (
-          <div className="border-t border-rule pt-4 sm:border-l sm:border-t-0 sm:border-rule sm:pl-8 sm:pt-0">
+          <div className="border-t border-rule pt-4 sm:border-l sm:border-t-0 sm:border-rule sm:pl-6 sm:pt-0">
             <ArticleCard article={secondary} variant="standard" showByline={false} />
           </div>
         ) : null}
         {listed.length > 0 ? (
-          <div className="flex flex-col divide-y divide-rule border-t border-rule pt-4 sm:border-l sm:border-t-0 sm:border-rule sm:pl-8 sm:pt-0">
+          <div className="flex flex-col divide-y divide-rule border-t border-rule pt-4 sm:border-l sm:border-t-0 sm:border-rule sm:pl-6 sm:pt-0">
             {listed.map((article) => (
               <div key={article.id} className="py-3 first:pt-0">
                 <ArticleCard
