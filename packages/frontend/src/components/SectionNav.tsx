@@ -29,7 +29,7 @@ export function SectionNav() {
       className="sticky top-0 z-20 border-b border-ink bg-paper"
       onMouseLeave={() => setHovered(null)}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2">
+      <div className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-2">
         <div className="flex items-center gap-4">
           <button
             type="button"
@@ -41,11 +41,13 @@ export function SectionNav() {
             {open ? 'Close' : 'Sections'}
           </button>
 
-          {/* Compact GWJ logo / monogram — the wordmark is "The Global World Journal". */}
+          {/* Compact GWJ logo / monogram — the wordmark is "The Global World Journal".
+              Centered on mobile (absolute centering), static next to the section
+              links on desktop. */}
           <Link
             to="/"
             aria-label="The Global World Journal — home"
-            className="headline text-lg font-black tracking-tight text-ink"
+            className="headline absolute left-1/2 -translate-x-1/2 text-lg font-black tracking-tight text-ink md:static md:translate-x-0"
           >
             GWJ
           </Link>

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { authorSlug, findWriterBySlug } from '@gwj/shared-types'
 import { getArticles } from '../lib/api'
 import { ArticleCard } from '../components/ArticleCard'
+import { AdSlot } from '../components/AdSlot'
 import { StatusMessage } from '../components/StatusMessage'
 import { ListSkeleton } from '../components/Skeletons'
 
@@ -72,6 +73,8 @@ export function AuthorPage() {
           ))}
         </div>
       )}
+
+      <AdSlot variant="leaderboard" className="mt-10 border-t border-rule pt-8" />
     </div>
   )
 }

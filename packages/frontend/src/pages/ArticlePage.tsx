@@ -4,6 +4,7 @@ import { getArticle, ApiRequestError } from '../lib/api'
 import { Kicker } from '../components/Kicker'
 import { Byline } from '../components/Byline'
 import { ArticleBody } from '../components/ArticleBody'
+import { AdSlot } from '../components/AdSlot'
 import { StatusMessage } from '../components/StatusMessage'
 import { ArticleSkeleton } from '../components/Skeletons'
 import { NotFound } from './NotFound'
@@ -76,6 +77,8 @@ export function ArticlePage() {
       <div className="mt-6">
         <ArticleBody markdown={data.body} />
       </div>
+
+      <AdSlot variant="leaderboard" className="mt-10 border-t border-rule pt-8" />
     </article>
   )
 }

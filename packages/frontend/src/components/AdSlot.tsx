@@ -2,6 +2,8 @@ type AdVariant = 'leaderboard' | 'mrec' | 'inline'
 
 interface AdSlotProps {
   variant?: AdVariant
+  /** Stick to the top (below the nav) as the column scrolls past — for rail ads. */
+  sticky?: boolean
   className?: string
 }
 
@@ -17,9 +19,11 @@ const SIZE: Record<AdVariant, string> = {
  * A labelled advertising slot. Renders a neutral placeholder now; fills the
  * white space a news grid leaves and marks where real ad units will go.
  */
-export function AdSlot({ variant = 'mrec', className }: AdSlotProps) {
+export function AdSlot({ variant = 'mrec', sticky = false, className }: AdSlotProps) {
   return (
-    <aside className={`flex flex-col items-center ${className ?? ''}`}>
+    <aside
+      className={`flex flex-col items-center ${sticky ? 'lg:sticky lg:top-20' : ''} ${className ?? ''}`}
+    >
       <span className="label mb-1 text-[0.5625rem] tracking-[0.18em] text-muted">Advertisement</span>
       <div
         className={`flex items-center justify-center border border-rule bg-ink/[0.03] ${SIZE[variant]}`}

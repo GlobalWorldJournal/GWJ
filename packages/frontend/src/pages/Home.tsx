@@ -46,6 +46,8 @@ export function Home() {
   const leftStack = rest.slice(0, 3)
   const leftList = rest.slice(3, 6)
   const leadBullets = rest.slice(6, 10)
+  const centerMore = rest.slice(10, 14) // fills the center column below the lead
+  const mostPopular = all.slice(0, 6) // "Most Popular" module fills the rail
 
   return (
     <div>
@@ -101,10 +103,27 @@ export function Home() {
               ))}
             </ul>
           ) : null}
+          {centerMore.length > 0 ? (
+            <div className="mt-6 grid grid-cols-1 gap-6 border-t border-rule pt-6 sm:grid-cols-2">
+              {centerMore.map((article) => (
+                <ArticleCard
+                  key={article.id}
+                  article={article}
+                  variant="standard"
+                  showImage={Boolean(article.heroImage)}
+                  showByline={false}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
 
-        {/* RIGHT — Opinion rail */}
-        <OpinionRail articles={opinion} />
+        {/* RIGHT — Opinion rail + Most Popular + ad (fills the column) */}
+        <div className="flex flex-col gap-8 lg:border-l lg:border-rule lg:pl-6">
+          <OpinionRail articles={opinion} />
+          <MostPopular articles={mostPopular} />
+          <AdSlot variant="mrec" sticky />
+        </div>
       </section>
 
       {/* SECTION BANDS — load more on scroll, like WSJ's front page */}
@@ -156,7 +175,7 @@ function SectionBands({ articles }: { articles: Article[] }) {
 function OpinionRail({ articles }: { articles: Article[] }) {
   if (articles.length === 0) return null
   return (
-    <aside className="lg:border-l lg:border-rule lg:pl-6">
+    <section>
       <div className="mb-3 border-t-3 border-ink pt-2">
         <h2 className="headline text-2xl text-ink">Opinion</h2>
       </div>
@@ -180,8 +199,33 @@ function OpinionRail({ articles }: { articles: Article[] }) {
           </li>
         ))}
       </ul>
-      <AdSlot variant="mrec" className="mt-6" />
-    </aside>
+    </section>
+  )
+}
+
+/** "Most Popular" numbered list — a rail module that fills the right column. */
+function MostPopular({ articles }: { articles: Article[] }) {
+  if (articles.length === 0) return null
+  return (
+    <section>
+      <div className="mb-3 border-t-3 border-ink pt-2">
+        <h2 className="headline text-2xl text-ink">Most Popular</h2>
+      </div>
+      <ol className="flex flex-col divide-y divide-rule">
+        {articles.map((article, i) => (
+          <li key={article.id} className="py-3 first:pt-0">
+            <Link to={`/article/${article.slug}`} className="group flex items-start gap-3">
+              <span aria-hidden className="headline text-2xl leading-none text-muted/60">
+                {i + 1}
+              </span>
+              <p className="font-body text-[0.95rem] font-semibold leading-snug text-ink transition-colors group-hover:text-accent">
+                {article.title}
+              </p>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </section>
   )
 }
 
