@@ -6,7 +6,7 @@ export function Footer() {
   return (
     <footer className="mt-16 border-t-3 border-ink bg-paper">
       <div className="mx-auto max-w-6xl px-4 py-10">
-        <p className="headline text-2xl text-ink">Global World Journal</p>
+        <p className="headline text-2xl text-ink">The Global World Journal</p>
         <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
           {CATEGORIES.map((category) => (
             <li key={category}>
@@ -20,7 +20,7 @@ export function Footer() {
           ))}
         </ul>
         <p className="label mt-8 text-[0.625rem] text-muted">
-          &copy; {new Date().getFullYear()} Global World Journal. All rights reserved.
+          &copy; {new Date().getFullYear()} The Global World Journal. All rights reserved.
         </p>
       </div>
     </footer>

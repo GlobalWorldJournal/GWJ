@@ -17,7 +17,7 @@ export function Masthead() {
         <p className="label text-[0.625rem] text-muted">{todayDateline()}</p>
         <Link to="/" className="mt-1 inline-block">
           <h1 className="headline text-4xl font-black tracking-tight text-ink sm:text-5xl md:text-6xl">
-            Global World Journal
+            The Global World Journal
           </h1>
         </Link>
         <p className="label mt-1 text-[0.625rem] tracking-[0.18em] text-muted">

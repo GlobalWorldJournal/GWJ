@@ -25,7 +25,7 @@ export function Login() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4">
-      <p className="kicker text-center">Global World Journal</p>
+      <p className="kicker text-center">The Global World Journal</p>
       <h1 className="headline mt-1 mb-8 text-center text-3xl text-ink">Newsroom Sign In</h1>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">

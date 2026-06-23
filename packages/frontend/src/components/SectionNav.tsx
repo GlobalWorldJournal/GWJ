@@ -15,28 +15,39 @@ export function SectionNav() {
   return (
     <nav className="sticky top-0 z-20 border-b border-ink bg-paper">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2">
-        <button
-          type="button"
-          className="label text-[0.75rem] text-ink md:hidden"
-          aria-expanded={open}
-          aria-controls="section-drawer"
-          onClick={() => setOpen((value) => !value)}
-        >
-          {open ? 'Close' : 'Sections'}
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            className="label text-[0.75rem] text-ink md:hidden"
+            aria-expanded={open}
+            aria-controls="section-drawer"
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? 'Close' : 'Sections'}
+          </button>
 
-        <ul className="hidden items-center gap-5 md:flex">
-          {CATEGORIES.map((category) => (
-            <li key={category}>
-              <NavLink
-                to={`/${categorySlug(category)}`}
-                className={({ isActive }) => `${NAV_LINK_BASE} ${activeClass(isActive)}`}
-              >
-                {category}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+          {/* Compact GWJ logo / monogram — the wordmark is "The Global World Journal". */}
+          <Link
+            to="/"
+            aria-label="The Global World Journal — home"
+            className="headline text-lg font-black tracking-tight text-ink"
+          >
+            GWJ
+          </Link>
+
+          <ul className="hidden items-center gap-5 md:flex">
+            {CATEGORIES.map((category) => (
+              <li key={category}>
+                <NavLink
+                  to={`/${categorySlug(category)}`}
+                  className={({ isActive }) => `${NAV_LINK_BASE} ${activeClass(isActive)}`}
+                >
+                  {category}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </div>
 
         <NavLink
           to="/search"

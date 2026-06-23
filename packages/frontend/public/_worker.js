@@ -5,7 +5,7 @@
 // static assets (which honor _redirects → SPA fallback).
 
 const CATEGORY_SLUGS = ['world', 'business', 'markets', 'tech', 'politics', 'opinion', 'arts']
-const SITE_NAME = 'Global World Journal'
+const SITE_NAME = 'The Global World Journal'
 
 function getConfig(env) {
   const apiBaseUrl = (env && env.API_BASE_URL ? String(env.API_BASE_URL) : '').replace(/\/$/, '')
