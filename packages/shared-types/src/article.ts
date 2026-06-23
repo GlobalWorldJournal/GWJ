@@ -48,7 +48,10 @@ export const ArticleInputSchema = z.object({
   kicker: z.string().optional(),
   category: CategorySchema,
   author: z.string().min(1),
-  body: z.array(ContentBlockSchema).default([]),
+  // Article body is stored as Markdown (GitHub-flavored), rendered to HTML on
+  // the client. The legacy ContentBlock union remains exported for reference
+  // but is no longer the storage format.
+  body: z.string().min(1),
   heroImage: HeroImageSchema.optional(),
   status: ArticleStatusSchema.default('draft'),
   featured: z.number().int().min(0).default(0),

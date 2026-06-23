@@ -48,7 +48,7 @@ const validArticle = () => ({
   kicker: 'MARKETS',
   category: CATEGORIES[2],
   author: 'Nate',
-  body: [{ type: 'paragraph', text: 'A strong session today.' }],
+  body: '# Markets Rally\n\nA strong session **today**.',
   tags: ['markets'],
 })
 

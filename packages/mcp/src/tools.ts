@@ -2,6 +2,7 @@ import {
   ArticleInputSchema,
   ArticleListQuerySchema,
   ArticleUpdateSchema,
+  pickWriter,
 } from '@gwj/shared-types'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -50,6 +51,21 @@ const ArticleRefShape = {
 
 const ArticleIdShape = { id: z.string().min(1).describe('Article id') }
 
+/**
+ * Create-article input: `author` is optional because the agent normally should
+ * not name a byline. When omitted, the tool auto-assigns one from the writer
+ * roster (see `pickWriter`) based on the article's category before calling the
+ * backend, which still requires an author.
+ */
+const CreateArticleShape = {
+  ...ArticleInputSchema.shape,
+  author: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Byline; auto-assigned from the writer roster by category when omitted'),
+}
+
 const UpdateArticleShape = {
   id: z.string().min(1).describe('Article id to update'),
   ...ArticleUpdateSchema.shape,
@@ -89,10 +105,14 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
   server.registerTool(
     'create_article',
     {
-      description: 'Create a new article (defaults to draft). Returns the created article.',
-      inputSchema: ArticleInputSchema.shape,
+      description:
+        'Create a new article (defaults to draft). The byline is auto-assigned from the writer roster by category when `author` is omitted. Returns the created article.',
+      inputSchema: CreateArticleShape,
     },
-    (args) => guard(async () => jsonResult(await client.createArticle(args))),
+    (args) => {
+      const author = args.author ?? pickWriter(args.category, args.title).name
+      return guard(async () => jsonResult(await client.createArticle({ ...args, author })))
+    },
   )
 
   server.registerTool(

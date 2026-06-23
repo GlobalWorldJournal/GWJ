@@ -51,7 +51,7 @@ function articleResponse(id: string): Response {
       title: 'Sample',
       category: 'World',
       author: 'nate',
-      body: [],
+      body: 'Sample body.',
       status: 'draft',
       featured: 0,
       tags: [],

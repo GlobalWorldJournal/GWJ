@@ -30,7 +30,7 @@ describe('ArticleInputSchema', () => {
       title: 'X',
       category: CATEGORIES[0],
       author: 'n',
-      body: [{ type: 'paragraph', text: 'hi' }],
+      body: '# Heading\n\nA markdown paragraph.',
     })
     expect(r.success).toBe(true)
     if (r.success) {

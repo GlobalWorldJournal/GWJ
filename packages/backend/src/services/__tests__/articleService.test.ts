@@ -11,7 +11,7 @@ const baseInput = (overrides: Partial<ArticleInput> = {}): ArticleInput => ({
   title: 'Global Equities Climb, Again!',
   category: CATEGORIES[0],
   author: 'Nate',
-  body: [{ type: 'paragraph', text: 'Markets rose today.' }],
+  body: '# Markets\n\nMarkets rose **today**.',
   status: 'draft',
   featured: 0,
   tags: [],

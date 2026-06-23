@@ -1,4 +1,4 @@
-import { CATEGORIES, type Article } from '@gwj/shared-types'
+import { CATEGORIES, WRITERS, pickWriter, type Article } from '@gwj/shared-types'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +14,7 @@ function sampleArticle(overrides: Partial<Article> = {}): Article {
     title: 'Sample Article',
     category: CATEGORIES[0],
     author: 'nate',
-    body: [{ type: 'paragraph', text: 'hello' }],
+    body: 'hello',
     status: 'draft',
     featured: 0,
     tags: [],
@@ -89,7 +89,7 @@ describe('GWJ MCP tools', () => {
         title: 'Markets rally on rate-cut hopes',
         category: CATEGORIES[2],
         author: 'nate',
-        body: [{ type: 'paragraph', text: 'Equities climbed today.' }],
+        body: '# Markets rally\n\nEquities climbed today.',
       },
     })
 
@@ -97,6 +97,10 @@ describe('GWJ MCP tools', () => {
     const passed = vi.mocked(client.createArticle).mock.calls[0]?.[0]
     expect(passed?.title).toBe('Markets rally on rate-cut hopes')
     expect(passed?.category).toBe(CATEGORIES[2])
+    // An explicit author is preserved (not overwritten by the auto-byline).
+    expect(passed?.author).toBe('nate')
+    // The body is accepted as a Markdown string.
+    expect(passed?.body).toBe('# Markets rally\n\nEquities climbed today.')
     // Schema defaults are applied before reaching the client.
     expect(passed?.status).toBe('draft')
     expect(passed?.featured).toBe(0)
@@ -105,13 +109,40 @@ describe('GWJ MCP tools', () => {
     expect(JSON.parse(content[0]?.text ?? '{}').id).toBe('created-1')
   })
 
+  it('auto-assigns a roster byline when create_article omits the author', async () => {
+    const client = mockClient()
+    vi.mocked(client.createArticle).mockResolvedValue(sampleArticle({ id: 'auto-1' }))
+    mcpClient = await connect(client)
+
+    const title = 'Chipmakers post record quarterly revenue'
+    const category = 'Tech'
+    const result = await mcpClient.callTool({
+      name: 'create_article',
+      arguments: {
+        title,
+        category,
+        body: 'Demand for AI accelerators drove the surge.',
+      },
+    })
+
+    expect(result.isError).toBeFalsy()
+    expect(client.createArticle).toHaveBeenCalledTimes(1)
+    const passed = vi.mocked(client.createArticle).mock.calls[0]?.[0]
+    // The byline is filled in deterministically by pickWriter for the category.
+    const expected = pickWriter(category, title)
+    expect(passed?.author).toBe(expected.name)
+    // The assigned writer is a real member of the roster on the matching beat.
+    expect(WRITERS.some((w) => w.name === passed?.author)).toBe(true)
+    expect(expected.beat).toBe(category)
+  })
+
   it('rejects create_article with an invalid category and never calls the client', async () => {
     const client = mockClient()
     mcpClient = await connect(client)
 
     const result = await mcpClient.callTool({
       name: 'create_article',
-      arguments: { title: 'X', category: 'Sports', author: 'nate', body: [] },
+      arguments: { title: 'X', category: 'Sports', author: 'nate', body: 'Body text' },
     })
 
     expect(result.isError).toBe(true)

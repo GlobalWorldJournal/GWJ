@@ -3,7 +3,6 @@ import {
   type Article,
   type ArticleStatus,
   type Category,
-  type ContentBlock,
   type HeroImage,
   type Seo,
 } from '@gwj/shared-types'
@@ -20,7 +19,7 @@ export interface ArticleAttrs {
   kicker?: string
   category: Category
   author: string
-  body: ContentBlock[]
+  body: string
   heroImage?: HeroImage
   status: ArticleStatus
   featured: number
@@ -54,9 +53,9 @@ const seoSchema = new Schema<Seo>(
 )
 
 /**
- * Content blocks are a discriminated union. Mongoose can't validate that union
- * natively, so the body path is stored as Mixed; the Zod `ArticleInputSchema` is
- * the authority that validates block shapes before they ever reach this model.
+ * The body is stored as a Markdown string (GitHub-flavored), rendered to HTML on
+ * the client. The Zod `ArticleInputSchema` is the authority that validates it
+ * before it ever reaches this model.
  */
 const articleSchema = new Schema<ArticleAttrs, ArticleModelType>(
   {
@@ -66,7 +65,7 @@ const articleSchema = new Schema<ArticleAttrs, ArticleModelType>(
     kicker: { type: String },
     category: { type: String, required: true },
     author: { type: String, required: true },
-    body: { type: Schema.Types.Mixed, default: [] },
+    body: { type: String, required: true },
     heroImage: { type: heroImageSchema },
     status: { type: String, enum: ['draft', 'published'], default: 'draft', required: true },
     featured: { type: Number, default: 0, min: 0 },
