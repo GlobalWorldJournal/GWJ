@@ -5,6 +5,7 @@ import { SiteLayout } from './components/SiteLayout'
 import { Home } from './pages/Home'
 import { Category } from './pages/Category'
 import { ArticlePage } from './pages/ArticlePage'
+import { AuthorPage } from './pages/AuthorPage'
 import { Search } from './pages/Search'
 import { NotFound } from './pages/NotFound'
 import { AdminApp } from './admin/AdminApp'
@@ -18,6 +19,7 @@ export function App() {
           <Route element={<SiteLayout />}>
             <Route index element={<Home />} />
             <Route path="article/:slug" element={<ArticlePage />} />
+            <Route path="author/:slug" element={<AuthorPage />} />
             <Route path="search" element={<Search />} />
             <Route path=":category" element={<Category />} />
             <Route path="*" element={<NotFound />} />

@@ -1,3 +1,6 @@
+import { Link } from 'react-router-dom'
+import { authorSlug } from '@gwj/shared-types'
+
 interface BylineProps {
   author: string
   category?: string
@@ -22,7 +25,9 @@ export function Byline({ author, category, publishedAt, className }: BylineProps
   const date = publishedAt ? formatDate(publishedAt) : ''
   return (
     <p className={`label text-[0.6875rem] text-ink-soft ${className ?? ''}`}>
-      <span className="text-ink">By {author}</span>
+      <Link to={`/author/${authorSlug(author)}`} className="text-ink transition-colors hover:text-accent">
+        By {author}
+      </Link>
       {category ? <span className="text-muted"> · {category}</span> : null}
       {date ? <span className="text-muted"> · {date}</span> : null}
     </p>

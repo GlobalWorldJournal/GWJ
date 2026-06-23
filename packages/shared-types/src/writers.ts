@@ -1,4 +1,5 @@
 import type { Category } from './category'
+import { slugify } from './article'
 
 /**
  * The Global World Journal masthead — a roster of (fictional) staff writers,
@@ -51,4 +52,14 @@ export function pickWriter(category: Category, seed = ''): Writer {
   const pool = onBeat.length > 0 ? onBeat : WRITERS
   const index = hash(`${category}:${seed}`) % pool.length
   return pool[index] ?? pool[0] ?? WRITERS[0]!
+}
+
+/** URL slug for an author byline, e.g. "Eleanor Vance" -> "eleanor-vance". */
+export function authorSlug(name: string): string {
+  return slugify(name)
+}
+
+/** Resolve an author-page slug back to a roster writer, if it is one. */
+export function findWriterBySlug(slug: string): Writer | undefined {
+  return WRITERS.find((w) => authorSlug(w.name) === slug)
 }
