@@ -41,3 +41,21 @@ export const DEFAULT_EDITION_USERNAMES: Record<Language, string> = {
 export function isLanguage(value: string): value is Language {
   return (SUPPORTED_LANGUAGES as readonly string[]).includes(value)
 }
+
+/**
+ * The URL path prefix for an edition: `''` for the default (English) root edition,
+ * `'/es'` / `'/fr'` otherwise. Single source of truth for the reader's locale
+ * routing — consumed by the frontend router and by the backend when it builds
+ * reader-facing article URLs, so the editions never drift apart.
+ */
+export function localePrefix(language: Language): string {
+  return language === DEFAULT_LANGUAGE ? '' : `/${language}`
+}
+
+/**
+ * Canonical public reader URL for an article on a site domain, language-prefixed
+ * to match the reader route: `https://<domain><localePrefix>/article/<slug>`.
+ */
+export function articlePublicUrl(domain: string, language: Language, slug: string): string {
+  return `https://${domain}${localePrefix(language)}/article/${slug}`
+}

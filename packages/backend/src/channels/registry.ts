@@ -29,32 +29,20 @@ export function startChannelPublishing(channels: readonly PublishChannel[]): () 
       (channel) => channel.isEnabled() && channel.servesLanguage(language),
     )
     if (matched.length === 0) return
-    const results = await Promise.allSettled(
+    // Each task owns its own logging and never rejects (errors caught here), so one
+    // channel failing can't affect the others — no index correlation needed.
+    await Promise.all(
       matched.map(async (channel) => {
-        await channel.publish(article)
-        return channel.name
+        const meta = { channel: channel.name, platform: channel.platform, articleId: article.id }
+        try {
+          await channel.publish(article)
+          logger.info('channel publish succeeded', meta)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          logger.error('channel publish failed', { ...meta, message })
+        }
       }),
     )
-    results.forEach((result, index) => {
-      const channel = matched[index]
-      if (!channel) return
-      if (result.status === 'fulfilled') {
-        logger.info('channel publish succeeded', {
-          channel: channel.name,
-          platform: channel.platform,
-          articleId: article.id,
-        })
-      } else {
-        const message =
-          result.reason instanceof Error ? result.reason.message : String(result.reason)
-        logger.error('channel publish failed', {
-          channel: channel.name,
-          platform: channel.platform,
-          articleId: article.id,
-          message,
-        })
-      }
-    })
   }
 
   // The listener is synchronous and must not throw: it launches the best-effort

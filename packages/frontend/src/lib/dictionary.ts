@@ -28,9 +28,7 @@ export const DICT: Record<Language, Record<string, string>> = {
     // Follow / distribution (Telegram now; WhatsApp planned)
     follow: 'Follow',
     followOnTelegram: 'Follow on Telegram',
-    telegram: 'Telegram',
     railFollowLine: 'The day’s essential reading, on Telegram.',
-    whatsAppComingSoon: 'WhatsApp coming soon.',
 
     // Footer column titles
     sectionsTitle: 'Sections',
@@ -74,9 +72,7 @@ export const DICT: Record<Language, Record<string, string>> = {
 
     follow: 'Seguir',
     followOnTelegram: 'Síguenos en Telegram',
-    telegram: 'Telegram',
     railFollowLine: 'La lectura esencial del día, en Telegram.',
-    whatsAppComingSoon: 'WhatsApp llegará pronto.',
 
     sectionsTitle: 'Secciones',
     customerService: 'Atención al cliente',
@@ -118,9 +114,7 @@ export const DICT: Record<Language, Record<string, string>> = {
 
     follow: 'Suivre',
     followOnTelegram: 'Suivez-nous sur Telegram',
-    telegram: 'Telegram',
     railFollowLine: 'L’essentiel du jour, sur Telegram.',
-    whatsAppComingSoon: 'WhatsApp arrive bientôt.',
 
     sectionsTitle: 'Rubriques',
     customerService: 'Service client',

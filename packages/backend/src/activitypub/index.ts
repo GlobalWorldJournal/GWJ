@@ -141,8 +141,13 @@ export function createActivityPub(env: Env, options: ActivityPubOptions = {}): A
     const writer = registry.writerForAuthor(article.author)
 
     if (writer) {
-      await delivery.deliverCreate(writer, article)
-      await delivery.deliverAnnounce(edition, writer, article)
+      // The writer Create (to the writer's followers) and the edition Announce (to
+      // the edition's followers) are independent — different follower sets, no shared
+      // state — so run them concurrently rather than serially.
+      await Promise.allSettled([
+        delivery.deliverCreate(writer, article),
+        delivery.deliverAnnounce(edition, writer, article),
+      ])
     } else {
       await delivery.deliverCreate(edition, article)
     }

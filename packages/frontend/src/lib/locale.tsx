@@ -1,6 +1,12 @@
 import { forwardRef } from 'react'
 import { Link, NavLink, useLocation, type LinkProps, type NavLinkProps } from 'react-router-dom'
-import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, isLanguage, type Language } from '@gwj/shared-types'
+import {
+  DEFAULT_LANGUAGE,
+  SUPPORTED_LANGUAGES,
+  isLanguage,
+  localePrefix,
+  type Language,
+} from '@gwj/shared-types'
 
 /**
  * Path-based locale editions. English is the canonical root edition and carries
@@ -22,10 +28,6 @@ export function isPrefixedLocale(value: string): value is PrefixedLocale {
   return isLanguage(value) && value !== DEFAULT_LANGUAGE
 }
 
-/** The path prefix for an edition: `''` for English, `'/es'` / `'/fr'` otherwise. */
-export function localePrefix(lang: Language): string {
-  return lang === DEFAULT_LANGUAGE ? '' : `/${lang}`
-}
 
 /**
  * The edition that owns a given pathname, read from its first path segment.

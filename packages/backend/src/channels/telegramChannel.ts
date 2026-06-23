@@ -1,5 +1,12 @@
-import { DEFAULT_LANGUAGE, isLanguage, type Article, type Language } from '@gwj/shared-types'
+import {
+  DEFAULT_LANGUAGE,
+  articlePublicUrl,
+  isLanguage,
+  type Article,
+  type Language,
+} from '@gwj/shared-types'
 import type { Env } from '../env'
+import { escapeHtml } from '../activitypub/documents'
 import { logger } from '../logger'
 import type { PublishChannel } from './types'
 
@@ -40,36 +47,6 @@ const TELEGRAM_CHANNELS: readonly TelegramChannelConfig[] = [
     resolveToken: (env) => env.TELEGRAM_BOT_TOKEN,
   },
 ]
-
-/**
- * Path prefix for an edition's public URLs: `''` for the default (English) edition,
- * `'/es'` / `'/fr'` otherwise. Mirrors the frontend reader's locale routing (the
- * canonical article URL on the apex is `/<lang>/article/<slug>`, English at the
- * root). Kept local to avoid importing the frontend (React) routing module.
- */
-function localePrefix(language: Language): string {
-  return language === DEFAULT_LANGUAGE ? '' : `/${language}`
-}
-
-/** Escape a string for safe interpolation into Telegram HTML (parse_mode: 'HTML'). */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-/**
- * Build the canonical public article URL on the apex domain, language-prefixed to
- * match the reader route: `https://<domain><localePrefix>/article/<slug>`. The apex
- * comes from the SAME `FEDIVERSE_DOMAIN` config the ActivityPub identity uses, never
- * a hardcoded host.
- */
-function articlePublicUrl(domain: string, language: Language, slug: string): string {
-  return `https://${domain}${localePrefix(language)}/article/${slug}`
-}
 
 /**
  * Build the HTML caption for a Telegram post: a bold title, the deck (when present),

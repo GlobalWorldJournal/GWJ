@@ -25,8 +25,8 @@ import {
 /** Length budget for the auto-generated story summary in a Note. */
 const SUMMARY_MAX_CHARS = 280
 
-/** Escape a string for safe interpolation into HTML content. */
-function escapeHtml(value: string): string {
+/** Escape a string for safe interpolation into HTML payloads (AS2 Note content, Telegram captions). */
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
