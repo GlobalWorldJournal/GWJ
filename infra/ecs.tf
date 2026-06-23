@@ -38,6 +38,7 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "JWT_SECRET", valueFrom = aws_ssm_parameter.jwt_secret.arn },
       { name = "ADMIN_USERNAME", valueFrom = aws_ssm_parameter.admin_username.arn },
       { name = "ADMIN_PASSWORD", valueFrom = aws_ssm_parameter.admin_password.arn },
+      { name = "TELEGRAM_BOT_TOKEN", valueFrom = aws_ssm_parameter.telegram_bot_token.arn },
     ]
     logConfiguration = {
       logDriver = "awslogs"

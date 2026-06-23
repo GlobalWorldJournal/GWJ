@@ -1,5 +1,6 @@
 import { config as loadDotenv } from 'dotenv'
 import { z } from 'zod'
+import { TELEGRAM_CHANNEL_HANDLE } from '@gwj/shared-types'
 
 /**
  * Reject placeholder secret values. A secret set to `'-'` or empty string is a
@@ -92,6 +93,19 @@ const EnvSchema = z.object({
   // Optional per-edition username override (JSON map). Absent → canonical defaults
   // (en→news, es→noticias, fr→actualites). Writers are derived from the roster.
   FEDIVERSE_EDITION_USERNAMES: editionUsernamesOverride,
+
+  // --- Telegram distribution channel ---
+  // The bot token authorizes posting to the channel. OPTIONAL: when absent (or
+  // empty), the Telegram channel is disabled and publishing is a safe no-op — the
+  // backend boots fine without it. A NON-empty placeholder `'-'` is rejected.
+  TELEGRAM_BOT_TOKEN: optionalSecret('TELEGRAM_BOT_TOKEN'),
+  // Target channel for posts. Defaults to the canonical public handle
+  // (`@GWJOfficial`); override for a different channel/numeric chat id.
+  TELEGRAM_CHANNEL: z
+    .string()
+    .transform((v) => v.trim())
+    .transform((v) => (v.length === 0 ? TELEGRAM_CHANNEL_HANDLE : v))
+    .default(TELEGRAM_CHANNEL_HANDLE),
 })
 
 export type Env = z.infer<typeof EnvSchema>

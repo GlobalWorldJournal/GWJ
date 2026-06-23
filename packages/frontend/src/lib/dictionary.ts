@@ -25,6 +25,13 @@ export const DICT: Record<Language, Record<string, string>> = {
     loadingError: 'We couldn’t load this page.',
     noStories: 'No stories yet.',
 
+    // Follow / distribution (Telegram now; WhatsApp planned)
+    follow: 'Follow',
+    followOnTelegram: 'Follow on Telegram',
+    telegram: 'Telegram',
+    railFollowLine: 'The day’s essential reading, on Telegram.',
+    whatsAppComingSoon: 'WhatsApp coming soon.',
+
     // Footer column titles
     sectionsTitle: 'Sections',
     customerService: 'Customer Service',
@@ -35,8 +42,8 @@ export const DICT: Record<Language, Record<string, string>> = {
     // Footer link labels
     customerCenter: 'Customer Center',
     contactUs: 'Contact Us',
-    subscribe: 'Subscribe',
-    newsletters: 'Newsletters',
+    subscribe: 'Follow Us',
+    newsletters: 'Telegram',
     rssFeeds: 'RSS Feeds',
     podcasts: 'Podcasts',
     video: 'Video',
@@ -65,6 +72,12 @@ export const DICT: Record<Language, Record<string, string>> = {
     loadingError: 'No pudimos cargar esta página.',
     noStories: 'Aún no hay artículos.',
 
+    follow: 'Seguir',
+    followOnTelegram: 'Síguenos en Telegram',
+    telegram: 'Telegram',
+    railFollowLine: 'La lectura esencial del día, en Telegram.',
+    whatsAppComingSoon: 'WhatsApp llegará pronto.',
+
     sectionsTitle: 'Secciones',
     customerService: 'Atención al cliente',
     tools: 'Herramientas',
@@ -73,8 +86,8 @@ export const DICT: Record<Language, Record<string, string>> = {
 
     customerCenter: 'Centro de atención',
     contactUs: 'Contáctanos',
-    subscribe: 'Suscríbete',
-    newsletters: 'Boletines',
+    subscribe: 'Síguenos',
+    newsletters: 'Telegram',
     rssFeeds: 'Fuentes RSS',
     podcasts: 'Pódcasts',
     video: 'Vídeo',
@@ -103,6 +116,12 @@ export const DICT: Record<Language, Record<string, string>> = {
     loadingError: 'Impossible de charger cette page.',
     noStories: 'Aucun article pour l’instant.',
 
+    follow: 'Suivre',
+    followOnTelegram: 'Suivez-nous sur Telegram',
+    telegram: 'Telegram',
+    railFollowLine: 'L’essentiel du jour, sur Telegram.',
+    whatsAppComingSoon: 'WhatsApp arrive bientôt.',
+
     sectionsTitle: 'Rubriques',
     customerService: 'Service client',
     tools: 'Outils',
@@ -111,8 +130,8 @@ export const DICT: Record<Language, Record<string, string>> = {
 
     customerCenter: 'Centre d’assistance',
     contactUs: 'Nous contacter',
-    subscribe: 'S’abonner',
-    newsletters: 'Newsletters',
+    subscribe: 'Nous suivre',
+    newsletters: 'Telegram',
     rssFeeds: 'Flux RSS',
     podcasts: 'Podcasts',
     video: 'Vidéo',

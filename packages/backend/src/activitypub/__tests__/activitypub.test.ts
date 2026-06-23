@@ -148,7 +148,7 @@ afterEach(() => {
 })
 
 afterAll(async () => {
-  built.activityPub.dispose()
+  built.stopChannels()
   await mongoose.disconnect()
   await mongod.stop()
 })

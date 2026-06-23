@@ -72,6 +72,19 @@ resource "aws_ssm_parameter" "admin_password" {
   }
 }
 
+# Telegram bot token (BotFather), used by the backend's Telegram publish channel.
+# Externally owned: seeded out-of-band (the real token is set directly in SSM,
+# not committed), so the value is ignored by Terraform. Imported into state.
+resource "aws_ssm_parameter" "telegram_bot_token" {
+  name  = "/gwj/TELEGRAM_BOT_TOKEN"
+  type  = "SecureString"
+  value = "set-out-of-band"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 resource "aws_ssm_parameter" "mongo_admin_user" {
   name  = "/gwj/mongo_admin_user"
   type  = "String"

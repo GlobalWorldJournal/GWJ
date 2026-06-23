@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   authorSlug,
   categorySlug,
+  TELEGRAM_CHANNEL_URL,
   type Article,
   type Category,
   type Language,
@@ -183,16 +184,17 @@ export function ArticlePage() {
         </div>
       </article>
 
-      {/* RIGHT RAIL — Most Popular scrolls away; the ad + newsletter pin together
-          as one sticky block (so the newsletter never overlaps the ad). Desktop
-          only; on mobile it stacks below the article (after the related grid). */}
+      {/* RIGHT RAIL — Most Popular scrolls away; the ad + follow card pin together
+          as one sticky block (so the card never overlaps the ad). Desktop only;
+          on mobile it stacks below the article (after the related grid). */}
       <aside className="mt-12 flex flex-col gap-8 lg:mt-0 lg:border-l lg:border-rule lg:pl-8">
         <MostPopular articles={mostPopular} title={t('mostPopular')} />
         <div className="flex flex-col gap-8 lg:sticky lg:top-20">
           <AdSlot variant="mrec" sticky={false} />
-          <NewsletterCard
-            title={t('newsletters')}
-            subscribeLabel={t('subscribe')}
+          <FollowCard
+            title={t('follow')}
+            line={t('railFollowLine')}
+            ctaLabel={t('followOnTelegram')}
           />
         </div>
       </aside>
@@ -228,28 +230,32 @@ export function ArticlePage() {
 }
 
 /**
- * Compact newsletter sign-up call-to-action for the rail. Static CTA that links
- * to the existing Newsletters page — no new form/endpoint, no over-build.
+ * Compact "Follow on Telegram" call-to-action for the rail. The audience-follow
+ * channel is Telegram (no email); this is a presentational CTA that opens the
+ * channel in a new tab. The URL comes from the shared `TELEGRAM_CHANNEL_URL`
+ * constant — no new form/endpoint, no over-build.
  */
-function NewsletterCard({
+function FollowCard({
   title,
-  subscribeLabel,
+  line,
+  ctaLabel,
 }: {
   title: string
-  subscribeLabel: string
+  line: string
+  ctaLabel: string
 }) {
   return (
     <section className="border border-rule bg-ink/[0.02] p-5 text-center">
       <p className="label mb-2 text-[0.625rem] tracking-[0.16em] text-accent">{title}</p>
-      <p className="headline text-lg leading-snug text-ink">
-        The day&rsquo;s essential reading, in your inbox.
-      </p>
-      <LocaleLink
-        to="/newsletters"
+      <p className="headline text-lg leading-snug text-ink">{line}</p>
+      <a
+        href={TELEGRAM_CHANNEL_URL}
+        target="_blank"
+        rel="noopener noreferrer"
         className="label mt-4 inline-block border border-ink bg-ink px-5 py-2 text-[0.6875rem] tracking-[0.12em] text-paper transition-colors hover:bg-accent hover:border-accent"
       >
-        {subscribeLabel}
-      </LocaleLink>
+        {ctaLabel}
+      </a>
     </section>
   )
 }

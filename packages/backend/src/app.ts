@@ -9,6 +9,7 @@ import { createAdminRouter } from './routes/admin'
 import { createUploadService, type UploadService } from './services/uploadService'
 import { createErrorHandler, notFoundHandler } from './middleware/error'
 import { createActivityPub, type ActivityPubModule, type ActivityPubOptions } from './activitypub'
+import { startChannels } from './channels'
 
 const RATE_WINDOW_MS = 15 * 60 * 1000
 const PUBLIC_MAX = 300
@@ -24,10 +25,16 @@ export interface CreateAppOptions {
   activityPub?: ActivityPubOptions
 }
 
-/** The Express app plus the ActivityPub module, so the bootstrap can initialize it. */
+/** The Express app, the ActivityPub module, and the channel publishing handle. */
 export interface BuiltApp {
   app: Express
   activityPub: ActivityPubModule
+  /**
+   * Stop distribution-channel publishing (unsubscribe from article-published
+   * transitions). Call at graceful shutdown, and in tests that build multiple app
+   * instances so a stale listener doesn't fan out across instances.
+   */
+  stopChannels(): void
 }
 
 /**
@@ -36,6 +43,11 @@ export interface BuiltApp {
  * port, so tests can mount it against an in-memory database and a fake upload
  * service. The caller must `await activityPub.initialize()` once Mongo is
  * connected so the signing key is resolved.
+ *
+ * It also starts distribution-channel publishing (Mastodon + Telegram): the channel
+ * registry owns the single article-published subscription and routes each published
+ * article to every enabled channel that serves its edition. Stop it via
+ * {@link BuiltApp.stopChannels}.
  */
 export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   const app = express()
@@ -73,6 +85,10 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   const activityPub = createActivityPub(env, options.activityPub)
   app.use(federationLimiter, activityPub.router)
 
+  // The channel registry owns the single article-published subscription and fans
+  // each published article out to the Mastodon + Telegram channels by edition.
+  const stopChannels = startChannels(env, activityPub)
+
   app.use(express.json({ limit: '1mb' }))
 
   const uploadService = options.uploadService ?? createUploadService(env)
@@ -86,7 +102,7 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   app.use(notFoundHandler)
   app.use(createErrorHandler(env.NODE_ENV === 'development'))
 
-  return { app, activityPub }
+  return { app, activityPub, stopChannels }
 }
 
 /**

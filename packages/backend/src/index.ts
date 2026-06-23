@@ -10,8 +10,9 @@ export { createApp, buildApp } from './app'
 async function bootstrap(): Promise<void> {
   const env = loadEnv()
   await connectDb(env.MONGO_URI)
-  const { app, activityPub } = buildApp(env)
-  // Migrate legacy followers and wire publish delivery now that Mongo is up.
+  const { app, activityPub, stopChannels } = buildApp(env)
+  // Migrate legacy followers now that Mongo is up. Channel publishing (Mastodon +
+  // Telegram) was wired by buildApp and fans out on the next published article.
   await activityPub.initialize()
   logger.info('activitypub ready', {
     domain: activityPub.registry.domain,
@@ -24,6 +25,7 @@ async function bootstrap(): Promise<void> {
 
   const shutdown = (signal: string): void => {
     logger.info('shutting down', { signal })
+    stopChannels()
     server.close(() => {
       void disconnectDb().finally(() => process.exit(0))
     })

@@ -2,7 +2,6 @@ import type { Router } from 'express'
 import type { Article } from '@gwj/shared-types'
 import { DEFAULT_LANGUAGE, isLanguage } from '@gwj/shared-types'
 import type { Env } from '../env'
-import { onArticlePublished } from '../services/articleService'
 import { ArticleModel } from '../models/Article'
 import { FollowerModel } from '../models/Follower'
 import { logger } from '../logger'
@@ -14,9 +13,15 @@ import { createDeliveryService, type DeliveryService } from './deliveryService'
 import type { FederationFetchOptions } from './remoteActor'
 
 /**
- * The wired multi-actor ActivityPub feature: an Express router to mount plus an
- * async `initialize` step (run after Mongo connects) that migrates legacy follower
- * rows and starts publish-delivery.
+ * The wired multi-actor ActivityPub feature: an Express router to mount, a
+ * `deliverArticle` step that federates one published article, plus an async
+ * `initialize` step (run after Mongo connects) that migrates legacy follower rows.
+ *
+ * The module no longer subscribes to article-published transitions itself: the
+ * Mastodon distribution channel calls {@link ActivityPubModule.deliverArticle}, and
+ * the channel registry owns the single article-published subscription. This keeps
+ * the federation delivery logic intact while letting it fan out alongside other
+ * channels (Telegram, …).
  *
  * Per-actor signing keys are resolved LAZILY and cached: the first time an actor's
  * key is needed (its Actor document is fetched, or it delivers/accepts), the key is
@@ -27,10 +32,15 @@ export interface ActivityPubModule {
   router: Router
   registry: ActorRegistry
   delivery: DeliveryService
-  /** Migrate legacy followers and wire the publish listener. Idempotent. */
+  /**
+   * Federate one published article: the WRITER actor authors the Create and the
+   * EDITION actor Announces it (or, for a non-roster byline, the edition authors the
+   * Create directly). Best-effort — rejects only on an unexpected delivery error;
+   * with no followers or signing key it is a logged no-op.
+   */
+  deliverArticle(article: Article): Promise<void>
+  /** Migrate legacy followers. Idempotent. */
   initialize(): Promise<void>
-  /** Remove the publish listener. Use in tests that build multiple app instances. */
-  dispose(): void
 }
 
 export interface ActivityPubOptions {
@@ -119,13 +129,13 @@ export function createActivityPub(env: Env, options: ActivityPubOptions = {}): A
   }
 
   /**
-   * On publish: the WRITER actor authors the Create (delivered to its followers),
-   * then the EDITION actor for the article's language Announces that same Note
-   * (delivered to ITS followers) — so writer-followers get the post and
+   * Federate a published article: the WRITER actor authors the Create (delivered to
+   * its followers), then the EDITION actor for the article's language Announces that
+   * same Note (delivered to ITS followers) — so writer-followers get the post and
    * edition-followers get a boost, no duplicate Notes. Fallback: a non-roster byline
    * has no writer actor, so the edition authors the Create directly (no Announce).
    */
-  async function onPublish(article: Article): Promise<void> {
+  async function deliverArticle(article: Article): Promise<void> {
     const language = isLanguage(article.language) ? article.language : DEFAULT_LANGUAGE
     const edition = registry.editionFor(language)
     const writer = registry.writerForAuthor(article.author)
@@ -138,28 +148,17 @@ export function createActivityPub(env: Env, options: ActivityPubOptions = {}): A
     }
   }
 
-  // The listener is sync and must not throw; it launches best-effort delivery
-  // without blocking the publish response.
-  const unsubscribe = onArticlePublished((article) => {
-    void onPublish(article).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err)
-      logger.error('activitypub publish delivery error', { articleId: article.id, message })
-    })
-  })
-
   let initialized = false
 
   return {
     router,
     registry,
     delivery,
+    deliverArticle,
     async initialize() {
       if (initialized) return
       initialized = true
       await migrateLegacyFollowers(resolveEditionUsernames(env)[DEFAULT_LANGUAGE])
-    },
-    dispose() {
-      unsubscribe()
     },
   }
 }

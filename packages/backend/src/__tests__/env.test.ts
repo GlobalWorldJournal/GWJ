@@ -30,6 +30,8 @@ const AWS_KEYS = [
   'S3_BUCKET',
   'CDN_BASE_URL',
   'CORS_ORIGINS',
+  'TELEGRAM_BOT_TOKEN',
+  'TELEGRAM_CHANNEL',
 ]
 
 function applyEnv(values: Record<string, string>): void {
@@ -92,5 +94,26 @@ describe('env — AWS credentials are optional (ECS task role)', () => {
     delete env.AWS_REGION
     applyEnv(env)
     expect(() => loadEnv()).toThrow(/AWS_REGION/)
+  })
+})
+
+describe('env — Telegram channel config (optional)', () => {
+  it('boots without a token: TELEGRAM_BOT_TOKEN undefined, channel defaults to @GWJOfficial', () => {
+    applyEnv(baseEnv())
+    const env = loadEnv()
+    expect(env.TELEGRAM_BOT_TOKEN).toBeUndefined()
+    expect(env.TELEGRAM_CHANNEL).toBe('@GWJOfficial')
+  })
+
+  it('uses a provided token and channel override', () => {
+    applyEnv({ ...baseEnv(), TELEGRAM_BOT_TOKEN: 'BOT123', TELEGRAM_CHANNEL: '@GWJTest' })
+    const env = loadEnv()
+    expect(env.TELEGRAM_BOT_TOKEN).toBe('BOT123')
+    expect(env.TELEGRAM_CHANNEL).toBe('@GWJTest')
+  })
+
+  it("rejects the placeholder '-' for a non-empty TELEGRAM_BOT_TOKEN", () => {
+    applyEnv({ ...baseEnv(), TELEGRAM_BOT_TOKEN: '-' })
+    expect(() => loadEnv()).toThrow(/TELEGRAM_BOT_TOKEN/)
   })
 })
