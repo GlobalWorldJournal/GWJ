@@ -4,6 +4,7 @@ import { authorSlug, findWriterBySlug } from '@gwj/shared-types'
 import { getArticles } from '../lib/api'
 import { ArticleCard } from '../components/ArticleCard'
 import { StatusMessage } from '../components/StatusMessage'
+import { ListSkeleton } from '../components/Skeletons'
 
 export function AuthorPage() {
   const { slug = '' } = useParams()
@@ -15,7 +16,7 @@ export function AuthorPage() {
   })
 
   if (isPending) {
-    return <StatusMessage title="Loading&hellip;" />
+    return <ListSkeleton />
   }
   if (isError) {
     return (

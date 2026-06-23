@@ -5,6 +5,7 @@ import { CATEGORIES, categorySlug, type Article, type Category } from '@gwj/shar
 import { getArticles } from '../lib/api'
 import { ArticleCard } from '../components/ArticleCard'
 import { StatusMessage } from '../components/StatusMessage'
+import { HomeSkeleton } from '../components/Skeletons'
 
 function useHomeArticles() {
   return useQuery({
@@ -17,7 +18,7 @@ export function Home() {
   const { data, isPending, isError, error } = useHomeArticles()
 
   if (isPending) {
-    return <StatusMessage title="Loading the latest&hellip;" />
+    return <HomeSkeleton />
   }
   if (isError) {
     return (

@@ -4,6 +4,7 @@ import { CATEGORIES, categorySlug, type Category as CategoryName } from '@gwj/sh
 import { getArticles } from '../lib/api'
 import { ArticleCard } from '../components/ArticleCard'
 import { StatusMessage } from '../components/StatusMessage'
+import { ListSkeleton } from '../components/Skeletons'
 import { NotFound } from './NotFound'
 
 function resolveCategory(slug: string | undefined): CategoryName | null {
@@ -31,7 +32,7 @@ function CategoryView({ category }: { category: CategoryName }) {
   })
 
   if (isPending) {
-    return <StatusMessage title="Loading&hellip;" />
+    return <ListSkeleton />
   }
 
   if (isError) {

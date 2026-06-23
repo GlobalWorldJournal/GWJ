@@ -5,6 +5,7 @@ import { Kicker } from '../components/Kicker'
 import { Byline } from '../components/Byline'
 import { ArticleBody } from '../components/ArticleBody'
 import { StatusMessage } from '../components/StatusMessage'
+import { ArticleSkeleton } from '../components/Skeletons'
 import { NotFound } from './NotFound'
 
 export function ArticlePage() {
@@ -22,7 +23,7 @@ export function ArticlePage() {
   })
 
   if (isPending) {
-    return <StatusMessage title="Loading the article&hellip;" />
+    return <ArticleSkeleton />
   }
 
   if (isError) {
