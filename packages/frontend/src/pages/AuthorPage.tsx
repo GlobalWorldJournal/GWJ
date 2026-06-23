@@ -49,7 +49,7 @@ export function AuthorPage() {
               {writer.title}
             </p>
             <p className="mt-3 font-body text-[0.95rem] leading-relaxed text-ink-soft">
-              {name} covers {writer.beat} for The Global World Journal.
+              {name} covers {writer.beats.join(', ')} for The Global World Journal.
             </p>
           </>
         ) : null}

@@ -58,7 +58,7 @@ describe('GWJ MCP tools', () => {
     mcpClient = undefined
   })
 
-  it('exposes all nine content tools', async () => {
+  it('exposes all content tools', async () => {
     mcpClient = await connect(mockClient())
     const { tools } = await mcpClient.listTools()
     const names = tools.map((t) => t.name).sort()
@@ -69,6 +69,7 @@ describe('GWJ MCP tools', () => {
         'get_article',
         'list_articles',
         'list_categories',
+        'list_writers',
         'publish_article',
         'unpublish_article',
         'update_article',
@@ -133,7 +134,7 @@ describe('GWJ MCP tools', () => {
     expect(passed?.author).toBe(expected.name)
     // The assigned writer is a real member of the roster on the matching beat.
     expect(WRITERS.some((w) => w.name === passed?.author)).toBe(true)
-    expect(expected.beat).toBe(category)
+    expect(expected.beats).toContain(category)
   })
 
   it('rejects create_article with an invalid category and never calls the client', async () => {

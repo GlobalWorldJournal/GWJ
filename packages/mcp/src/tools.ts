@@ -2,6 +2,8 @@ import {
   ArticleInputSchema,
   ArticleListQuerySchema,
   ArticleUpdateSchema,
+  WRITERS,
+  authorSlug,
   pickWriter,
 } from '@gwj/shared-types'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -168,6 +170,25 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'list_categories',
     { description: 'List the fixed set of newspaper categories.' },
     () => guard(async () => jsonResult(await client.listCategories())),
+  )
+
+  server.registerTool(
+    'list_writers',
+    {
+      description:
+        "List The Global World Journal's staff writers (the byline roster). Each writer covers one or more sections (`beats`). When writing a story, choose a writer whose beats include the story's category and pass that name as the article's `author`. Returns name, beats, title and authorSlug (the /author/<slug> profile page).",
+    },
+    () =>
+      guard(async () =>
+        jsonResult(
+          WRITERS.map((w) => ({
+            name: w.name,
+            beats: w.beats,
+            title: w.title,
+            authorSlug: authorSlug(w.name),
+          })),
+        ),
+      ),
   )
 
   return server

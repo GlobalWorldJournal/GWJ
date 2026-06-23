@@ -3,33 +3,37 @@ import { slugify } from './article'
 
 /**
  * The Global World Journal masthead — a roster of (fictional) staff writers,
- * each an AI agent assigned to a beat. The MCP server assigns a byline from
- * this roster based on the article's category when an agent publishes without
- * naming an author.
+ * each an AI agent. A writer can cover MULTIPLE sections. The MCP server
+ * exposes this roster (list_writers) and assigns a byline from it; the writing
+ * agent picks a writer whose beats include the story's section.
  */
 export interface Writer {
   name: string
-  /** Primary section the writer covers. */
-  beat: Category
+  /** Sections this writer covers (one or more). */
+  beats: readonly Category[]
   /** Short title shown on author pages / bylines. */
   title: string
 }
 
 export const WRITERS: readonly Writer[] = [
-  { name: 'Eleanor Vance', beat: 'Markets', title: 'Markets Correspondent' },
-  { name: 'Ji-ho Park', beat: 'Markets', title: 'Asia Markets Reporter' },
-  { name: 'Daniel Okafor', beat: 'Business', title: 'Business Editor' },
-  { name: 'Priya Nair', beat: 'Business', title: 'Corporate Affairs Reporter' },
-  { name: 'Marcus Lin', beat: 'Tech', title: 'Technology Correspondent' },
-  { name: 'Ada Whitfield', beat: 'Tech', title: 'AI & Chips Reporter' },
-  { name: 'Sofia Marchetti', beat: 'World', title: 'Foreign Correspondent' },
-  { name: 'Harper Reyes', beat: 'World', title: 'Diplomatic Correspondent' },
-  { name: 'Thomas Brennan', beat: 'Politics', title: 'National Politics Reporter' },
-  { name: 'Lucía Ferrer', beat: 'Politics', title: 'Legal Affairs Reporter' },
-  { name: 'J. P. Sutherland', beat: 'Opinion', title: 'Columnist' },
-  { name: 'Margaret Holloway', beat: 'Opinion', title: 'Editorial Board' },
-  { name: 'Camille Dubois', beat: 'Arts', title: 'Culture Critic' },
-  { name: 'Oliver Bennett', beat: 'Arts', title: 'Books & Film Reporter' },
+  { name: 'Eleanor Vance', beats: ['Markets', 'Business'], title: 'Senior Markets Correspondent' },
+  { name: 'Ji-ho Park', beats: ['Markets', 'Tech'], title: 'Asia Markets & Tech Reporter' },
+  { name: 'Daniel Okafor', beats: ['Business', 'Markets'], title: 'Business Editor' },
+  { name: 'Priya Nair', beats: ['Business', 'World'], title: 'Global Business Correspondent' },
+  { name: 'Marcus Lin', beats: ['Tech', 'Business'], title: 'Technology Correspondent' },
+  { name: 'Ada Whitfield', beats: ['Tech', 'Markets'], title: 'AI & Semiconductors Reporter' },
+  { name: 'Sofia Marchetti', beats: ['World', 'Politics'], title: 'Foreign Correspondent' },
+  { name: 'Harper Reyes', beats: ['World', 'Politics'], title: 'Diplomatic Correspondent' },
+  { name: 'Thomas Brennan', beats: ['Politics', 'World'], title: 'National Politics Reporter' },
+  { name: 'Lucía Ferrer', beats: ['Politics', 'Business'], title: 'Legal & Policy Reporter' },
+  { name: 'J. P. Sutherland', beats: ['Opinion', 'Markets'], title: 'Columnist' },
+  { name: 'Margaret Holloway', beats: ['Opinion', 'World'], title: 'Editorial Board' },
+  { name: 'Camille Dubois', beats: ['Arts', 'Opinion'], title: 'Culture Critic' },
+  { name: 'Oliver Bennett', beats: ['Arts', 'World'], title: 'Books & Film Reporter' },
+  { name: 'Nathan Cole', beats: ['World', 'Business', 'Politics'], title: 'Senior Writer at Large' },
+  { name: 'Yuki Tanaka', beats: ['Tech', 'Markets', 'World'], title: 'Global Technology Correspondent' },
+  { name: 'Amara Diallo', beats: ['World', 'Arts'], title: 'Features Correspondent' },
+  { name: 'Robert Hale', beats: ['Markets', 'Business', 'Politics'], title: 'Economics Correspondent' },
 ] as const
 
 /** Stable, dependency-free string hash (FNV-1a) for deterministic picks. */
@@ -42,13 +46,18 @@ function hash(value: string): number {
   return h >>> 0
 }
 
+/** Writers whose beats include a section. */
+export function writersForCategory(category: Category): Writer[] {
+  return WRITERS.filter((w) => w.beats.includes(category))
+}
+
 /**
  * Choose a writer for a category. Deterministic given `seed` (e.g. the article
  * title) so the same story always gets the same byline; rotates among the
- * writers on that beat. Falls back to the full roster if the beat is empty.
+ * writers covering that beat. Falls back to the full roster if none match.
  */
 export function pickWriter(category: Category, seed = ''): Writer {
-  const onBeat = WRITERS.filter((w) => w.beat === category)
+  const onBeat = writersForCategory(category)
   const pool = onBeat.length > 0 ? onBeat : WRITERS
   const index = hash(`${category}:${seed}`) % pool.length
   return pool[index] ?? pool[0] ?? WRITERS[0]!
