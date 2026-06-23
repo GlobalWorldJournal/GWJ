@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Libre+Franklin:ital,wght@0,300..900;1,300..900&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+@import 'tailwindcss';
+
+@theme {
+  --font-headline: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-label: 'Libre Franklin', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'PT Serif', Georgia, 'Times New Roman', serif;
+
+  --color-ink: #111111;
+  --color-ink-soft: #333333;
+  --color-paper: #ffffff;
+  --color-accent: #b31217;
+  --color-rule: #dddddd;
+  --color-rule-soft: #e5e5e5;
+  --color-muted: #6b6b6b;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+@layer components {
+  /* WSJ-style eyebrow / kicker label */
+  .kicker {
+    font-family: var(--font-label);
+    font-weight: 700;
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+
+  /* Sans label used for section names, bylines, dateline */
+  .label {
+    font-family: var(--font-label);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .headline {
+    font-family: var(--font-headline);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+  }
+
+  /* Double rule used under the masthead */
+  .rule-double {
+    border-top: 3px solid var(--color-ink);
+    border-bottom: 1px solid var(--color-ink);
+    height: 4px;
+  }
+
+  /* Drop-cap-friendly serif prose for article bodies */
+  .prose-article p {
+    margin: 0 0 1.15rem;
+  }
+}
