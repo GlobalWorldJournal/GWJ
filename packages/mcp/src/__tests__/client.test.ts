@@ -2,6 +2,12 @@ import type { LookupAddress } from 'node:dns'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BackendError, createGwjClient, type GwjClientOptions } from '../client.js'
 import { SsrfError } from '../ssrfGuard.js'
+import { makeTruncatedPng, makeValidPng } from './imageFixtures.js'
+
+/** A real, complete PNG large enough to pass the validator's min-dimension gate. */
+const VALID_PNG = makeValidPng(800, 700)
+/** A PNG truncated mid-IDAT (no IEND) — the corruption that shipped. */
+const TRUNCATED_PNG = makeTruncatedPng(800, 700)
 
 const PUBLIC_RESOLVER = async (): Promise<LookupAddress[]> => [{ address: '93.184.216.34', family: 4 }]
 const LOOPBACK_RESOLVER = async (): Promise<LookupAddress[]> => [{ address: '127.0.0.1', family: 4 }]
@@ -28,10 +34,15 @@ function loginResponse(): Response {
   )
 }
 
-function imageResponse(bytes: number, extraHeaders: Record<string, string> = {}): Response {
-  return new Response(new Uint8Array(bytes), {
+/** Respond with raw bytes and a content-type (defaults to PNG). */
+function imageResponse(
+  body: Uint8Array,
+  extraHeaders: Record<string, string> = {},
+  contentType = 'image/png',
+): Response {
+  return new Response(body, {
     status: 200,
-    headers: { 'content-type': 'image/jpeg', ...extraHeaders },
+    headers: { 'content-type': contentType, ...extraHeaders },
   })
 }
 
@@ -114,25 +125,48 @@ describe('client.uploadImage url branch (SSRF-hardened)', () => {
 
   it('rejects an image larger than 10 MB (declared content-length)', async () => {
     const fetchImpl = scriptedFetch([
-      () => imageResponse(8, { 'content-length': String(11 * 1024 * 1024) }),
+      () => imageResponse(new Uint8Array(8), { 'content-length': String(11 * 1024 * 1024) }),
     ])
     const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
     await expect(
-      client.uploadImage({ url: 'https://cdn.example.com/x.jpg', filename: 'x.jpg' }),
+      client.uploadImage({ url: 'https://cdn.example.com/x.png', filename: 'x.png' }),
     ).rejects.toMatchObject({ message: expect.stringMatching(/10 MB/i) })
   })
 
   it('rejects an image larger than 10 MB (actual body even without content-length)', async () => {
-    const fetchImpl = scriptedFetch([() => imageResponse(11 * 1024 * 1024)])
+    const fetchImpl = scriptedFetch([() => imageResponse(new Uint8Array(11 * 1024 * 1024))])
     const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
     await expect(
-      client.uploadImage({ url: 'https://cdn.example.com/x.jpg', filename: 'x.jpg' }),
+      client.uploadImage({ url: 'https://cdn.example.com/x.png', filename: 'x.png' }),
     ).rejects.toMatchObject({ message: expect.stringMatching(/10 MB/i) })
+  })
+
+  it('rejects a truncated download (received bytes ≠ Content-Length)', async () => {
+    // Server promises the full image size but the body arrives short — exactly
+    // the partial-download failure that produced truncated hero images.
+    const fetchImpl = scriptedFetch([
+      () =>
+        imageResponse(TRUNCATED_PNG, { 'content-length': String(VALID_PNG.byteLength) }),
+    ])
+    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
+    await expect(
+      client.uploadImage({ url: 'https://cdn.example.com/x.png', filename: 'x.png' }),
+    ).rejects.toMatchObject({ message: expect.stringMatching(/truncated download/i) })
+  })
+
+  it('rejects a structurally corrupt image even when fully downloaded', async () => {
+    // Content-Length matches the (short) body, so the truncation check passes,
+    // but the bytes are not a complete PNG → the structural validator rejects it.
+    const fetchImpl = scriptedFetch([() => imageResponse(TRUNCATED_PNG)])
+    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
+    await expect(
+      client.uploadImage({ url: 'https://cdn.example.com/x.png', filename: 'x.png' }),
+    ).rejects.toMatchObject({ status: 422, message: expect.stringMatching(/not usable/i) })
   })
 
   it('uploads a valid public image and returns the CDN url', async () => {
     const fetchImpl = scriptedFetch([
-      () => imageResponse(1024),
+      () => imageResponse(VALID_PNG),
       () => loginResponse(),
       (url, init) => {
         expect(url).toBe('https://api.example.com/api/admin/upload')
@@ -142,8 +176,8 @@ describe('client.uploadImage url branch (SSRF-hardened)', () => {
     ])
     const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
     const result = await client.uploadImage({
-      url: 'https://cdn.example.com/x.jpg',
-      filename: 'x.jpg',
+      url: 'https://cdn.example.com/x.png',
+      filename: 'x.png',
       alt: 'a photo',
     })
     expect(result.url).toBe('https://cdn.example.com/articles/abc-hero.jpg')
@@ -165,9 +199,20 @@ describe('client.uploadImage url branch (SSRF-hardened)', () => {
         },
       }),
     )
-    const png = Buffer.from('hello').toString('base64')
+    const png = Buffer.from(VALID_PNG).toString('base64')
     const result = await client.uploadImage({ base64: png, filename: 'x.png' })
     expect(result.url).toBe('https://cdn.example.com/articles/abc-hero.jpg')
+  })
+
+  it('rejects a base64 payload that is not a complete image', async () => {
+    // An agent passing corrupt/truncated base64 must be told to re-source rather
+    // than silently uploading a broken image.
+    const fetchImpl = scriptedFetch([])
+    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
+    const corrupt = Buffer.from(TRUNCATED_PNG).toString('base64')
+    await expect(
+      client.uploadImage({ base64: corrupt, filename: 'x.png' }),
+    ).rejects.toMatchObject({ status: 422 })
   })
 
   it('reports a missing source as a BackendError', async () => {

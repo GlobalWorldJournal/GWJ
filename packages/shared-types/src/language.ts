@@ -26,6 +26,18 @@ export const LANGUAGE_LOCALES: Record<Language, string> = {
   fr: 'fr_FR',
 }
 
+/**
+ * Default fediverse username for each edition's ActivityPub actor. The handle is
+ * `@<username>@<domain>`, so usernames are plain lowercase letters only (no
+ * hyphens/dots/symbols). The backend may override this map via env, but these are
+ * the canonical defaults: en→`news`, es→`noticias`, fr→`actualites`.
+ */
+export const DEFAULT_EDITION_USERNAMES: Record<Language, string> = {
+  en: 'news',
+  es: 'noticias',
+  fr: 'actualites',
+}
+
 export function isLanguage(value: string): value is Language {
   return (SUPPORTED_LANGUAGES as readonly string[]).includes(value)
 }

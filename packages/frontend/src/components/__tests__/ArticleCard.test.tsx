@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { Article } from '@gwj/shared-types'
 import { ArticleCard } from '../ArticleCard'
+import { LanguageProvider } from '../../lib/i18n'
 
 function makeArticle(overrides: Partial<Article> = {}): Article {
   return {
@@ -12,6 +13,7 @@ function makeArticle(overrides: Partial<Article> = {}): Article {
     deck: 'Markets shrug off rate worries as earnings beat.',
     kicker: 'Markets',
     category: 'Markets',
+    language: 'en',
     author: 'Jane Reporter',
     body: 'Stocks rose.',
     status: 'published',
@@ -28,7 +30,9 @@ function makeArticle(overrides: Partial<Article> = {}): Article {
 function renderCard(article: Article) {
   return render(
     <MemoryRouter>
-      <ArticleCard article={article} />
+      <LanguageProvider>
+        <ArticleCard article={article} />
+      </LanguageProvider>
     </MemoryRouter>,
   )
 }

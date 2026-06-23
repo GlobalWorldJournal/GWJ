@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom'
 import { authorSlug } from '@gwj/shared-types'
+import { useLang } from '../lib/i18n'
+import { LocaleLink } from '../lib/locale'
 
 interface BylineProps {
   author: string
@@ -22,12 +23,13 @@ function formatDate(iso: string): string {
 
 /** Sans-serif byline line: "By Author · Category · Date". */
 export function Byline({ author, category, publishedAt, className }: BylineProps) {
+  const { t } = useLang()
   const date = publishedAt ? formatDate(publishedAt) : ''
   return (
     <p className={`label text-[0.6875rem] text-ink-soft ${className ?? ''}`}>
-      <Link to={`/author/${authorSlug(author)}`} className="text-ink transition-colors hover:text-accent">
-        By {author}
-      </Link>
+      <LocaleLink to={`/author/${authorSlug(author)}`} className="text-ink transition-colors hover:text-accent">
+        {t('by')} {author}
+      </LocaleLink>
       {category ? <span className="text-muted"> · {category}</span> : null}
       {date ? <span className="text-muted"> · {date}</span> : null}
     </p>

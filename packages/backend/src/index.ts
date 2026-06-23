@@ -2,15 +2,21 @@ import { argv } from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { loadEnv } from './env'
 import { connectDb, disconnectDb } from './db'
-import { createApp } from './app'
+import { buildApp } from './app'
 import { logger } from './logger'
 
-export { createApp } from './app'
+export { createApp, buildApp } from './app'
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv()
   await connectDb(env.MONGO_URI)
-  const app = createApp(env)
+  const { app, activityPub } = buildApp(env)
+  // Migrate legacy followers and wire publish delivery now that Mongo is up.
+  await activityPub.initialize()
+  logger.info('activitypub ready', {
+    domain: activityPub.registry.domain,
+    actors: activityPub.registry.all.length,
+  })
 
   const server = app.listen(env.PORT, () => {
     logger.info('gwj backend listening', { port: env.PORT })

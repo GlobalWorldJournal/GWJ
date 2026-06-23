@@ -14,6 +14,33 @@ import { NotFoundError } from '../errors'
 const FALLBACK_SLUG = 'article'
 
 /**
+ * A listener notified when an article transitions INTO the published state — i.e.
+ * a fresh publish, not a re-save of an already-published article. ActivityPub
+ * delivery subscribes to this so federation stays decoupled: the dependency points
+ * AP → articleService, never the reverse. Listeners must not throw; they own their
+ * own error handling and must never block or fail the publish response.
+ */
+export type ArticlePublishedListener = (article: Article) => void
+
+const publishedListeners: ArticlePublishedListener[] = []
+
+/** Register a listener for article-published transitions. Returns an unsubscribe fn. */
+export function onArticlePublished(listener: ArticlePublishedListener): () => void {
+  publishedListeners.push(listener)
+  return () => {
+    const index = publishedListeners.indexOf(listener)
+    if (index >= 0) publishedListeners.splice(index, 1)
+  }
+}
+
+/** Notify all registered listeners that an article just became published. */
+function emitArticlePublished(article: Article): void {
+  for (const listener of publishedListeners) {
+    listener(article)
+  }
+}
+
+/**
  * Generate a slug unique across the collection. Starts from the title's slug and
  * appends `-2`, `-3`, … until no existing document claims it. An optional
  * `excludeId` lets updates keep checking against everyone *but themselves*.
@@ -54,6 +81,8 @@ function buildPaginated(docs: ArticleDoc[], total: number, page: number, limit: 
 export interface ListOptions {
   /** When true, no implicit `status: 'published'` filter is applied (admin path). */
   includeAll?: boolean
+  /** Restrict to a single exact author (the ActivityPub writer-outbox path). */
+  author?: string
 }
 
 /** Options controlling whether a single fetch may return a draft. */
@@ -86,6 +115,7 @@ export const articleService: ArticleService = {
     if (query.category) filter.category = query.category
     if (query.language) filter.language = query.language
     if (query.featured) filter.featured = { $gt: 0 }
+    if (options?.author) filter.author = options.author
 
     const total = await ArticleModel.countDocuments(filter)
     const docs = await ArticleModel.find(filter)
@@ -111,11 +141,15 @@ export const articleService: ArticleService = {
     const slug = await generateUniqueSlug(input.title)
     const publishedAt = input.status === 'published' ? new Date() : null
     const doc = await ArticleModel.create({ ...input, slug, publishedAt })
-    return articleToDTO(doc)
+    const article = articleToDTO(doc)
+    // A story created directly in the published state federates immediately.
+    if (article.status === 'published') emitArticlePublished(article)
+    return article
   },
 
   async update(id, patch) {
     const doc = await findDocById(id)
+    const wasPublished = doc.status === 'published'
     if (patch.title !== undefined && patch.title !== doc.title) {
       doc.slug = await generateUniqueSlug(patch.title, id)
     }
@@ -138,16 +172,23 @@ export const articleService: ArticleService = {
       if (patch.status === 'draft') doc.publishedAt = null
     }
     await doc.save()
-    return articleToDTO(doc)
+    const article = articleToDTO(doc)
+    // Fan out only on the draft→published transition, not on edits to an already
+    // published story, so followers aren't re-notified for every correction.
+    if (!wasPublished && article.status === 'published') emitArticlePublished(article)
+    return article
   },
 
   async publish(id) {
     const doc = await findDocById(id)
+    const wasPublished = doc.status === 'published'
     doc.status = 'published'
     // Preserve the original publish time on re-publish; only stamp it the first time.
     if (!doc.publishedAt) doc.publishedAt = new Date()
     await doc.save()
-    return articleToDTO(doc)
+    const article = articleToDTO(doc)
+    if (!wasPublished) emitArticlePublished(article)
+    return article
   },
 
   async unpublish(id) {

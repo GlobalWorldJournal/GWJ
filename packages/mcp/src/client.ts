@@ -13,11 +13,12 @@ import {
   type PaginatedArticles,
   type UploadResponse,
 } from '@gwj/shared-types'
+import { MAX_IMAGE_BYTES, validateImageBuffer } from '@gwj/shared-types/image-validation'
 import { z } from 'zod'
 import { assertSafeRemoteUrl, type AssertSafeRemoteUrlOptions } from './ssrfGuard.js'
 
 /** Maximum size (bytes) for an image fetched from a remote URL. */
-const MAX_REMOTE_IMAGE_BYTES = 10 * 1024 * 1024
+const MAX_REMOTE_IMAGE_BYTES = MAX_IMAGE_BYTES
 
 /** Thrown when the backend returns a non-2xx response. */
 export class BackendError extends Error {
@@ -237,10 +238,34 @@ export function createGwjClient(options: GwjClientOptions): GwjClient {
 
     async uploadImage(input) {
       const bytes = await resolveImageBytes(input, fetchImpl, resolveDns)
+
+      // Validate the bytes are a COMPLETE, decodable image of a supported type
+      // and size BEFORE uploading. This is the "soft skip" the product wants:
+      // throwing a clear error lets the calling agent move on to the next source
+      // instead of publishing an article with a corrupt/blank hero image. The
+      // backend validates again authoritatively; this gives the agent a faster,
+      // local, more descriptive failure.
+      const declaredMime = contentTypeFromFilename(input.filename)
+      const validation = validateImageBuffer(new Uint8Array(bytes), {
+        // Only enforce the declared MIME when the filename maps to a known image
+        // type; an unknown extension shouldn't force a mismatch against the real
+        // (validated) format. Width/height floors use the shared defaults.
+        declaredMime: declaredMime.startsWith('image/') ? declaredMime : undefined,
+        maxBytes: MAX_REMOTE_IMAGE_BYTES,
+      })
+      if (!validation.ok) {
+        throw new BackendError(
+          `Source image is not usable (${validation.reason}): ${validation.message}`,
+          422,
+        )
+      }
+
       const form = new FormData()
       form.set(
         'file',
-        new Blob([bytes], { type: contentTypeFromFilename(input.filename) }),
+        // Upload under the format we actually verified so the server's declared
+        // content type matches the bytes.
+        new Blob([bytes], { type: validation.mime }),
         input.filename,
       )
       if (input.alt) form.set('alt', input.alt)
@@ -287,11 +312,23 @@ async function resolveImageBytes(
         400,
       )
     }
-    const declaredLength = Number(response.headers.get('content-length') ?? '')
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_REMOTE_IMAGE_BYTES) {
+    const contentLengthHeader = response.headers.get('content-length')
+    const declaredLength = Number(contentLengthHeader ?? '')
+    const hasDeclaredLength = contentLengthHeader !== null && Number.isFinite(declaredLength)
+    if (hasDeclaredLength && declaredLength > MAX_REMOTE_IMAGE_BYTES) {
       throw new BackendError('Remote image exceeds the 10 MB size limit', 400)
     }
+    // Read the ENTIRE body, then verify we received exactly as many bytes as the
+    // server promised. A short read here is the root cause of the truncated
+    // images that shipped: the partial bytes were stored without ever checking
+    // they matched Content-Length.
     const body = await response.arrayBuffer()
+    if (hasDeclaredLength && body.byteLength !== declaredLength) {
+      throw new BackendError(
+        `Truncated download: received ${body.byteLength} bytes but Content-Length declared ${declaredLength}`,
+        400,
+      )
+    }
     if (body.byteLength > MAX_REMOTE_IMAGE_BYTES) {
       throw new BackendError('Remote image exceeds the 10 MB size limit', 400)
     }

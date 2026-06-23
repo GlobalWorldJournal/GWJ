@@ -1,3 +1,5 @@
+import { useLang } from '../lib/i18n'
+
 type AdVariant = 'leaderboard' | 'mrec' | 'inline'
 
 interface AdSlotProps {
@@ -24,11 +26,14 @@ const SIZE: Record<AdVariant, string> = {
  * white space a news grid leaves and marks where real ad units will go.
  */
 export function AdSlot({ variant = 'mrec', sticky = true, className }: AdSlotProps) {
+  const { t } = useLang()
   return (
     <aside
       className={`flex flex-col items-center ${sticky ? 'lg:sticky lg:top-20' : ''} ${className ?? ''}`}
     >
-      <span className="label mb-1 text-[0.5625rem] tracking-[0.18em] text-muted">Advertisement</span>
+      <span className="label mb-1 text-[0.5625rem] tracking-[0.18em] text-muted">
+        {t('advertisement')}
+      </span>
       <div
         className={`flex items-center justify-center border border-rule bg-ink/[0.03] ${SIZE[variant]}`}
         aria-hidden

@@ -1,10 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Libre+Franklin:ital,wght@0,300..900;1,300..900&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap');
-
 @import 'tailwindcss';
 
 @theme {
-  --font-headline: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  --font-label: 'Libre Franklin', 'Helvetica Neue', Arial, sans-serif;
+  /* Self-hosted via @fontsource (bundled & fingerprinted by Vite into
+     /assets/*). The variable families register under their "… Variable"
+     names; the @font-face declarations are imported in main.tsx before this
+     file. font-display: swap is baked into the @fontsource @font-face rules,
+     so text paints immediately in the fallback and swaps in without blocking. */
+  --font-headline: 'Playfair Display Variable', Georgia, 'Times New Roman', serif;
+  --font-label: 'Libre Franklin Variable', 'Helvetica Neue', Arial, sans-serif;
   --font-body: 'PT Serif', Georgia, 'Times New Roman', serif;
 
   --color-ink: #111111;

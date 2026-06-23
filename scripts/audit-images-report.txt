@@ -1,0 +1,360 @@
+GWJ image audit — 2026-06-23T17:07:36.134Z
+API: https://api.globalworldjournal.com
+Articles audited: 104
+
+[OK] global-tech-sell-off-erases-more-than-1-trillion-as-ai-valuations-wobble (hero)
+    url: https://cdn.globalworldjournal.com/articles/5531f118-7dd0-4fa9-ae49-defec4e05494-markets-0.jpg
+    jpeg 1920x1080 122198B
+[OK] spacex-shares-slide-for-a-fifth-day-wiping-out-roughly-900-billion (hero)
+    url: https://cdn.globalworldjournal.com/articles/8cc1599e-3b77-434a-af4f-b5b13bb81ac9-technology-1.jpg
+    jpeg 1200x630 139713B
+[OK] strait-of-hormuz-remains-contested-as-tehran-sends-mixed-signals (hero)
+    url: https://cdn.globalworldjournal.com/articles/a4dd58c2-8f7f-474a-bb58-4b94f0b7fb2d-world-3.jpg
+    jpeg 800x450 24427B
+[OK] koreas-kospi-plunges-10-as-samsung-and-sk-hynix-lead-a-chip-rout (hero)
+    url: https://cdn.globalworldjournal.com/articles/d95c3883-431b-49cb-a85d-acd48f1d42b1-markets-2.jpg
+    jpeg 1920x1080 122198B
+[OK] after-versailles-the-fragile-memorandum-meant-to-end-the-iran-war (hero)
+    url: https://cdn.globalworldjournal.com/articles/3315dcac-0b39-45f5-9c77-b78f6929d4af-world-4.jpg
+    jpeg 800x450 49722B
+[OK] a-60-day-clock-and-a-lebanon-flashpoint-test-the-new-iran-truce (hero)
+    url: https://cdn.globalworldjournal.com/articles/38278799-67f0-46d5-9a92-a7d0f6c88943-politics-5.jpg
+    jpeg 1400x788 123082B
+[OK] supreme-court-races-toward-an-explosive-finale-with-the-midterms-at-stake (hero)
+    url: https://cdn.globalworldjournal.com/articles/ac6dd3a4-e018-460f-920e-9232b4c72391-politics-6.jpg
+    jpeg 800x450 57147B
+[OK] fox-strikes-a-22-billion-deal-for-roku-in-a-bet-on-connected-tv (hero)
+    url: https://cdn.globalworldjournal.com/articles/310d7a65-449c-4b62-8466-34795ec3f7f2-business-8.jpg
+    jpeg 1920x1080 303128B
+[OK] the-market-forgot-that-chokepoints-still-matter (hero)
+    url: https://cdn.globalworldjournal.com/articles/b06b69f3-f5cb-4435-a1ff-11c12cc18d90-commentary-11.jpg
+    jpeg 800x450 24427B
+[OK] a-strong-june-for-fiction-from-ofarrells-land-to-a-pulitzer-winning-memoir (hero)
+    url: https://cdn.globalworldjournal.com/articles/f734e57f-6a51-43e6-bf12-7feeb630245a-books-9.jpg
+    jpeg 900x600 283158B
+[OK] hollywood-bets-on-the-literary-shelf-from-ishiguro-to-narnia (hero)
+    url: https://cdn.globalworldjournal.com/articles/054920cf-18f1-4252-9224-de11f11ca173-film-10.jpg
+    jpeg 1200x800 182227B
+[MISSING] eu-defense-push-puts-ukraine-at-the-center-of-europes-next-military-market (hero)
+    url: (none)
+    no hero image on article
+[MISSING] ukraines-strikes-push-russias-fuel-shortages-deep-into-siberia (hero)
+    url: (none)
+    no hero image on article
+[OK] europes-heatwave-turns-a-search-for-relief-into-a-public-safety-crisis (hero)
+    url: https://cdn.globalworldjournal.com/articles/4b4c1edf-37dd-43d7-82f4-f28c2017d137-europe-heatwave-nantes-2026.jpg
+    jpeg 1080x720 117375B
+[OK] europes-heatwave-turns-a-search-for-relief-into-a-public-safety-crisis (body)
+    url: https://cdn.globalworldjournal.com/articles/4b4c1edf-37dd-43d7-82f4-f28c2017d137-europe-heatwave-nantes-2026.jpg
+    jpeg 1080x720 117375B
+[OK] trump-and-tehran-split-over-what-iran-agreed-to-inspect (hero)
+    url: https://cdn.globalworldjournal.com/articles/78686b97-e45e-499b-9551-5b1d199a8ace-iran-inspections-talks-reuters.jpg
+    jpeg 1920x1280 538146B
+[TOO-SMALL] europes-heatwave-moves-from-inconvenience-to-infrastructure-test (hero)
+    url: https://cdn.globalworldjournal.com/articles/2824481e-ada8-48fb-97f2-f38962d5db64-europe-heatwave.jpg
+    Image is 465x372px; minimum is 600x400px (width x height)
+[OK] oils-reprieve-rests-on-a-narrow-shipping-lane (hero)
+    url: https://cdn.globalworldjournal.com/articles/7856bbc8-b641-4eda-90b1-6e5ffc9e5ca7-hormuz-tankers-reuters.jpg
+    jpeg 1920x1280 169789B
+[OK] oils-reprieve-rests-on-a-narrow-shipping-lane (body)
+    url: https://cdn.globalworldjournal.com/articles/1337bba9-b75e-4a77-bdfe-a4d1643e1481-hormuz-final-inline-reuters.jpg
+    jpeg 1920x1280 169789B
+[OK] the-ai-stock-reset-moves-from-valuation-to-financing (hero)
+    url: https://cdn.globalworldjournal.com/articles/3ec36c9a-1ddc-4610-81dd-9fc089049c68-nasdaq-market-site-2026.jpg
+    jpeg 1200x811 220298B
+[OK] eurozone-survey-points-to-a-weak-quarter-as-services-stay-in-contraction (hero)
+    url: https://cdn.globalworldjournal.com/articles/52fd8f53-eef0-4757-8c51-cc6ab669480d-frankfurt-banking-skyline-2026.jpg
+    jpeg 1920x1123 278878B
+[OK] wall-street-opens-lower-as-ai-trade-meets-rate-fears (hero)
+    url: https://cdn.globalworldjournal.com/articles/8015075a-5289-4ff6-bccc-118c5d263eb9-wall-street-tech-selloff-reuters.jpg
+    jpeg 1080x720 151339B
+[OK] tech-stocks-stumble-as-investors-question-the-price-of-the-ai-buildout (hero)
+    url: https://cdn.globalworldjournal.com/articles/f8461bf1-3293-42ed-8868-9e4328e38fac-wall-street-tech-selloff.jpg
+    jpeg 1080x720 151339B
+[OK] messis-world-cup-scoring-record-turns-a-farewell-tour-into-a-chase (hero)
+    url: https://cdn.globalworldjournal.com/articles/a59ae8f1-ac52-436c-9ac1-3dae3ba84932-world-cup-messi-argentina-corner-dallas-2026.jpg
+    jpeg 1080x703 279454B
+[OK] mbappes-weather-delayed-double-sends-a-warning-about-the-world-cups-us-summer (hero)
+    url: https://cdn.globalworldjournal.com/articles/f6650a40-8f60-4eb7-9317-a73e5d186563-world-cup-france-iraq-mbappe-delay-2026.jpg
+    jpeg 1080x753 124507B
+[OK] messi-and-mbappe-give-fifas-expanded-world-cup-the-star-power-it-needed (hero)
+    url: https://cdn.globalworldjournal.com/articles/a59ae8f1-ac52-436c-9ac1-3dae3ba84932-world-cup-messi-argentina-corner-dallas-2026.jpg
+    jpeg 1080x703 279454B
+[OK] europe-can-no-longer-treat-heat-as-a-seasonal-inconvenience (hero)
+    url: https://cdn.globalworldjournal.com/articles/4b4c1edf-37dd-43d7-82f4-f28c2017d137-europe-heatwave-nantes-2026.jpg
+    jpeg 1080x720 117375B
+[OK] metas-299-smart-glasses-push-brings-ai-back-to-the-face (hero)
+    url: https://cdn.globalworldjournal.com/articles/d46dbe8e-af86-4792-a652-281792d7341e-meta-smart-glasses-connect-2026.jpg
+    jpeg 1920x1280 388057B
+[OK] european-companies-rewrite-the-workday-as-heat-becomes-a-business-problem (hero)
+    url: https://cdn.globalworldjournal.com/articles/2cf2b155-c666-4853-8081-fb6ba0f69e60-paris-fountain-heatwave-workers-2026.jpg
+    jpeg 1920x1280 545673B
+[OK] czech-president-takes-nato-snub-to-court-as-summit-nears (hero)
+    url: https://cdn.globalworldjournal.com/articles/4f8dac2e-8e96-4d9a-950a-4f5b0f7723e2-czech-president-nato-delegation-reuters.jpg
+    jpeg 1920x1279 251061B
+[TOO-SMALL] iran-talks-advance-but-inspectors-and-hormuz-remain-unresolved (hero)
+    url: https://cdn.globalworldjournal.com/articles/02b84c7d-7fe0-49cc-b40f-1cadb0e35b40-iran-talks-burgenstock.jpg
+    Image is 445x297px; minimum is 600x400px (width x height)
+[TOO-SMALL] burnhams-likely-rise-in-britain-comes-with-little-room-for-error (hero)
+    url: https://cdn.globalworldjournal.com/articles/ec0b557d-d8a7-46a1-b341-e882c487c3f7-andy-burnham-campaign.jpg
+    Image is 445x356px; minimum is 600x400px (width x height)
+[MIME-MISMATCH] pedro-sanchez-faces-a-corruption-crisis-without-being-personally-accused (hero)
+    url: https://cdn.globalworldjournal.com/articles/a25f4e00-093e-461b-9863-622679d440ee-pedro-sanchez-brussels-2026.jpg
+    decodes as webp 1141x761, but stored content-type is "image/jpeg"
+[MIME-MISMATCH] openais-legal-and-enterprise-fronts-are-becoming-the-same-war (hero)
+    url: https://cdn.globalworldjournal.com/articles/441e8e06-e5c2-4fa5-b105-011aa00dc859-ibm-openai-cybersecurity-2026.png
+    decodes as jpeg 1080x720, but stored content-type is "image/png"
+[OK] trumps-taiwan-chip-dilemma-puts-industrial-policy-back-at-the-center-of-power (hero)
+    url: https://cdn.globalworldjournal.com/articles/ab2c9578-9003-4223-9ec8-2d63912574ba-trump-musk-washington-2026.jpg
+    jpeg 1020x680 94125B
+[OK] elon-musks-political-turn-complicates-trumps-midterm-map (hero)
+    url: https://cdn.globalworldjournal.com/articles/ab2c9578-9003-4223-9ec8-2d63912574ba-trump-musk-washington-2026.jpg
+    jpeg 1020x680 94125B
+[NOT-AN-IMAGE] perplexitys-publisher-fight-reaches-the-center-of-ai-search (hero)
+    url: https://cdn.globalworldjournal.com/articles/52bfd0cf-d8ed-4108-ab10-b2712c14a6df-perplexity-ai-logo-2026.ico
+    Bytes are not a recognized PNG, JPEG, WEBP, or GIF image
+[OK] fifas-ticket-pricing-fight-shadows-its-biggest-world-cup (hero)
+    url: https://cdn.globalworldjournal.com/articles/ec5ed058-9456-4810-8adc-a7a2d4840181-world-cup-usa-fans-seattle-drones-2026.jpg
+    jpeg 1920x1226 499782B
+[OK] algerias-comeback-gives-fifas-expanded-format-the-tension-it-wanted (hero)
+    url: https://cdn.globalworldjournal.com/articles/b76c717c-b15f-4069-9361-d02623a99a04-world-cup-algeria-jordan-celebration-2026.jpg
+    jpeg 1080x735 181850B
+[OK] world-cup-drone-seizures-show-the-security-challenge-behind-fifas-spectacle (hero)
+    url: https://cdn.globalworldjournal.com/articles/ec5ed058-9456-4810-8adc-a7a2d4840181-world-cup-usa-fans-seattle-drones-2026.jpg
+    jpeg 1920x1226 499782B
+[OK] europes-drowning-toll-shows-heat-policy-must-reach-the-waters-edge (hero)
+    url: https://cdn.globalworldjournal.com/articles/4b4c1edf-37dd-43d7-82f4-f28c2017d137-europe-heatwave-nantes-2026.jpg
+    jpeg 1080x720 117375B
+[OK] spains-early-heatwave-turns-climate-adaptation-into-a-city-management-test (hero)
+    url: https://cdn.globalworldjournal.com/articles/f19c2638-1c1c-4c68-9828-9d886903e2bc-spain-heatwave-madrid-el-rastro-2026.jpg
+    jpeg 1920x1298 423862B
+[OK] spacexs-compute-contracts-blur-the-line-between-rockets-and-cloud-infrastructure (hero)
+    url: https://cdn.globalworldjournal.com/articles/0a3ab8ca-9208-46c3-abc8-0004146e9564-spacex-starbase-colossus-compute-2026.jpg
+    jpeg 1080x720 128400B
+[MIME-MISMATCH] ibm-and-openai-put-enterprise-ai-on-trial-in-security (hero)
+    url: https://cdn.globalworldjournal.com/articles/441e8e06-e5c2-4fa5-b105-011aa00dc859-ibm-openai-cybersecurity-2026.png
+    decodes as jpeg 1080x720, but stored content-type is "image/png"
+[OK] metas-smart-glasses-bet-tests-whether-ai-can-become-everyday-hardware (hero)
+    url: https://cdn.globalworldjournal.com/articles/d46dbe8e-af86-4792-a652-281792d7341e-meta-smart-glasses-connect-2026.jpg
+    jpeg 1920x1280 388057B
+[OK] spain-needs-a-national-shade-policy (hero)
+    url: https://cdn.globalworldjournal.com/articles/f19c2638-1c1c-4c68-9828-9d886903e2bc-spain-heatwave-madrid-el-rastro-2026.jpg
+    jpeg 1920x1298 423862B
+[OK] spains-first-heatwave-of-2026-turns-summer-routines-into-a-public-health-test (hero)
+    url: https://cdn.globalworldjournal.com/articles/f19c2638-1c1c-4c68-9828-9d886903e2bc-spain-heatwave-madrid-el-rastro-2026.jpg
+    jpeg 1920x1298 423862B
+[OK] un-climate-push-puts-ais-hidden-energy-bill-in-the-spotlight (hero)
+    url: https://cdn.globalworldjournal.com/articles/e6ed902a-9030-4b5e-8cbc-457d0c683d77-ai-environmental-costs-2026.jpg
+    jpeg 1920x1201 222553B
+[OK] porsches-china-problem-clouds-a-promised-turnaround (hero)
+    url: https://cdn.globalworldjournal.com/articles/7ce9fa7e-aca8-4363-b509-cef4408aff5a-porsche-spirit-70-shanghai-2026.jpg
+    jpeg 1080x720 120085B
+[OK] myanmar-scam-compounds-still-hold-thousands-rights-group-says (hero)
+    url: https://cdn.globalworldjournal.com/articles/ac7f7a2d-1555-4578-b8df-fa559055474f-myanmar-scam-centres-reuters.jpg
+    jpeg 1920x1282 545258B
+[OK] tata-breach-puts-apples-india-supply-chain-under-fresh-scrutiny (hero)
+    url: https://cdn.globalworldjournal.com/articles/040afff6-b024-4cc7-80e9-62fb339e64a9-tata-electronics-factory.jpg
+    jpeg 1080x720 150421B
+[OK] heineken-reaches-outside-the-brewery-for-its-next-chief-executive (hero)
+    url: https://cdn.globalworldjournal.com/articles/30c29710-dab0-4d1a-b54a-d9fadd069220-heineken-bottles.jpg
+    jpeg 1920x1280 454154B
+[TOO-SMALL] ai-selloff-spreads-from-chips-to-global-indexes (hero)
+    url: https://cdn.globalworldjournal.com/articles/79f48c3c-c1ad-4185-96b1-78757f516685-wall-street-tech-selloff-nyse.jpg
+    Image is 599x399px; minimum is 600x400px (width x height)
+[CORRUPT] sacha-baron-cohens-netflix-return-tests-whether-old-satire-can-still-land (hero)
+    url: https://cdn.globalworldjournal.com/articles/5b98a632-7d42-47b1-816d-97c2e60ba450-sacha-baron-cohen-streaming-satire-2026.png
+    PNG chunk "IHDR" at offset 8 has a bad CRC (declared 3237684545, computed 2194760087)
+[OK] fifas-weather-problem-is-now-part-of-the-world-cup-product (hero)
+    url: https://cdn.globalworldjournal.com/articles/f6650a40-8f60-4eb7-9317-a73e5d186563-world-cup-france-iraq-mbappe-delay-2026.jpg
+    jpeg 1080x753 124507B
+[OK] mbappe-and-haaland-are-turning-group-i-into-the-world-cups-power-contest (hero)
+    url: https://cdn.globalworldjournal.com/articles/f6650a40-8f60-4eb7-9317-a73e5d186563-world-cup-france-iraq-mbappe-delay-2026.jpg
+    jpeg 1080x753 124507B
+[OK] the-world-cups-north-american-scale-is-becoming-a-civic-stress-test (hero)
+    url: https://cdn.globalworldjournal.com/articles/ec5ed058-9456-4810-8adc-a7a2d4840181-world-cup-usa-fans-seattle-drones-2026.jpg
+    jpeg 1920x1226 499782B
+[OK] fifas-48-team-format-is-giving-the-world-cup-more-drama-and-more-math (hero)
+    url: https://cdn.globalworldjournal.com/articles/b76c717c-b15f-4069-9361-d02623a99a04-world-cup-algeria-jordan-celebration-2026.jpg
+    jpeg 1080x735 181850B
+[OK] spains-world-cup-reboot-runs-through-lamine-yamal (hero)
+    url: https://cdn.globalworldjournal.com/articles/a59ae8f1-ac52-436c-9ac1-3dae3ba84932-world-cup-messi-argentina-corner-dallas-2026.jpg
+    jpeg 1080x703 279454B
+[OK] oils-calm-still-depends-on-one-narrow-channel (hero)
+    url: https://cdn.globalworldjournal.com/articles/7856bbc8-b641-4eda-90b1-6e5ffc9e5ca7-hormuz-tankers-reuters.jpg
+    jpeg 1920x1280 169789B
+[OK] europes-employers-are-discovering-heat-has-an-operating-cost (hero)
+    url: https://cdn.globalworldjournal.com/articles/2cf2b155-c666-4853-8081-fb6ba0f69e60-paris-fountain-heatwave-workers-2026.jpg
+    jpeg 1920x1280 545673B
+[OK] porsches-china-slump-turns-software-into-a-luxury-problem (hero)
+    url: https://cdn.globalworldjournal.com/articles/7ce9fa7e-aca8-4363-b509-cef4408aff5a-porsche-spirit-70-shanghai-2026.jpg
+    jpeg 1080x720 120085B
+[OK] eurozone-data-leaves-the-ecb-with-no-easy-story (hero)
+    url: https://cdn.globalworldjournal.com/articles/52fd8f53-eef0-4757-8c51-cc6ab669480d-frankfurt-banking-skyline-2026.jpg
+    jpeg 1920x1123 278878B
+[MIME-MISMATCH] basetens-funding-round-shows-investors-still-want-the-ai-middle-layer (hero)
+    url: https://cdn.globalworldjournal.com/articles/adebacb6-521d-41fe-98be-968f70e418b5-baseten-ai-funding-2026.png
+    decodes as jpeg 1920x1280, but stored content-type is "image/png"
+[OK] the-uns-ai-climate-demand-turns-data-centers-into-public-infrastructure (hero)
+    url: https://cdn.globalworldjournal.com/articles/e6ed902a-9030-4b5e-8cbc-457d0c683d77-ai-environmental-costs-2026.jpg
+    jpeg 1920x1201 222553B
+[OK] pope-leos-catalan-words-give-spains-pluralism-a-public-test (hero)
+    url: https://cdn.globalworldjournal.com/articles/a6a8b220-edaf-4d5d-a8af-107354a23b32-pope-leo-barcelona-catalonia-2026.jpg
+    jpeg 1080x720 56331B
+[OK] xais-grok-dispute-makes-ai-safety-a-management-issue (hero)
+    url: https://cdn.globalworldjournal.com/articles/6b0003b2-e00b-40d5-966a-0253f0b7f9f4-xai-lawsuit-grok-safety-2026.jpg
+    jpeg 1920x1280 167232B
+[OK] irans-bank-card-disruption-shows-payments-are-national-security (hero)
+    url: https://cdn.globalworldjournal.com/articles/f74b85a9-9736-4f4a-8b0f-ac3916cee90d-iran-bank-atm-tehran-2026.jpg
+    jpeg 1920x1280 491217B
+[OK] carnivals-fuel-warning-shows-the-vacation-economy-has-a-geopolitical-ceiling (hero)
+    url: https://cdn.globalworldjournal.com/articles/3ec36c9a-1ddc-4610-81dd-9fc089049c68-nasdaq-market-site-2026.jpg
+    jpeg 1200x811 220298B
+[OK] the-xai-lawsuit-is-a-warning-to-every-ai-board (hero)
+    url: https://cdn.globalworldjournal.com/articles/6b0003b2-e00b-40d5-966a-0253f0b7f9f4-xai-lawsuit-grok-safety-2026.jpg
+    jpeg 1920x1280 167232B
+[OK] spacex-is-becoming-an-ai-gatekeeper-and-investors-should-notice (hero)
+    url: https://cdn.globalworldjournal.com/articles/0a3ab8ca-9208-46c3-abc8-0004146e9564-spacex-starbase-colossus-compute-2026.jpg
+    jpeg 1080x720 128400B
+[MIME-MISMATCH] openais-ibm-partnership-should-make-companies-ask-harder-security-questions (hero)
+    url: https://cdn.globalworldjournal.com/articles/441e8e06-e5c2-4fa5-b105-011aa00dc859-ibm-openai-cybersecurity-2026.png
+    decodes as jpeg 1080x720, but stored content-type is "image/png"
+[OK] catalan-deserves-more-than-ceremonial-recognition (hero)
+    url: https://cdn.globalworldjournal.com/articles/a6a8b220-edaf-4d5d-a8af-107354a23b32-pope-leo-barcelona-catalonia-2026.jpg
+    jpeg 1080x720 56331B
+[OK] spacexs-reflection-ai-deal-shows-compute-is-becoming-its-second-product (hero)
+    url: https://cdn.globalworldjournal.com/articles/0a3ab8ca-9208-46c3-abc8-0004146e9564-spacex-starbase-colossus-compute-2026.jpg
+    jpeg 1080x720 128400B
+[MIME-MISMATCH] openais-ibm-deal-moves-frontier-models-into-corporate-security (hero)
+    url: https://cdn.globalworldjournal.com/articles/441e8e06-e5c2-4fa5-b105-011aa00dc859-ibm-openai-cybersecurity-2026.png
+    decodes as jpeg 1080x720, but stored content-type is "image/png"
+[OK] pope-leos-catalan-greeting-turns-barcelona-stop-into-a-lesson-in-identity (hero)
+    url: https://cdn.globalworldjournal.com/articles/a6a8b220-edaf-4d5d-a8af-107354a23b32-pope-leo-barcelona-catalonia-2026.jpg
+    jpeg 1080x720 56331B
+[OK] irans-bank-card-outage-adds-cyber-risk-to-a-fragile-regional-reset (hero)
+    url: https://cdn.globalworldjournal.com/articles/f74b85a9-9736-4f4a-8b0f-ac3916cee90d-iran-bank-atm-tehran-2026.jpg
+    jpeg 1920x1280 491217B
+[MIME-MISMATCH] basetens-13-billion-valuation-shows-ai-infrastructure-money-is-still-moving (hero)
+    url: https://cdn.globalworldjournal.com/articles/adebacb6-521d-41fe-98be-968f70e418b5-baseten-ai-funding-2026.png
+    decodes as jpeg 1920x1280, but stored content-type is "image/png"
+[OK] europes-heatwave-turns-business-into-a-survival-exercise (hero)
+    url: https://cdn.globalworldjournal.com/articles/932099b9-4040-4428-9145-d2ef8f5ecaf9-europe-heatwave-business-reuters.jpg
+    jpeg 1920x1280 545673B
+[OK] european-stocks-slide-as-ai-spending-worries-spread (hero)
+    url: https://cdn.globalworldjournal.com/articles/7dea9a43-f9f7-4e58-8c51-90d4a890d075-european-markets-tech-selloff-reuters.jpg
+    jpeg 1920x1105 390284B
+[OK] meta-pushes-smart-glasses-lower-with-299-ai-line (hero)
+    url: https://cdn.globalworldjournal.com/articles/9c1fc3a0-8f5e-46fa-97a9-299b63dad4a8-meta-smart-glasses-reuters.jpg
+    jpeg 1920x1280 388057B
+[OK] porsches-new-chief-asks-investors-to-wait-for-china-plan (hero)
+    url: https://cdn.globalworldjournal.com/articles/c4110b30-01c5-4c7c-8133-c2d5d8e7c9d0-porsche-china-investors-reuters.jpg
+    jpeg 1080x720 120085B
+[OK] the-icloud-case-puts-a-price-on-convenience (hero)
+    url: https://cdn.globalworldjournal.com/articles/e3c210de-9899-4b26-aa06-98e6acc51a25-apple-logo-icloud-lawsuit.jpg
+    jpeg 1200x800 102850B
+[TOO-SMALL] burnham-nears-downing-street-as-labour-looks-for-a-reset (hero)
+    url: https://cdn.globalworldjournal.com/articles/e56f1340-f0aa-456e-88ce-3c465bb9bac4-andy-burnham-westminster.jpg
+    Image is 320x213px; minimum is 600x400px (width x height)
+[OK] spains-shade-debate-belongs-in-national-politics (hero)
+    url: https://cdn.globalworldjournal.com/articles/f19c2638-1c1c-4c68-9828-9d886903e2bc-spain-heatwave-madrid-el-rastro-2026.jpg
+    jpeg 1920x1298 423862B
+[OK] darwin-festivals-new-director-inherits-more-than-an-anniversary (hero)
+    url: https://cdn.globalworldjournal.com/articles/cb5d7fd3-ae8e-4f8f-8cf8-0e907a533c4e-ben-graetz-portrait-arts-2026.jpg
+    jpeg 3546x3546 213577B
+[OK] french-firms-have-adopted-ai-faster-than-they-can-prove-it-works (hero)
+    url: https://cdn.globalworldjournal.com/articles/25f48d3f-53cd-4be1-8888-825129ffb2bb-vivatech-paris-ai-2026.jpg
+    jpeg 1080x720 84641B
+[OK] porsches-china-lesson-is-that-luxury-now-needs-software (hero)
+    url: https://cdn.globalworldjournal.com/articles/7ce9fa7e-aca8-4363-b509-cef4408aff5a-porsche-spirit-70-shanghai-2026.jpg
+    jpeg 1080x720 120085B
+[OK] europes-weak-pmi-is-a-warning-against-central-bank-overconfidence (hero)
+    url: https://cdn.globalworldjournal.com/articles/52fd8f53-eef0-4757-8c51-cc6ab669480d-frankfurt-banking-skyline-2026.jpg
+    jpeg 1920x1123 278878B
+[MIME-MISMATCH] ai-infrastructure-investors-are-buying-promise-and-depreciation (hero)
+    url: https://cdn.globalworldjournal.com/articles/adebacb6-521d-41fe-98be-968f70e418b5-baseten-ai-funding-2026.png
+    decodes as jpeg 1920x1280, but stored content-type is "image/png"
+[OK] ai-companies-should-pay-the-full-environmental-bill-for-their-data-centers (hero)
+    url: https://cdn.globalworldjournal.com/articles/e6ed902a-9030-4b5e-8cbc-457d0c683d77-ai-environmental-costs-2026.jpg
+    jpeg 1920x1201 222553B
+[OK] xai-lawsuit-puts-grok-safety-claims-under-legal-pressure (hero)
+    url: https://cdn.globalworldjournal.com/articles/6b0003b2-e00b-40d5-966a-0253f0b7f9f4-xai-lawsuit-grok-safety-2026.jpg
+    jpeg 1920x1280 167232B
+[OK] carnivals-fuel-cost-warning-shows-how-geopolitics-reaches-the-vacation-trade (hero)
+    url: https://cdn.globalworldjournal.com/articles/3ec36c9a-1ddc-4610-81dd-9fc089049c68-nasdaq-market-site-2026.jpg
+    jpeg 1200x811 220298B
+[OK] workday-must-face-ai-hiring-bias-claims-in-california (hero)
+    url: https://cdn.globalworldjournal.com/articles/bae2c100-a0f5-4403-9523-89c33ae8d6f3-workday-ai-bias-lawsuit-reuters.jpg
+    jpeg 1920x1265 226122B
+[OK] chinas-liaoning-returns-after-40-days-of-far-sea-drills (hero)
+    url: https://cdn.globalworldjournal.com/articles/ae8c825b-446b-48cb-8d2c-d08d4033a7ad-china-liaoning-drills-reuters.jpg
+    jpeg 1920x1202 321223B
+[TOO-SMALL] britains-budget-watchdog-gets-a-new-nominee-as-growth-worries-deepen (hero)
+    url: https://cdn.globalworldjournal.com/articles/06626567-5a0d-4289-8e29-226daba43e28-jonathan-haskel-obr.jpg
+    Image is 465x310px; minimum is 600x400px (width x height)
+[TOO-SMALL] sterling-slips-as-britains-political-reset-meets-a-weak-economy (hero)
+    url: https://cdn.globalworldjournal.com/articles/1e8e2e37-f372-46b9-8098-a5b2e5db830b-keir-starmer-downing-street.jpg
+    Image is 599x399px; minimum is 600x400px (width x height)
+[OK] hollywoods-new-adaptation-cycle-is-a-bet-on-readers-as-audiences (hero)
+    url: https://cdn.globalworldjournal.com/articles/054920cf-18f1-4252-9224-de11f11ca173-film-10.jpg
+    jpeg 1200x800 182227B
+[OK] faircoin-is-back-a-rebuilt-chain-wrapped-tokens-on-base-and-ai-agents-that-can-pay-with-fair (hero)
+    url: https://cdn.globalworldjournal.com/articles/62cd6077-23ac-407a-b50d-26c76fdcca9d-faircoin-launch-stage.png
+    png 1448x1086 2109700B
+[OK] darwin-festival-turns-to-ben-graetz-for-its-anniversary-chapter (hero)
+    url: https://cdn.globalworldjournal.com/articles/cb5d7fd3-ae8e-4f8f-8cf8-0e907a533c4e-ben-graetz-portrait-arts-2026.jpg
+    jpeg 3546x3546 213577B
+[TOO-SMALL] aldeburghs-new-music-weekend-turns-premieres-into-argument-for-risk (hero)
+    url: https://cdn.globalworldjournal.com/articles/1bc2331f-7c06-4f40-ab0f-e0e626e694b1-aldeburgh-festival-premiere.jpg
+    Image is 445x556px; minimum is 600x400px (width x height)
+[OK] oil-steadies-as-traders-test-the-strait-of-hormuz-reopening (hero)
+    url: https://cdn.globalworldjournal.com/articles/bed4ae7f-2e43-465f-a255-44c03cd7c49d-abu-dhabi-market-screen.jpg
+    jpeg 1920x1281 397116B
+[TOO-SMALL] keith-richards-turns-survival-into-a-late-career-sales-pitch (hero)
+    url: https://cdn.globalworldjournal.com/articles/f24a9625-07fd-476a-8e00-ce2688357c60-keith-richards-redlands.jpg
+    Image is 445x356px; minimum is 600x400px (width x height)
+[OK] putin-says-ukraines-refinery-strikes-aim-to-unsettle-russia (hero)
+    url: https://cdn.globalworldjournal.com/articles/1722964e-cb4e-4ba2-bae3-069210802e4b-putin-security-council-moscow.jpg
+    jpeg 1920x1304 234010B
+[TOO-SMALL] milan-menswear-tries-to-dress-for-heat-without-giving-up-the-suit (hero)
+    url: https://cdn.globalworldjournal.com/articles/99c84724-2c9b-45f9-86dd-3a38fece6dba-milan-fashion-week-runway.jpg
+    Image is 599x399px; minimum is 600x400px (width x height)
+[TOO-SMALL] prada-turns-jeans-into-a-luxury-uniform-for-uncertain-times (hero)
+    url: https://cdn.globalworldjournal.com/articles/a147c057-6c43-4252-8a5a-74127cd79722-prada-milan-2027-menswear.jpg
+    Image is 599x399px; minimum is 600x400px (width x height)
+
+=== SUMMARY ===
+CORRUPT: 1
+MIME-MISMATCH: 8
+MISSING: 2
+NOT-AN-IMAGE: 1
+OK: 83
+TOO-SMALL: 11
+
+BROKEN — must re-source the image (renders blank/broken): 4
+  - eu-defense-push-puts-ukraine-at-the-center-of-europes-next-military-market
+  - perplexitys-publisher-fight-reaches-the-center-of-ai-search
+  - sacha-baron-cohens-netflix-return-tests-whether-old-satire-can-still-land
+  - ukraines-strikes-push-russias-fuel-shortages-deep-into-siberia
+
+TOO-SMALL — below minimum hero dimension: 11
+  - ai-selloff-spreads-from-chips-to-global-indexes
+  - aldeburghs-new-music-weekend-turns-premieres-into-argument-for-risk
+  - britains-budget-watchdog-gets-a-new-nominee-as-growth-worries-deepen
+  - burnham-nears-downing-street-as-labour-looks-for-a-reset
+  - burnhams-likely-rise-in-britain-comes-with-little-room-for-error
+  - europes-heatwave-moves-from-inconvenience-to-infrastructure-test
+  - iran-talks-advance-but-inspectors-and-hormuz-remain-unresolved
+  - keith-richards-turns-survival-into-a-late-career-sales-pitch
+  - milan-menswear-tries-to-dress-for-heat-without-giving-up-the-suit
+  - prada-turns-jeans-into-a-luxury-uniform-for-uncertain-times
+  - sterling-slips-as-britains-political-reset-meets-a-weak-economy
+
+MIME-MISMATCH — valid image, wrong stored content-type: 8
+  - ai-infrastructure-investors-are-buying-promise-and-depreciation
+  - basetens-13-billion-valuation-shows-ai-infrastructure-money-is-still-moving
+  - basetens-funding-round-shows-investors-still-want-the-ai-middle-layer
+  - ibm-and-openai-put-enterprise-ai-on-trial-in-security
+  - openais-ibm-deal-moves-frontier-models-into-corporate-security
+  - openais-ibm-partnership-should-make-companies-ask-harder-security-questions
+  - openais-legal-and-enterprise-fronts-are-becoming-the-same-war
+  - pedro-sanchez-faces-a-corruption-crisis-without-being-personally-accused
+

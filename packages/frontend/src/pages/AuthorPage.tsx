@@ -2,6 +2,7 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { authorSlug, findWriterBySlug } from '@gwj/shared-types'
 import { getArticles } from '../lib/api'
+import { useLang } from '../lib/i18n'
 import { ArticleCard } from '../components/ArticleCard'
 import { AdSlot } from '../components/AdSlot'
 import { StatusMessage } from '../components/StatusMessage'
@@ -9,11 +10,12 @@ import { ListSkeleton } from '../components/Skeletons'
 
 export function AuthorPage() {
   const { slug = '' } = useParams()
+  const { lang, t } = useLang()
   const writer = findWriterBySlug(slug)
 
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ['articles', 'author', slug],
-    queryFn: ({ signal }) => getArticles({ limit: 50 }, signal),
+    queryKey: ['articles', 'author', slug, lang],
+    queryFn: ({ signal }) => getArticles({ language: lang, limit: 50 }, signal),
   })
 
   if (isPending) {
@@ -22,7 +24,7 @@ export function AuthorPage() {
   if (isError) {
     return (
       <StatusMessage
-        title="We couldn&rsquo;t load this author."
+        title={t('loadingError')}
         detail={error instanceof Error ? error.message : undefined}
       />
     )
@@ -58,7 +60,7 @@ export function AuthorPage() {
       </header>
 
       {articles.length === 0 ? (
-        <StatusMessage title="No stories yet." detail={`${name} hasn’t published here yet.`} />
+        <StatusMessage title={t('noStories')} detail={`${name} hasn’t published here yet.`} />
       ) : (
         <div className="flex flex-col divide-y divide-rule">
           {articles.map((article) => (

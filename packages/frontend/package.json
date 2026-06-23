@@ -11,6 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fontsource-variable/libre-franklin": "^5.2.8",
+    "@fontsource-variable/playfair-display": "^5.2.8",
+    "@fontsource/pt-serif": "^5.2.8",
     "@gwj/shared-types": "workspace:*",
     "@tanstack/react-query": "^5.62.7",
     "react": "^19.0.0",

@@ -2,33 +2,39 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { searchArticles } from '../lib/api'
+import { useLang } from '../lib/i18n'
 import { ArticleCard } from '../components/ArticleCard'
 import { StatusMessage } from '../components/StatusMessage'
 
 export function Search() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { lang, t } = useLang()
   const query = searchParams.get('q') ?? ''
   const [draft, setDraft] = useState(query)
 
   const { data, isPending, isError, error, isFetching } = useQuery({
-    queryKey: ['search', query],
-    queryFn: ({ signal }) => searchArticles(query, 1, signal),
+    queryKey: ['search', query, lang],
+    queryFn: ({ signal }) => searchArticles(query, 1, lang, signal),
     enabled: query.trim().length > 0,
   })
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmed = draft.trim()
-    if (trimmed) {
-      setSearchParams({ q: trimmed })
-    } else {
-      setSearchParams({})
-    }
+    setSearchParams((params) => {
+      const updated = new URLSearchParams(params)
+      if (trimmed) {
+        updated.set('q', trimmed)
+      } else {
+        updated.delete('q')
+      }
+      return updated
+    })
   }
 
   return (
     <section className="mx-auto max-w-3xl">
-      <h1 className="headline mb-4 text-3xl text-ink">Search</h1>
+      <h1 className="headline mb-4 text-3xl text-ink">{t('search')}</h1>
 
       <form onSubmit={handleSubmit} className="mb-8 flex gap-2 border-b-2 border-ink pb-2">
         <input
@@ -40,7 +46,7 @@ export function Search() {
           className="w-full bg-transparent font-body text-lg text-ink outline-none placeholder:text-muted"
         />
         <button type="submit" className="label text-[0.75rem] text-accent">
-          Search
+          {t('search')}
         </button>
       </form>
 

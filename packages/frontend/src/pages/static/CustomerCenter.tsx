@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { LocaleLink } from '../../lib/locale'
 
 export function CustomerCenter() {
   return (
@@ -43,7 +43,7 @@ export function CustomerCenter() {
 
         <h2 className="headline text-2xl text-ink">Still need help?</h2>
         <p>
-          Our support team is glad to assist. Visit <Link to="/contact" className="text-accent hover:underline">Contact Us</Link>{' '}
+          Our support team is glad to assist. Visit <LocaleLink to="/contact" className="text-accent hover:underline">Contact Us</LocaleLink>{' '}
           for the full list of departments, or write directly to{' '}
           <a href="mailto:support@globalworldjournal.com" className="text-accent hover:underline">
             support@globalworldjournal.com

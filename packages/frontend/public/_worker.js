@@ -1,27 +1,80 @@
 // Cloudflare Pages Advanced-Mode worker (served at the root of dist/).
 // For crawler-facing routes it fetches the backend API and injects per-page
 // <title>, meta description, Open Graph, Twitter card and JSON-LD into the SPA
-// shell. It also generates /sitemap.xml. Everything else falls through to the
-// static assets (which honor _redirects → SPA fallback).
+// shell. It also generates /sitemap.xml and /feed.xml. Everything else falls
+// through to the static assets (which honor _redirects → SPA fallback).
+//
+// Editions are PATH-BASED: English is the canonical root (no prefix), Spanish
+// lives under /es, French under /fr. The edition is read from the leading path
+// segment, which is stripped before route matching. Article URLs are bound to
+// the article's own language (a single-language document), so an article under
+// the wrong prefix 301-redirects to its canonical URL.
 
 const CATEGORY_SLUGS = ['world', 'business', 'markets', 'tech', 'politics', 'opinion', 'arts']
 const SITE_NAME = 'The Global World Journal'
-const LANGS = ['en', 'es', 'fr']
+// English is the default edition (no prefix). PREFIXED_LANGS own a /<lang> path.
+const DEFAULT_LANG = 'en'
+const PREFIXED_LANGS = ['es', 'fr']
+const LANGS = [DEFAULT_LANG, ...PREFIXED_LANGS]
 const LOCALES = { en: 'en_US', es: 'es_ES', fr: 'fr_FR' }
 
-/** The requested edition from ?lang=, validated; defaults to English. */
-function langOf(request) {
-  const l = new URL(request.url).searchParams.get('lang')
-  return l && LANGS.includes(l) ? l : 'en'
+/** The path prefix for an edition: '' for English, '/es' / '/fr' otherwise. */
+function langPrefix(lang) {
+  return lang === DEFAULT_LANG ? '' : `/${lang}`
 }
 
-/** hreflang alternate links for a clean canonical URL (query-param editions + x-default). */
-function hreflangLinks(url) {
+/**
+ * Split a pathname into its edition and the edition-relative remainder.
+ * `/es/article/x` → { lang: 'es', rest: '/article/x' }; `/world` → { lang: 'en',
+ * rest: '/world' }; `/es` → { lang: 'es', rest: '/' }.
+ */
+function splitLang(pathname) {
+  const segments = pathname.split('/')
+  const first = segments[1] || ''
+  if (PREFIXED_LANGS.includes(first)) {
+    const rest = pathname.slice(`/${first}`.length) || '/'
+    return { lang: first, rest }
+  }
+  return { lang: DEFAULT_LANG, rest: pathname }
+}
+
+/** Build a site-absolute URL for an edition-relative path under a given edition. */
+function editionUrl(siteUrl, lang, relPath) {
+  const prefix = langPrefix(lang)
+  if (relPath === '/') {
+    return `${siteUrl}${prefix || '/'}`
+  }
+  return `${siteUrl}${prefix}${relPath}`
+}
+
+/**
+ * hreflang alternates for an INDEX page (home, category, author, search). These
+ * pages are genuine per-edition translations of the same surface, so we declare
+ * every edition's URL plus x-default (the English/bare URL). `relPath` is the
+ * edition-relative path (e.g. '/', '/world', '/author/jane', '/search').
+ */
+function indexHreflangLinks(siteUrl, relPath) {
   const links = LANGS.map(
-    (l) => `<link rel="alternate" hreflang="${l}" href="${escapeHtml(`${url}?lang=${l}`)}" />`,
+    (lang) =>
+      `<link rel="alternate" hreflang="${lang}" href="${escapeHtml(editionUrl(siteUrl, lang, relPath))}" />`,
   )
-  links.push(`<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}" />`)
+  links.push(
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(editionUrl(siteUrl, DEFAULT_LANG, relPath))}" />`,
+  )
   return links.join('\n    ')
+}
+
+/**
+ * hreflang alternates for an ARTICLE page. An article is a SINGLE language, so
+ * we declare only its own language (self) plus x-default — both pointing at the
+ * article's own canonical (language-prefixed) URL. We do NOT fabricate
+ * cross-language alternates, since the other editions have no translation of it.
+ */
+function articleHreflangLinks(canonicalUrl, lang) {
+  return [
+    `<link rel="alternate" hreflang="${lang}" href="${escapeHtml(canonicalUrl)}" />`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(canonicalUrl)}" />`,
+  ].join('\n    ')
 }
 
 function getConfig(env) {
@@ -89,6 +142,11 @@ function articleImage(article) {
   return ''
 }
 
+/** The edition a single article belongs to (its content language), defaulting to English. */
+function articleLang(article) {
+  return article.language && LANGS.includes(article.language) ? article.language : DEFAULT_LANG
+}
+
 function slugifyName(value) {
   return String(value)
     .toLowerCase()
@@ -100,12 +158,19 @@ function slugifyName(value) {
     .replace(/-+/g, '-')
 }
 
-function buildMetaTags({ title, description, url, image, type, jsonLd, extraMeta = [], lang = 'en' }) {
+function buildMetaTags({ title, description, url, image, type, jsonLd, extraMeta = [], lang = 'en', hreflang = '', preloadImage = '' }) {
   const tags = [
     `<title>${escapeHtml(title)}</title>`,
+  ]
+  if (preloadImage) {
+    tags.push(
+      `<link rel="preload" as="image" fetchpriority="high" href="${escapeHtml(preloadImage)}" />`,
+    )
+  }
+  tags.push(...[
     `<meta name="description" content="${escapeHtml(description)}" />`,
     `<link rel="canonical" href="${escapeHtml(url)}" />`,
-    hreflangLinks(url),
+    hreflang,
     `<meta property="og:type" content="${escapeHtml(type)}" />`,
     `<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}" />`,
     `<meta property="og:locale" content="${LOCALES[lang] || 'en_US'}" />`,
@@ -116,7 +181,7 @@ function buildMetaTags({ title, description, url, image, type, jsonLd, extraMeta
     `<meta name="twitter:site" content="@globalworldjrnl" />`,
     `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
-  ]
+  ])
   if (image) {
     tags.push(`<meta property="og:image" content="${escapeHtml(image)}" />`)
     tags.push(`<meta name="twitter:image" content="${escapeHtml(image)}" />`)
@@ -132,7 +197,7 @@ function buildMetaTags({ title, description, url, image, type, jsonLd, extraMeta
       )
     }
   }
-  return tags.join('\n    ')
+  return tags.filter(Boolean).join('\n    ')
 }
 
 function organizationJsonLd(siteUrl) {
@@ -175,6 +240,8 @@ function websiteJsonLd(siteUrl) {
 }
 
 function newsArticleJsonLd(article, url, image, siteUrl) {
+  const lang = articleLang(article)
+  const authorPath = editionUrl(siteUrl, lang, `/author/${slugifyName(article.author)}`)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
@@ -183,12 +250,12 @@ function newsArticleJsonLd(article, url, image, siteUrl) {
     description: articleDescription(article),
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
     articleSection: article.category,
-    inLanguage: article.language || 'en',
+    inLanguage: lang,
     isAccessibleForFree: true,
     author: {
       '@type': 'Person',
       name: article.author,
-      url: `${siteUrl}/author/${slugifyName(article.author)}`,
+      url: authorPath,
     },
     publisher: {
       '@type': 'NewsMediaOrganization',
@@ -319,23 +386,28 @@ function withHtmlBody(shellResponse, html) {
   return new Response(html, { status: 200, headers })
 }
 
-async function handleHome(env, request, config) {
+/** A 301 permanent redirect to an absolute URL (for legacy/wrong-locale URLs). */
+function redirect(location) {
+  return new Response(null, { status: 301, headers: { location } })
+}
+
+async function handleHome(env, request, config, lang) {
   const shell = await getShell(env, request)
   const html = await shell.text()
-  const lang = langOf(request)
   const metaTags = buildMetaTags({
     title: `${SITE_NAME} — World, Business, Markets, Tech, Politics, Opinion, Arts`,
     description: `${SITE_NAME}: breaking news and in-depth reporting across the world economy, markets, technology, politics, opinion and the arts.`,
-    url: `${config.siteUrl}/`,
+    url: editionUrl(config.siteUrl, lang, '/'),
     image: '',
     type: 'website',
     jsonLd: [websiteJsonLd(config.siteUrl), organizationJsonLd(config.siteUrl)],
     lang,
+    hreflang: indexHreflangLinks(config.siteUrl, '/'),
   })
   return withHtmlBody(shell, injectHead(html, metaTags, lang))
 }
 
-async function handleArticle(env, request, config, slug) {
+async function handleArticle(env, request, config, slug, reqLang) {
   const shell = await getShell(env, request)
   const html = await shell.text()
   const article = config.apiBaseUrl
@@ -344,7 +416,6 @@ async function handleArticle(env, request, config, slug) {
 
   if (!article || !article.title) {
     // Article unknown to the edge — serve the shell so the SPA can 404 client-side.
-    const reqLang = langOf(request)
     return withHtmlBody(
       shell,
       injectHead(
@@ -352,20 +423,29 @@ async function handleArticle(env, request, config, slug) {
         buildMetaTags({
           title: SITE_NAME,
           description: `${SITE_NAME} — independent global news.`,
-          url: `${config.siteUrl}/article/${slug}`,
+          url: editionUrl(config.siteUrl, reqLang, `/article/${slug}`),
           image: '',
           type: 'website',
           jsonLd: websiteJsonLd(config.siteUrl),
           lang: reqLang,
+          hreflang: articleHreflangLinks(editionUrl(config.siteUrl, reqLang, `/article/${slug}`), reqLang),
         }),
         reqLang,
       ),
     )
   }
 
-  const lang = article.language && LOCALES[article.language] ? article.language : langOf(request)
+  const lang = articleLang(article)
+  const realSlug = article.slug || slug
+  const canonical = editionUrl(config.siteUrl, lang, `/article/${realSlug}`)
 
-  const url = `${config.siteUrl}/article/${article.slug || slug}`
+  // An article is a single-language document. If it was requested under the
+  // wrong edition prefix (or a stale slug), 301 to its canonical URL so editions
+  // don't fork the same content across multiple indexable URLs.
+  if (reqLang !== lang || realSlug !== slug) {
+    return redirect(canonical)
+  }
+
   const description = articleDescription(article)
   const image = articleImage(article)
   const title = (article.seo && article.seo.metaTitle) || `${article.title} — ${SITE_NAME}`
@@ -383,12 +463,14 @@ async function handleArticle(env, request, config, slug) {
   const metaTags = buildMetaTags({
     title,
     description,
-    url,
+    url: canonical,
     image,
     type: 'article',
-    jsonLd: newsArticleJsonLd(article, url, image, config.siteUrl),
+    jsonLd: newsArticleJsonLd(article, canonical, image, config.siteUrl),
     extraMeta,
     lang,
+    hreflang: articleHreflangLinks(canonical, lang),
+    preloadImage: image,
   })
   // Server-render the article text into #root so crawlers (and Google News) get
   // the full content without executing JS; React replaces it on mount.
@@ -398,19 +480,53 @@ async function handleArticle(env, request, config, slug) {
   )
 }
 
-async function handleCategory(env, request, config, slug) {
+async function handleCategory(env, request, config, slug, lang) {
   const shell = await getShell(env, request)
   const html = await shell.text()
-  const lang = langOf(request)
   const name = slug.charAt(0).toUpperCase() + slug.slice(1)
+  const relPath = `/${slug}`
   const metaTags = buildMetaTags({
     title: `${name} — ${SITE_NAME}`,
     description: `The latest ${name} news and analysis from ${SITE_NAME}.`,
-    url: `${config.siteUrl}/${slug}`,
+    url: editionUrl(config.siteUrl, lang, relPath),
     image: '',
     type: 'website',
     jsonLd: websiteJsonLd(config.siteUrl),
     lang,
+    hreflang: indexHreflangLinks(config.siteUrl, relPath),
+  })
+  return withHtmlBody(shell, injectHead(html, metaTags, lang))
+}
+
+async function handleAuthor(env, request, config, slug, lang) {
+  const shell = await getShell(env, request)
+  const html = await shell.text()
+  const relPath = `/author/${slug}`
+  const metaTags = buildMetaTags({
+    title: `${SITE_NAME} — Author`,
+    description: `Stories by this writer for ${SITE_NAME}.`,
+    url: editionUrl(config.siteUrl, lang, relPath),
+    image: '',
+    type: 'website',
+    jsonLd: websiteJsonLd(config.siteUrl),
+    lang,
+    hreflang: indexHreflangLinks(config.siteUrl, relPath),
+  })
+  return withHtmlBody(shell, injectHead(html, metaTags, lang))
+}
+
+async function handleSearch(env, request, config, lang) {
+  const shell = await getShell(env, request)
+  const html = await shell.text()
+  const metaTags = buildMetaTags({
+    title: `Search — ${SITE_NAME}`,
+    description: `Search news and analysis across ${SITE_NAME}.`,
+    url: editionUrl(config.siteUrl, lang, '/search'),
+    image: '',
+    type: 'website',
+    jsonLd: websiteJsonLd(config.siteUrl),
+    lang,
+    hreflang: indexHreflangLinks(config.siteUrl, '/search'),
   })
   return withHtmlBody(shell, injectHead(html, metaTags, lang))
 }
@@ -423,31 +539,47 @@ async function fetchArticles(config, request) {
 
 async function handleSitemap(request, config) {
   const articles = await fetchArticles(config, request)
-  const staticUrls = [
-    { loc: `${config.siteUrl}/` },
-    ...CATEGORY_SLUGS.map((slug) => ({ loc: `${config.siteUrl}/${slug}` })),
-  ]
-  const authorSlugs = [...new Set(articles.map((a) => slugifyName(a.author)).filter(Boolean))]
-  const authorUrls = authorSlugs.map((s) => ({ loc: `${config.siteUrl}/author/${s}` }))
 
+  // Index pages exist per edition: home + each category under '', '/es', '/fr'.
+  const indexUrls = []
+  for (const lang of LANGS) {
+    indexUrls.push({ loc: editionUrl(config.siteUrl, lang, '/') })
+    for (const slug of CATEGORY_SLUGS) {
+      indexUrls.push({ loc: editionUrl(config.siteUrl, lang, `/${slug}`) })
+    }
+  }
+
+  // Author pages: an author's body of work spans editions, so list each author
+  // under every edition prefix.
+  const authorSlugs = [...new Set(articles.map((a) => slugifyName(a.author)).filter(Boolean))]
+  const authorUrls = []
+  for (const lang of LANGS) {
+    for (const s of authorSlugs) {
+      authorUrls.push({ loc: editionUrl(config.siteUrl, lang, `/author/${s}`) })
+    }
+  }
+
+  // Articles: each is a single-language document, listed once under its own
+  // edition prefix. Google-News tags carry the article's own language.
   const articleUrls = articles
     .filter((a) => a && a.slug)
     .map((a) => {
+      const lang = articleLang(a)
       const lastmod = a.updatedAt || a.publishedAt
       const news = a.publishedAt
         ? `<news:news><news:publication><news:name>${escapeXml(SITE_NAME)}</news:name>` +
-          `<news:language>en</news:language></news:publication>` +
+          `<news:language>${escapeXml(lang)}</news:language></news:publication>` +
           `<news:publication_date>${escapeXml(a.publishedAt)}</news:publication_date>` +
           `<news:title>${escapeXml(a.title)}</news:title></news:news>`
         : ''
       return {
-        loc: `${config.siteUrl}/article/${a.slug}`,
+        loc: editionUrl(config.siteUrl, lang, `/article/${a.slug}`),
         lastmod,
         news,
       }
     })
 
-  const all = [...staticUrls, ...authorUrls, ...articleUrls]
+  const all = [...indexUrls, ...authorUrls, ...articleUrls]
   const urls = all
     .map((u) => {
       const parts = [`<loc>${escapeXml(u.loc)}</loc>`]
@@ -467,11 +599,13 @@ async function handleSitemap(request, config) {
 }
 
 async function handleFeed(request, config) {
+  // The RSS feed is the English edition (canonical). Each article links to its
+  // own canonical (language-prefixed) URL.
   const articles = await fetchArticles(config, request)
   const items = articles
     .filter((a) => a && a.slug)
     .map((a) => {
-      const link = `${config.siteUrl}/article/${a.slug}`
+      const link = editionUrl(config.siteUrl, articleLang(a), `/article/${a.slug}`)
       const date = a.publishedAt ? new Date(a.publishedAt).toUTCString() : ''
       return (
         `    <item>\n` +
@@ -500,14 +634,85 @@ async function handleFeed(request, config) {
   })
 }
 
+/**
+ * Back-compat for legacy `?lang=` URLs (the old query-param editions). Returns a
+ * redirect target (absolute URL) when a redirect is needed, else null:
+ *   ?lang=es / ?lang=fr → 301 to the path-prefixed equivalent (other params kept)
+ *   ?lang=en            → 301 stripping the param (English is the bare path)
+ * Only applies to the bare (non-prefixed) path, so we never double-prefix.
+ */
+function legacyLangRedirect(url, config) {
+  const legacy = url.searchParams.get('lang')
+  if (!legacy || !LANGS.includes(legacy)) {
+    return null
+  }
+  const { lang: pathLang, rest } = splitLang(url.pathname)
+  // The path's own prefix wins if present; otherwise the legacy ?lang= picks the
+  // edition. Either way the stale ?lang= param is dropped.
+  const targetLang = pathLang === DEFAULT_LANG ? legacy : pathLang
+  const params = new URLSearchParams(url.searchParams)
+  params.delete('lang')
+  const query = params.toString()
+  return `${editionUrl(config.siteUrl, targetLang, rest)}${query ? `?${query}` : ''}${url.hash}`
+}
+
+/**
+ * ActivityPub / fediverse paths live on the APEX domain (the handle is
+ * @user@globalworldjournal.com, so WebFinger and the actor must answer here),
+ * but the implementation runs on the API backend. These paths are reverse-
+ * proxied VERBATIM to the backend: the path and body must arrive byte-for-byte
+ * unchanged so the backend can verify the inbound HTTP Signature's
+ * `(request-target)` and `Digest`. Covers any /users/<actor>… (incl. future
+ * per-language editions), the shared inbox, WebFinger and NodeInfo.
+ */
+function isActivityPubPath(pathname) {
+  return (
+    pathname === '/.well-known/webfinger' ||
+    pathname === '/.well-known/nodeinfo' ||
+    pathname === '/nodeinfo/2.1' ||
+    pathname === '/inbox' ||
+    pathname === '/users' ||
+    pathname.startsWith('/users/')
+  )
+}
+
+async function proxyActivityPub(request, config, url) {
+  if (!config.apiBaseUrl) {
+    return new Response('Federation backend not configured', { status: 404 })
+  }
+  const headers = new Headers(request.headers)
+  // The remote server signed the `host` header as the public apex; the backend
+  // verifies signatures against its configured FEDIVERSE_DOMAIN. Pass the
+  // original host explicitly so the origin can reconstruct apex-absolute URLs.
+  headers.set('X-Forwarded-Host', url.host)
+  headers.set('X-Forwarded-Proto', 'https')
+  const init = { method: request.method, headers, redirect: 'manual' }
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    // Buffer the body so the proxied bytes exactly match what was signed/digested.
+    init.body = await request.arrayBuffer()
+  }
+  return fetch(`${config.apiBaseUrl}${url.pathname}${url.search}`, init)
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     const { pathname } = url
     const config = getConfig(env)
 
+    // Fediverse endpoints (incl. POST /inbox) — proxy before any GET/SPA logic.
+    if (isActivityPubPath(pathname)) {
+      return proxyActivityPub(request, config, url)
+    }
+
     if (request.method !== 'GET') {
       return env.ASSETS.fetch(request)
+    }
+
+    // Legacy ?lang= URLs → 301 to the path-based equivalent (before routing).
+    const legacyTarget = legacyLangRedirect(url, config)
+    if (legacyTarget) {
+      return redirect(legacyTarget)
     }
 
     if (pathname === '/sitemap.xml') {
@@ -518,21 +723,33 @@ export default {
       return handleFeed(request, config)
     }
 
-    // Never prerender the admin app.
-    if (pathname === '/' ) {
-      return handleHome(env, request, config)
+    // Resolve the edition from the leading path segment, then match the route on
+    // the edition-relative remainder.
+    const { lang, rest } = splitLang(pathname)
+
+    if (rest === '/') {
+      return handleHome(env, request, config, lang)
     }
 
-    const articleMatch = pathname.match(/^\/article\/([^/]+)\/?$/)
+    const articleMatch = rest.match(/^\/article\/([^/]+)\/?$/)
     if (articleMatch) {
-      return handleArticle(env, request, config, decodeURIComponent(articleMatch[1]))
+      return handleArticle(env, request, config, decodeURIComponent(articleMatch[1]), lang)
     }
 
-    const categoryMatch = pathname.match(/^\/([^/]+)\/?$/)
+    const authorMatch = rest.match(/^\/author\/([^/]+)\/?$/)
+    if (authorMatch) {
+      return handleAuthor(env, request, config, decodeURIComponent(authorMatch[1]).toLowerCase(), lang)
+    }
+
+    if (rest === '/search' || rest === '/search/') {
+      return handleSearch(env, request, config, lang)
+    }
+
+    const categoryMatch = rest.match(/^\/([^/]+)\/?$/)
     if (categoryMatch) {
       const slug = decodeURIComponent(categoryMatch[1]).toLowerCase()
       if (CATEGORY_SLUGS.includes(slug)) {
-        return handleCategory(env, request, config, slug)
+        return handleCategory(env, request, config, slug, lang)
       }
     }
 

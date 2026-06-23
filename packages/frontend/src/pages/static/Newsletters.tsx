@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { LocaleLink } from '../../lib/locale'
 
 export function Newsletters() {
   return (
@@ -43,9 +43,9 @@ export function Newsletters() {
         </p>
         <p>
           Newsletters are included with every plan. If you are not a subscriber yet, you can{' '}
-          <Link to="/subscribe" className="text-accent hover:underline">
+          <LocaleLink to="/subscribe" className="text-accent hover:underline">
             subscribe here
-          </Link>
+          </LocaleLink>
           .
         </p>
       </div>

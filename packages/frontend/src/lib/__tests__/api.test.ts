@@ -11,6 +11,7 @@ const validPayload: PaginatedArticles = {
       deck: 'A deck.',
       kicker: 'World',
       category: 'World',
+      language: 'en',
       author: 'Reporter',
       body: 'Body text.',
       status: 'published',

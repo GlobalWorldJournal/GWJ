@@ -3,10 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CATEGORIES,
+  SUPPORTED_LANGUAGES,
+  LANGUAGE_NAMES,
+  DEFAULT_LANGUAGE,
   type Article,
   type ArticleInput,
   type Category,
   type HeroImage,
+  type Language,
 } from '@gwj/shared-types'
 import {
   createArticle,
@@ -23,6 +27,8 @@ interface EditorForm {
   deck: string
   kicker: string
   category: Category
+  /** Edition this article belongs to. */
+  language: Language
   author: string
   tags: string
   featured: number
@@ -37,6 +43,7 @@ function emptyForm(): EditorForm {
     deck: '',
     kicker: '',
     category: CATEGORIES[0],
+    language: DEFAULT_LANGUAGE,
     author: '',
     tags: '',
     featured: 0,
@@ -51,6 +58,7 @@ function formFromArticle(article: Article): EditorForm {
     deck: article.deck ?? '',
     kicker: article.kicker ?? '',
     category: article.category,
+    language: article.language,
     author: article.author,
     tags: article.tags.join(', '),
     featured: article.featured,
@@ -65,6 +73,7 @@ function toArticleInput(form: EditorForm): ArticleInput {
     deck: form.deck || undefined,
     kicker: form.kicker || undefined,
     category: form.category,
+    language: form.language,
     author: form.author,
     body: form.body,
     heroImage: form.heroImage ?? undefined,
@@ -237,7 +246,7 @@ function EditorForm({ initial, articleId }: EditorFormProps) {
           <TextInput value={form.deck} onChange={(value) => update('deck', value)} />
         </Field>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Author">
             <TextInput value={form.author} onChange={(value) => update('author', value)} />
           </Field>
@@ -250,6 +259,19 @@ function EditorForm({ initial, articleId }: EditorFormProps) {
               {CATEGORIES.map((category) => (
                 <option key={category} value={category}>
                   {category}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Edition">
+            <select
+              value={form.language}
+              onChange={(event) => update('language', event.target.value as Language)}
+              className="border border-ink bg-paper px-3 py-2 font-body text-ink outline-none focus:border-accent"
+            >
+              {SUPPORTED_LANGUAGES.map((code) => (
+                <option key={code} value={code}>
+                  {LANGUAGE_NAMES[code]}
                 </option>
               ))}
             </select>

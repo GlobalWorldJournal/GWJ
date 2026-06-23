@@ -72,3 +72,40 @@ export function authorSlug(name: string): string {
 export function findWriterBySlug(slug: string): Writer | undefined {
   return WRITERS.find((w) => authorSlug(w.name) === slug)
 }
+
+/** Resolve a roster writer by exact display name (the article `author` field). */
+export function findWriterByName(name: string): Writer | undefined {
+  return WRITERS.find((w) => w.name === name)
+}
+
+/**
+ * The fediverse username (local handle) for a writer's ActivityPub actor.
+ * Unlike `authorSlug` (a hyphenated WEB slug), a fedi username is a bare token of
+ * ONLY `[a-z0-9]` — no spaces, hyphens, dots, or accents — so it forms a valid
+ * Mastodon-style handle `@<fediUsername>@<domain>`. Diacritics are stripped via
+ * NFKD before non-alphanumerics are removed.
+ *
+ * Examples: "Eleanor Vance"→"eleanorvance", "Ji-ho Park"→"jihopark",
+ * "J. P. Sutherland"→"jpsutherland", "Lucía Ferrer"→"luciaferrer".
+ */
+export function fediUsername(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+/** Resolve a roster writer by their fediverse username, if it is one. */
+export function findWriterByFediUsername(username: string): Writer | undefined {
+  return WRITERS.find((w) => fediUsername(w.name) === username)
+}
+
+/**
+ * CDN-relative path to a writer's avatar (512×512 PNG, pre-generated, one per
+ * writer). Pure and env-free: the consumer joins it with the CDN base URL. The
+ * path key is the writer's `fediUsername`, e.g. `writers/eleanorvance.png`.
+ */
+export function writerAvatarPath(name: string): string {
+  return `writers/${fediUsername(name)}.png`
+}

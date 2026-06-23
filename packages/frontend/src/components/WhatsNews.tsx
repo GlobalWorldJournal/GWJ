@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
 import type { Article } from '@gwj/shared-types'
+import { LocaleLink } from '../lib/locale'
 
 interface WhatsNewsProps {
   articles: Article[]
@@ -23,14 +23,14 @@ export function WhatsNews({ articles, className }: WhatsNewsProps) {
       <ul className="flex flex-col px-4 pb-2">
         {articles.map((article) => (
           <li key={article.id} className="border-t border-rule py-3">
-            <Link to={`/article/${article.slug}`} className="group flex gap-2">
+            <LocaleLink to={`/article/${article.slug}`} className="group flex gap-2">
               <span aria-hidden className="mt-[0.15rem] font-bold text-accent">
                 &bull;
               </span>
               <p className="font-body text-[0.95rem] font-semibold leading-snug text-ink transition-colors group-hover:text-accent">
                 {article.title}
               </p>
-            </Link>
+            </LocaleLink>
           </li>
         ))}
       </ul>

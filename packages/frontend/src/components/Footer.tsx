@@ -1,72 +1,95 @@
-import { Link } from 'react-router-dom'
 import { CATEGORIES, categorySlug } from '@gwj/shared-types'
+import { useLang } from '../lib/i18n'
+import { LocaleLink } from '../lib/locale'
+import { categoryLabel } from '../lib/dictionary'
 
+/** A footer link whose visible label comes from a dictionary key. */
 interface FooterLink {
-  label: string
+  labelKey: string
   to: string
 }
 
-const COLUMNS: { title: string; links: FooterLink[] }[] = [
+/** A footer column whose title comes from a dictionary key. */
+interface FooterColumn {
+  titleKey: string
+  links: FooterLink[]
+}
+
+// Routes stay identical across editions; only the visible labels are localized.
+// The "Sections" column is rendered specially from CATEGORIES (localized via
+// categoryLabel) so adding an edition needs no per-language link list here.
+const COLUMNS: FooterColumn[] = [
   {
-    title: 'Sections',
-    links: CATEGORIES.map((c) => ({ label: c, to: `/${categorySlug(c)}` })),
-  },
-  {
-    title: 'Customer Service',
+    titleKey: 'customerService',
     links: [
-      { label: 'Customer Center', to: '/customer-center' },
-      { label: 'Contact Us', to: '/contact' },
-      { label: 'Subscribe', to: '/subscribe' },
-      { label: 'Newsletters', to: '/newsletters' },
+      { labelKey: 'customerCenter', to: '/customer-center' },
+      { labelKey: 'contactUs', to: '/contact' },
+      { labelKey: 'subscribe', to: '/subscribe' },
+      { labelKey: 'newsletters', to: '/newsletters' },
     ],
   },
   {
-    title: 'Tools & Features',
+    titleKey: 'tools',
     links: [
-      { label: 'Search', to: '/search' },
-      { label: 'RSS Feeds', to: '/rss' },
-      { label: 'Podcasts', to: '/podcasts' },
-      { label: 'Video', to: '/video' },
+      { labelKey: 'search', to: '/search' },
+      { labelKey: 'rssFeeds', to: '/rss' },
+      { labelKey: 'podcasts', to: '/podcasts' },
+      { labelKey: 'video', to: '/video' },
     ],
   },
   {
-    title: 'Company',
+    titleKey: 'company',
     links: [
-      { label: 'About Us', to: '/about' },
-      { label: 'Careers', to: '/careers' },
-      { label: 'Advertise', to: '/advertise' },
-      { label: 'Corrections', to: '/corrections' },
+      { labelKey: 'aboutUs', to: '/about' },
+      { labelKey: 'careers', to: '/careers' },
+      { labelKey: 'advertise', to: '/advertise' },
+      { labelKey: 'corrections', to: '/corrections' },
     ],
   },
   {
-    title: 'More',
+    titleKey: 'moreTitle',
     links: [
-      { label: 'Privacy Notice', to: '/privacy' },
-      { label: 'Cookie Notice', to: '/cookie-notice' },
-      { label: 'Terms of Use', to: '/terms' },
-      { label: 'Accessibility', to: '/accessibility' },
+      { labelKey: 'privacy', to: '/privacy' },
+      { labelKey: 'cookieNotice', to: '/cookie-notice' },
+      { labelKey: 'terms', to: '/terms' },
+      { labelKey: 'accessibility', to: '/accessibility' },
     ],
   },
 ]
 
+const FOOTER_LINK_CLASS =
+  'font-body text-[0.85rem] text-ink-soft transition-colors hover:text-accent'
+
 /** WSJ-style multi-column footer: link groups + wordmark + copyright. */
 export function Footer() {
+  const { lang, t } = useLang()
+
   return (
     <footer className="mt-16 border-t-3 border-ink bg-paper">
       <div className="mx-auto max-w-6xl px-4 py-10">
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
+          <div>
+            <h3 className="label mb-3 text-[0.6875rem] font-bold text-ink">{t('sectionsTitle')}</h3>
+            <ul className="flex flex-col gap-2">
+              {CATEGORIES.map((category) => (
+                <li key={category}>
+                  <LocaleLink to={`/${categorySlug(category)}`} className={FOOTER_LINK_CLASS}>
+                    {categoryLabel(category, lang)}
+                  </LocaleLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+
           {COLUMNS.map((column) => (
-            <div key={column.title}>
-              <h3 className="label mb-3 text-[0.6875rem] font-bold text-ink">{column.title}</h3>
+            <div key={column.titleKey}>
+              <h3 className="label mb-3 text-[0.6875rem] font-bold text-ink">{t(column.titleKey)}</h3>
               <ul className="flex flex-col gap-2">
                 {column.links.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      to={link.to}
-                      className="font-body text-[0.85rem] text-ink-soft transition-colors hover:text-accent"
-                    >
-                      {link.label}
-                    </Link>
+                  <li key={link.labelKey}>
+                    <LocaleLink to={link.to} className={FOOTER_LINK_CLASS}>
+                      {t(link.labelKey)}
+                    </LocaleLink>
                   </li>
                 ))}
               </ul>
@@ -75,9 +98,9 @@ export function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col gap-2 border-t border-rule pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <Link to="/" className="headline text-2xl text-ink transition-colors hover:text-accent">
+          <LocaleLink to="/" className="headline text-2xl text-ink transition-colors hover:text-accent">
             The Global World Journal
-          </Link>
+          </LocaleLink>
           <p className="label text-[0.625rem] text-muted">
             &copy; {new Date().getFullYear()} The Global World Journal. All Rights Reserved.
           </p>

@@ -10,6 +10,7 @@ import { createApp } from '../app'
 import { ArticleModel } from '../models/Article'
 import { UserModel } from '../models/User'
 import { type UploadService } from '../services/uploadService'
+import { tooSmallPngBuffer, truncatedPngBuffer, validPngBuffer } from './imageFixtures'
 
 let mongod: MongoMemoryServer
 let app: Express
@@ -233,5 +234,63 @@ describe('GWJ API', () => {
 
     const bySlug = await request(app).get(`/api/admin/articles/by-slug/${slug}`)
     expect(bySlug.status).toBe(401)
+  })
+
+  describe('POST /api/admin/upload (image validation)', () => {
+    it('accepts a complete, large-enough image and returns 201 with a url', async () => {
+      const token = await loginToken()
+      const res = await request(app)
+        .post('/api/admin/upload')
+        .set('authorization', `Bearer ${token}`)
+        .attach('file', validPngBuffer(800, 700), { filename: 'hero.png', contentType: 'image/png' })
+      expect(res.status).toBe(201)
+      expect(typeof res.body.url).toBe('string')
+      expect(res.body.url).toMatch(/^https:\/\/cdn\.example\.test\/articles\//)
+    })
+
+    it('rejects a truncated/corrupt image with 422 and an actionable reason', async () => {
+      const token = await loginToken()
+      const res = await request(app)
+        .post('/api/admin/upload')
+        .set('authorization', `Bearer ${token}`)
+        .attach('file', truncatedPngBuffer(800, 700), {
+          filename: 'broken.png',
+          contentType: 'image/png',
+        })
+      expect(res.status).toBe(422)
+      expect(res.body.error).toMatch(/Rejected image upload/i)
+      expect(res.body.details).toMatchObject({ reason: 'truncated' })
+    })
+
+    it('rejects a non-image (HTML) payload with 422', async () => {
+      const token = await loginToken()
+      const res = await request(app)
+        .post('/api/admin/upload')
+        .set('authorization', `Bearer ${token}`)
+        .attach('file', Buffer.from('<!doctype html><html></html>'), {
+          filename: 'page.png',
+          contentType: 'image/png',
+        })
+      expect(res.status).toBe(422)
+      expect(res.body.details).toMatchObject({ reason: 'unknown-format' })
+    })
+
+    it('rejects an image below the minimum dimension with 422', async () => {
+      const token = await loginToken()
+      const res = await request(app)
+        .post('/api/admin/upload')
+        .set('authorization', `Bearer ${token}`)
+        .attach('file', tooSmallPngBuffer(), { filename: 'tiny.png', contentType: 'image/png' })
+      expect(res.status).toBe(422)
+      expect(res.body.details).toMatchObject({ reason: 'too-small' })
+    })
+
+    it('rejects an upload with no file (400)', async () => {
+      const token = await loginToken()
+      const res = await request(app)
+        .post('/api/admin/upload')
+        .set('authorization', `Bearer ${token}`)
+      expect(res.status).toBe(400)
+    })
   })
 })

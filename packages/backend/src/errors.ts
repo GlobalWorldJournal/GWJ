@@ -31,3 +31,16 @@ export class BadRequestError extends HttpError {
     this.name = 'BadRequestError'
   }
 }
+
+/**
+ * 422 Unprocessable Entity — the request was well-formed but its content failed
+ * a semantic check (e.g. an uploaded file that is not a complete, decodable
+ * image). Distinct from 400 so callers can tell a malformed request apart from
+ * one carrying invalid media.
+ */
+export class UnprocessableEntityError extends HttpError {
+  constructor(message = 'Unprocessable entity', details?: unknown) {
+    super(422, message, details)
+    this.name = 'UnprocessableEntityError'
+  }
+}

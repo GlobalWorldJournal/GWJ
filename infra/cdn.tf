@@ -1,7 +1,8 @@
 # ---------------------------------------------------------------------------
 # GWJ media: private S3 bucket + CloudFront CDN (cdn.globalworldjournal.com).
-# The bucket stays fully private; CloudFront reads articles/* via OAC. No
-# versioning. Bucket name is global → suffixed with the account id.
+# The bucket stays fully private; CloudFront reads articles/* (article images)
+# and writers/* (writer avatars) via OAC. No versioning. Bucket name is global
+# → suffixed with the account id.
 # ---------------------------------------------------------------------------
 
 resource "aws_s3_bucket" "media" {
@@ -64,12 +65,16 @@ resource "aws_cloudfront_distribution" "media" {
   tags = { Name = "${var.prefix}-cdn" }
 }
 
-# Bucket policy: ONLY this CloudFront distribution (via OAC) may read articles/*.
+# Bucket policy: ONLY this CloudFront distribution (via OAC) may read the public
+# media prefixes (article images + writer avatars).
 data "aws_iam_policy_document" "cdn_bucket" {
   statement {
-    sid       = "AllowGwjCloudFrontOACReadArticles"
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.media.arn}/articles/*"]
+    sid     = "AllowGwjCloudFrontOACReadMedia"
+    actions = ["s3:GetObject"]
+    resources = [
+      "${aws_s3_bucket.media.arn}/articles/*",
+      "${aws_s3_bucket.media.arn}/writers/*",
+    ]
     principals {
       type        = "Service"
       identifiers = ["cloudfront.amazonaws.com"]

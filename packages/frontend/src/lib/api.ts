@@ -15,6 +15,7 @@ import {
   type ArticleUpdate,
   type Category,
   type ArticleStatus,
+  type Language,
 } from '@gwj/shared-types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -115,6 +116,7 @@ async function request<S extends z.ZodTypeAny>(
 
 export interface ArticlesQuery {
   category?: Category
+  language?: Language
   featured?: boolean
   page?: number
   limit?: number
@@ -124,6 +126,7 @@ export function getArticles(query: ArticlesQuery = {}, signal?: AbortSignal): Pr
   return request('/api/articles', PaginatedArticlesSchema, {
     params: {
       category: query.category,
+      language: query.language,
       featured: query.featured,
       page: query.page,
       limit: query.limit,
@@ -140,8 +143,13 @@ export function getCategories(signal?: AbortSignal): Promise<CategoryDoc[]> {
   return request('/api/categories', z.array(CategoryDocSchema), { signal })
 }
 
-export function searchArticles(q: string, page = 1, signal?: AbortSignal): Promise<PaginatedArticles> {
-  return request('/api/search', PaginatedArticlesSchema, { params: { q, page }, signal })
+export function searchArticles(
+  q: string,
+  page = 1,
+  language?: Language,
+  signal?: AbortSignal,
+): Promise<PaginatedArticles> {
+  return request('/api/search', PaginatedArticlesSchema, { params: { q, page, language }, signal })
 }
 
 export function login(username: string, password: string): Promise<LoginResponse> {

@@ -77,6 +77,7 @@ const MARKDOWN_COMPONENTS: Components = {
         alt={alt ?? ''}
         className="w-full object-cover"
         loading="lazy"
+        decoding="async"
       />
       {title ? (
         <figcaption className="label mt-2 text-[0.6875rem] text-muted">

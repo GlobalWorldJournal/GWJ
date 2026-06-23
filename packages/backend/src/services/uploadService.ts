@@ -1,7 +1,9 @@
 import { PutObjectCommand, S3Client, type S3ClientConfig } from '@aws-sdk/client-s3'
 import { v4 as uuidv4 } from 'uuid'
 import { type UploadResponse } from '@gwj/shared-types'
+import { validateImageBuffer } from '@gwj/shared-types/image-validation'
 import { type Env } from '../env'
+import { UnprocessableEntityError } from '../errors'
 
 /** Strip a filename down to a safe, lowercase, path-free token. */
 function safeFilename(filename: string): string {
@@ -37,13 +39,27 @@ export function createUploadService(env: Env): UploadService {
 
   return {
     async uploadImage(buffer, filename, contentType) {
+      // Authoritative server-side validation: never store an image that is not a
+      // complete, decodable file of an allowed type at a usable size. This is the
+      // single chokepoint in front of S3, so it protects every caller (admin UI,
+      // MCP/agents, scripts) regardless of what the client claims the file is.
+      const validation = validateImageBuffer(buffer, { declaredMime: contentType })
+      if (!validation.ok) {
+        throw new UnprocessableEntityError(`Rejected image upload: ${validation.message}`, {
+          reason: validation.reason,
+        })
+      }
+
       const key = `articles/${uuidv4()}-${safeFilename(filename)}`
       await client.send(
         new PutObjectCommand({
           Bucket: env.S3_BUCKET,
           Key: key,
           Body: buffer,
-          ContentType: contentType,
+          // Persist the format we actually verified, not the (possibly wrong)
+          // client-declared content type — this keeps the stored content-type
+          // truthful so browsers and the audit never see a mime mismatch.
+          ContentType: validation.mime,
         }),
       )
       const base = env.CDN_BASE_URL.replace(/\/+$/, '')

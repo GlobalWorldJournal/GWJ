@@ -1,22 +1,32 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { CATEGORIES, categorySlug, type Article, type Category } from '@gwj/shared-types'
+import {
+  CATEGORIES,
+  categorySlug,
+  type Article,
+  type Category,
+  type Language,
+} from '@gwj/shared-types'
 import { getArticles } from '../lib/api'
+import { useLang } from '../lib/i18n'
+import { LocaleLink } from '../lib/locale'
+import { categoryLabel } from '../lib/dictionary'
 import { ArticleCard } from '../components/ArticleCard'
 import { AdSlot } from '../components/AdSlot'
+import { MostPopular } from '../components/MostPopular'
 import { StatusMessage } from '../components/StatusMessage'
 import { HomeSkeleton } from '../components/Skeletons'
 
-function useHomeArticles() {
+function useHomeArticles(lang: Language) {
   return useQuery({
-    queryKey: ['articles', 'home'],
-    queryFn: ({ signal }) => getArticles({ limit: 50 }, signal),
+    queryKey: ['articles', 'home', lang],
+    queryFn: ({ signal }) => getArticles({ language: lang, limit: 50 }, signal),
   })
 }
 
 export function Home() {
-  const { data, isPending, isError, error } = useHomeArticles()
+  const { lang, t } = useLang()
+  const { data, isPending, isError, error } = useHomeArticles(lang)
 
   if (isPending) {
     return <HomeSkeleton />
@@ -24,7 +34,7 @@ export function Home() {
   if (isError) {
     return (
       <StatusMessage
-        title="We couldn&rsquo;t load the front page."
+        title={t('loadingError')}
         detail={error instanceof Error ? error.message : undefined}
       />
     )
@@ -32,7 +42,7 @@ export function Home() {
 
   const all = [...data.data].sort((a, b) => b.featured - a.featured)
   if (all.length === 0) {
-    return <StatusMessage title="No stories yet." detail="Check back soon." />
+    return <StatusMessage title={t('noStories')} />
   }
 
   const opinion = all.filter((a) => a.category === 'Opinion')
@@ -40,7 +50,7 @@ export function Home() {
 
   const lead = news[0] ?? all[0]
   if (!lead) {
-    return <StatusMessage title="No stories yet." detail="Check back soon." />
+    return <StatusMessage title={t('noStories')} />
   }
   const rest = news.filter((a) => a.id !== lead.id)
   const leftStack = rest.slice(0, 3)
@@ -85,12 +95,12 @@ export function Home() {
 
         {/* CENTER — lead story with hero image + related bullets */}
         <div className="lg:border-l lg:border-rule lg:pl-6">
-          <ArticleCard article={lead} variant="lead" showImage showDeck showByline />
+          <ArticleCard article={lead} variant="lead" showImage showDeck showByline priority />
           {leadBullets.length > 0 ? (
             <ul className="mt-4 flex flex-col divide-y divide-rule border-t border-rule">
               {leadBullets.map((article) => (
                 <li key={article.id} className="py-2.5">
-                  <Link
+                  <LocaleLink
                     to={`/article/${article.slug}`}
                     className="group flex gap-2 font-body text-[0.95rem] font-semibold leading-snug text-ink transition-colors hover:text-accent"
                   >
@@ -98,7 +108,7 @@ export function Home() {
                       <span className="label shrink-0 text-accent">{article.kicker}</span>
                     ) : null}
                     <span>{article.title}</span>
-                  </Link>
+                  </LocaleLink>
                 </li>
               ))}
             </ul>
@@ -120,20 +130,30 @@ export function Home() {
 
         {/* RIGHT — Opinion rail + Most Popular + ad (fills the column) */}
         <div className="flex flex-col gap-8 lg:border-l lg:border-rule lg:pl-6">
-          <OpinionRail articles={opinion} />
-          <MostPopular articles={mostPopular} />
+          <OpinionRail articles={opinion} title={t('opinion')} />
+          <MostPopular articles={mostPopular} title={t('mostPopular')} />
           <AdSlot variant="mrec" sticky />
         </div>
       </section>
 
       {/* SECTION BANDS — load more on scroll, like WSJ's front page */}
-      <SectionBands articles={all} />
+      <SectionBands articles={all} lang={lang} t={t} />
     </div>
   )
 }
 
+type Translate = (key: string, vars?: Record<string, string>) => string
+
 /** Section bands that reveal progressively as the reader scrolls (infinite-scroll feel). */
-function SectionBands({ articles }: { articles: Article[] }) {
+function SectionBands({
+  articles,
+  lang,
+  t,
+}: {
+  articles: Article[]
+  lang: Language
+  t: Translate
+}) {
   const sections = CATEGORIES.filter((c) => c !== 'Opinion').filter((c) =>
     articles.some((a) => a.category === c),
   )
@@ -162,7 +182,7 @@ function SectionBands({ articles }: { articles: Article[] }) {
         const inCategory = articles.filter((a) => a.category === category).slice(0, 5)
         return (
           <Fragment key={category}>
-            <CategorySection name={category} articles={inCategory} />
+            <CategorySection name={category} articles={inCategory} lang={lang} t={t} />
             {/* Bounded wrapper: the leaderboard keeps the sticky property but has
                 no taller container to travel within, so it can't float over the
                 following sections. */}
@@ -179,17 +199,17 @@ function SectionBands({ articles }: { articles: Article[] }) {
   )
 }
 
-function OpinionRail({ articles }: { articles: Article[] }) {
+function OpinionRail({ articles, title }: { articles: Article[]; title: string }) {
   if (articles.length === 0) return null
   return (
     <section>
       <div className="mb-3 border-t-3 border-ink pt-2">
-        <h2 className="headline text-2xl text-ink">Opinion</h2>
+        <h2 className="headline text-2xl text-ink">{title}</h2>
       </div>
       <ul className="flex flex-col divide-y divide-rule">
         {articles.slice(0, 6).map((article) => (
           <li key={article.id} className="py-3 first:pt-0">
-            <Link to={`/article/${article.slug}`} className="group flex items-start gap-3">
+            <LocaleLink to={`/article/${article.slug}`} className="group flex items-start gap-3">
               <span
                 aria-hidden
                 className="headline mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink/5 text-sm text-ink"
@@ -202,7 +222,7 @@ function OpinionRail({ articles }: { articles: Article[] }) {
                   {article.title}
                 </p>
               </div>
-            </Link>
+            </LocaleLink>
           </li>
         ))}
       </ul>
@@ -210,35 +230,20 @@ function OpinionRail({ articles }: { articles: Article[] }) {
   )
 }
 
-/** "Most Popular" numbered list — a rail module that fills the right column. */
-function MostPopular({ articles }: { articles: Article[] }) {
-  if (articles.length === 0) return null
-  return (
-    <section>
-      <div className="mb-3 border-t-3 border-ink pt-2">
-        <h2 className="headline text-2xl text-ink">Most Popular</h2>
-      </div>
-      <ol className="flex flex-col divide-y divide-rule">
-        {articles.map((article, i) => (
-          <li key={article.id} className="py-3 first:pt-0">
-            <Link to={`/article/${article.slug}`} className="group flex items-start gap-3">
-              <span aria-hidden className="headline text-2xl leading-none text-muted/60">
-                {i + 1}
-              </span>
-              <p className="font-body text-[0.95rem] font-semibold leading-snug text-ink transition-colors group-hover:text-accent">
-                {article.title}
-              </p>
-            </Link>
-          </li>
-        ))}
-      </ol>
-    </section>
-  )
-}
-
-function CategorySection({ name, articles }: { name: Category; articles: Article[] }) {
+function CategorySection({
+  name,
+  articles,
+  lang,
+  t,
+}: {
+  name: Category
+  articles: Article[]
+  lang: Language
+  t: Translate
+}) {
   // Varied card types per band, like WSJ: a photo-led lead, a text story with a
   // dek, and a thumbnail list of the rest.
+  const label = categoryLabel(name, lang)
   const featured = articles[0]
   const secondary = articles[1]
   const listed = articles.slice(2)
@@ -246,13 +251,13 @@ function CategorySection({ name, articles }: { name: Category; articles: Article
   return (
     <section>
       <div className="mb-4 flex items-baseline justify-between border-t-3 border-ink pt-2">
-        <h2 className="headline text-2xl text-ink">{name}</h2>
-        <Link
+        <h2 className="headline text-2xl text-ink">{label}</h2>
+        <LocaleLink
           to={`/${categorySlug(name)}`}
           className="label text-[0.6875rem] text-accent transition-colors hover:text-ink"
         >
-          More {name}
-        </Link>
+          {t('more', { x: label })}
+        </LocaleLink>
       </div>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
         {featured ? (

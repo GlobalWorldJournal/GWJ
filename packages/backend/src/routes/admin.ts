@@ -8,12 +8,13 @@ import {
   type ArticleListQuery,
   type ArticleUpdate,
 } from '@gwj/shared-types'
+import { validateImageBuffer } from '@gwj/shared-types/image-validation'
 import { articleService } from '../services/articleService'
 import { type UploadService } from '../services/uploadService'
 import { requireAuth } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { requireParam } from '../middleware/params'
-import { BadRequestError } from '../errors'
+import { BadRequestError, UnprocessableEntityError } from '../errors'
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
@@ -81,6 +82,18 @@ export function createAdminRouter(jwtSecret: string, uploadService: UploadServic
   router.post('/upload', upload.single('file'), async (req: Request, res: Response) => {
     const file = req.file
     if (!file) throw new BadRequestError('No file uploaded (expected field "file")')
+
+    // Validate at the request boundary so a bad upload gets an actionable 422
+    // (the agent/admin can re-source the image) before any S3 work. The upload
+    // service validates again as the authoritative last line of defense.
+    // Defaults enforce the canonical min width/height and byte cap.
+    const validation = validateImageBuffer(file.buffer, { declaredMime: file.mimetype })
+    if (!validation.ok) {
+      throw new UnprocessableEntityError(`Rejected image upload: ${validation.message}`, {
+        reason: validation.reason,
+      })
+    }
+
     const result = await uploadService.uploadImage(file.buffer, file.originalname, file.mimetype)
     res.status(201).json(result)
   })
