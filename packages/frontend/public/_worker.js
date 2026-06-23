@@ -147,13 +147,22 @@ function newsArticleJsonLd(article, url, image) {
 }
 
 async function getShell(env, request) {
-  const shellUrl = new URL('/index.html', new URL(request.url).origin)
-  return env.ASSETS.fetch(new Request(shellUrl.toString(), request))
+  // Fetch the SPA shell from the static-asset server. Request "/" (NOT
+  // "/index.html") — Cloudflare Pages 308-redirects /index.html → / , and
+  // env.ASSETS.fetch does not follow that redirect, which would yield an empty
+  // body. "/" is served as index.html with 200. ASSETS never re-invokes this
+  // worker, so there is no loop.
+  const origin = new URL(request.url).origin
+  return env.ASSETS.fetch(new Request(`${origin}/`, request))
 }
 
 function withHtmlBody(shellResponse, html) {
   const headers = new Headers(shellResponse.headers)
   headers.set('content-type', 'text/html; charset=utf-8')
+  // Drop headers that no longer match the rewritten body.
+  headers.delete('content-length')
+  headers.delete('content-encoding')
+  headers.delete('location')
   return new Response(html, { status: 200, headers })
 }
 
