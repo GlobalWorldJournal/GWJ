@@ -40,8 +40,10 @@ export function Home() {
   if (!lead) {
     return <StatusMessage title="No stories yet." detail="Check back soon." />
   }
-  const leftStack = news.filter((a) => a.id !== lead.id).slice(0, 4)
-  const leadBullets = news.filter((a) => a.id !== lead.id).slice(4, 8)
+  const rest = news.filter((a) => a.id !== lead.id)
+  const leftStack = rest.slice(0, 3)
+  const leftList = rest.slice(3, 6)
+  const leadBullets = rest.slice(6, 10)
 
   return (
     <div>
@@ -49,11 +51,29 @@ export function Home() {
           Uniform gap-8 gutters, no per-column horizontal padding; the vertical
           rules sit in the gutter via border-r so every column aligns. */}
       <section className="grid grid-cols-1 gap-8 lg:grid-cols-[17rem_minmax(0,1fr)_18rem]">
-        {/* LEFT — stacked top headlines */}
+        {/* LEFT — mixed stack: a feature with photo, text headlines, then a
+            thumbnail list (varied card types like WSJ). */}
         <div className="flex flex-col divide-y divide-rule">
-          {leftStack.map((article) => (
+          {leftStack.map((article, i) => (
             <div key={article.id} className="py-4 first:pt-0">
-              <ArticleCard article={article} variant="feature" showByline={false} />
+              <ArticleCard
+                article={article}
+                variant="feature"
+                showImage={i === 0 && Boolean(article.heroImage)}
+                showDeck={i === 0}
+                showByline={false}
+              />
+            </div>
+          ))}
+          {leftList.map((article) => (
+            <div key={article.id} className="py-3">
+              <ArticleCard
+                article={article}
+                variant="list"
+                showImage={Boolean(article.heroImage)}
+                showDeck={false}
+                showByline={false}
+              />
             </div>
           ))}
         </div>
@@ -117,7 +137,7 @@ function SectionBands({ articles }: { articles: Article[] }) {
   return (
     <div className="mt-12 flex flex-col gap-10">
       {sections.slice(0, visible).map((category) => {
-        const inCategory = articles.filter((a) => a.category === category).slice(0, 3)
+        const inCategory = articles.filter((a) => a.category === category).slice(0, 5)
         return <CategorySection key={category} name={category} articles={inCategory} />
       })}
       {visible < sections.length ? <div ref={sentinelRef} aria-hidden className="h-px" /> : null}
@@ -157,6 +177,12 @@ function OpinionRail({ articles }: { articles: Article[] }) {
 }
 
 function CategorySection({ name, articles }: { name: Category; articles: Article[] }) {
+  // Varied card types per band, like WSJ: a photo-led lead, a text story with a
+  // dek, and a thumbnail list of the rest.
+  const featured = articles[0]
+  const secondary = articles[1]
+  const listed = articles.slice(2)
+
   return (
     <section>
       <div className="mb-4 flex items-baseline justify-between border-t-3 border-ink pt-2">
@@ -169,23 +195,36 @@ function CategorySection({ name, articles }: { name: Category; articles: Article
         </Link>
       </div>
       <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
-        {articles.map((article, index) => (
-          <div
-            key={article.id}
-            className={
-              index > 0
-                ? 'border-t border-rule pt-4 sm:border-t-0 sm:border-l sm:border-rule sm:pl-8 sm:pt-0'
-                : ''
-            }
-          >
+        {featured ? (
+          <div>
             <ArticleCard
-              article={article}
+              article={featured}
               variant="standard"
-              showImage={index === 0 && Boolean(article.heroImage)}
+              showImage={Boolean(featured.heroImage)}
               showByline={false}
             />
           </div>
-        ))}
+        ) : null}
+        {secondary ? (
+          <div className="border-t border-rule pt-4 sm:border-l sm:border-t-0 sm:border-rule sm:pl-8 sm:pt-0">
+            <ArticleCard article={secondary} variant="standard" showByline={false} />
+          </div>
+        ) : null}
+        {listed.length > 0 ? (
+          <div className="flex flex-col divide-y divide-rule border-t border-rule pt-4 sm:border-l sm:border-t-0 sm:border-rule sm:pl-8 sm:pt-0">
+            {listed.map((article) => (
+              <div key={article.id} className="py-3 first:pt-0">
+                <ArticleCard
+                  article={article}
+                  variant="list"
+                  showImage={Boolean(article.heroImage)}
+                  showDeck={false}
+                  showByline={false}
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   )
