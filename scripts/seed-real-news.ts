@@ -305,7 +305,8 @@ The coming year will test whether this crop of directors can translate the page 
     kicker: 'Commentary',
     category: 'Opinion',
     featured: 40,
-    imageAlt: '',
+    imageAlt: 'An oil tanker in a narrow strait',
+    source: { name: 'CNN', url: 'https://www.cnn.com/2026/06/20/world/live-news/iran-war-trump-israel-lebanon' },
     body: `For much of the past decade, investors treated geography as a solved problem. Supply chains were global, capital was frictionless, and the physical world rarely intruded on the spreadsheet.
 
 The events around the Strait of Hormuz are a reminder that a few miles of contested water can still ripple through fuel prices, inflation expectations and, ultimately, the valuations of companies that look as if they have nothing to do with oil.
