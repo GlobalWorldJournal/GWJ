@@ -6,6 +6,23 @@
 
 const CATEGORY_SLUGS = ['world', 'business', 'markets', 'tech', 'politics', 'opinion', 'arts']
 const SITE_NAME = 'The Global World Journal'
+const LANGS = ['en', 'es', 'fr']
+const LOCALES = { en: 'en_US', es: 'es_ES', fr: 'fr_FR' }
+
+/** The requested edition from ?lang=, validated; defaults to English. */
+function langOf(request) {
+  const l = new URL(request.url).searchParams.get('lang')
+  return l && LANGS.includes(l) ? l : 'en'
+}
+
+/** hreflang alternate links for a clean canonical URL (query-param editions + x-default). */
+function hreflangLinks(url) {
+  const links = LANGS.map(
+    (l) => `<link rel="alternate" hreflang="${l}" href="${escapeHtml(`${url}?lang=${l}`)}" />`,
+  )
+  links.push(`<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}" />`)
+  return links.join('\n    ')
+}
 
 function getConfig(env) {
   const apiBaseUrl = (env && env.API_BASE_URL ? String(env.API_BASE_URL) : '').replace(/\/$/, '')
@@ -83,16 +100,15 @@ function slugifyName(value) {
     .replace(/-+/g, '-')
 }
 
-function buildMetaTags({ title, description, url, image, type, jsonLd, extraMeta = [] }) {
+function buildMetaTags({ title, description, url, image, type, jsonLd, extraMeta = [], lang = 'en' }) {
   const tags = [
     `<title>${escapeHtml(title)}</title>`,
     `<meta name="description" content="${escapeHtml(description)}" />`,
     `<link rel="canonical" href="${escapeHtml(url)}" />`,
-    `<link rel="alternate" hreflang="en" href="${escapeHtml(url)}" />`,
-    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}" />`,
+    hreflangLinks(url),
     `<meta property="og:type" content="${escapeHtml(type)}" />`,
     `<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}" />`,
-    `<meta property="og:locale" content="en_US" />`,
+    `<meta property="og:locale" content="${LOCALES[lang] || 'en_US'}" />`,
     `<meta property="og:title" content="${escapeHtml(title)}" />`,
     `<meta property="og:description" content="${escapeHtml(description)}" />`,
     `<meta property="og:url" content="${escapeHtml(url)}" />`,
@@ -131,8 +147,11 @@ function organizationJsonLd(siteUrl) {
 }
 
 // Replace the shell's <title> and inject our SEO tags before </head>.
-function injectHead(html, metaTags) {
-  let output = html.replace(/<title>[\s\S]*?<\/title>/i, '')
+function injectHead(html, metaTags, lang = 'en') {
+  // Reflect the edition on the root element so crawlers without JS see the
+  // correct language.
+  let output = html.replace(/<html lang="[^"]*"/i, `<html lang="${lang}"`)
+  output = output.replace(/<title>[\s\S]*?<\/title>/i, '')
   // Drop the static default description so we don't emit two.
   output = output.replace(/<meta\s+name=["']description["'][^>]*>/i, '')
   if (output.includes('</head>')) {
@@ -212,6 +231,7 @@ function withHtmlBody(shellResponse, html) {
 async function handleHome(env, request, config) {
   const shell = await getShell(env, request)
   const html = await shell.text()
+  const lang = langOf(request)
   const metaTags = buildMetaTags({
     title: `${SITE_NAME} — World, Business, Markets, Tech, Politics, Opinion, Arts`,
     description: `${SITE_NAME}: breaking news and in-depth reporting across the world economy, markets, technology, politics, opinion and the arts.`,
@@ -219,8 +239,9 @@ async function handleHome(env, request, config) {
     image: '',
     type: 'website',
     jsonLd: [websiteJsonLd(config.siteUrl), organizationJsonLd(config.siteUrl)],
+    lang,
   })
-  return withHtmlBody(shell, injectHead(html, metaTags))
+  return withHtmlBody(shell, injectHead(html, metaTags, lang))
 }
 
 async function handleArticle(env, request, config, slug) {
@@ -232,6 +253,7 @@ async function handleArticle(env, request, config, slug) {
 
   if (!article || !article.title) {
     // Article unknown to the edge — serve the shell so the SPA can 404 client-side.
+    const reqLang = langOf(request)
     return withHtmlBody(
       shell,
       injectHead(
@@ -243,10 +265,14 @@ async function handleArticle(env, request, config, slug) {
           image: '',
           type: 'website',
           jsonLd: websiteJsonLd(config.siteUrl),
+          lang: reqLang,
         }),
+        reqLang,
       ),
     )
   }
+
+  const lang = article.language && LOCALES[article.language] ? article.language : langOf(request)
 
   const url = `${config.siteUrl}/article/${article.slug || slug}`
   const description = articleDescription(article)
@@ -271,13 +297,15 @@ async function handleArticle(env, request, config, slug) {
     type: 'article',
     jsonLd: newsArticleJsonLd(article, url, image, config.siteUrl),
     extraMeta,
+    lang,
   })
-  return withHtmlBody(shell, injectHead(html, metaTags))
+  return withHtmlBody(shell, injectHead(html, metaTags, lang))
 }
 
 async function handleCategory(env, request, config, slug) {
   const shell = await getShell(env, request)
   const html = await shell.text()
+  const lang = langOf(request)
   const name = slug.charAt(0).toUpperCase() + slug.slice(1)
   const metaTags = buildMetaTags({
     title: `${name} — ${SITE_NAME}`,
@@ -286,8 +314,9 @@ async function handleCategory(env, request, config, slug) {
     image: '',
     type: 'website',
     jsonLd: websiteJsonLd(config.siteUrl),
+    lang,
   })
-  return withHtmlBody(shell, injectHead(html, metaTags))
+  return withHtmlBody(shell, injectHead(html, metaTags, lang))
 }
 
 async function fetchArticles(config, request) {

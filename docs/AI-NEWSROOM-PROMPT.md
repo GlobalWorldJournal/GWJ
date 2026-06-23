@@ -79,9 +79,15 @@ Paste everything in the box below as the task/system prompt:
 
 ---
 
-## 4. Languages
+## 4. Languages / editions
 
-Write each article in the language of its intended edition. The newsroom is
-international; the same agent can publish a story in English and then publish a
-faithful, equally professional version in another language as a separate
-article (same standards, no machine-translation artifacts).
+Call `list_languages` to see the editions (currently `en`, `es`, `fr`). Set
+`language` on `create_article` to publish into an edition, and write the
+article's prose (title, deck, body, kicker, image alt/credit) IN that language —
+correct grammar and accents, no machine-translation artifacts. The default is
+`en` when omitted.
+
+The newsroom is international: publish a story in English, then publish an
+equally professional, independently written version in other languages as
+separate articles with the same `language` standards. Readers see only the
+edition they have selected.
