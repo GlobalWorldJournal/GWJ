@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+.git
+.github
+.superpowers
+docs
+*.log
+.env
+.env.*
+!.env.example
+**/.DS_Store

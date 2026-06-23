@@ -1,0 +1,53 @@
+# Local development stack: MongoDB + backend + MCP server.
+# Reads secrets from .env (copy from .env.example). For local-only use.
+services:
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - gwj_mongo_data:/data/db
+
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '4000:4000'
+    environment:
+      PORT: 4000
+      NODE_ENV: development
+      MONGO_URI: mongodb://mongo:27017/gwj
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+      CDN_BASE_URL: ${CDN_BASE_URL}
+    depends_on:
+      - mongo
+
+  mcp:
+    build:
+      context: .
+      dockerfile: packages/mcp/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '4100:4100'
+    environment:
+      MCP_PORT: 4100
+      NODE_ENV: development
+      MCP_TOKEN: ${MCP_TOKEN}
+      API_BASE_URL: http://backend:4000
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    depends_on:
+      - backend
+
+volumes:
+  gwj_mongo_data:
