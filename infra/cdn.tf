@@ -25,6 +25,21 @@ resource "aws_cloudfront_origin_access_control" "media" {
   signing_protocol                  = "sigv4"
 }
 
+# Long-lived, immutable browser caching for all media responses. Article images
+# and writer avatars are content-addressed (UUID / stable slug), so the URL never
+# serves different bytes — safe to cache for a year and skip revalidation.
+resource "aws_cloudfront_response_headers_policy" "media" {
+  name = "${var.prefix}-media-cache"
+
+  custom_headers_config {
+    items {
+      header   = "Cache-Control"
+      value    = "public, max-age=31536000, immutable"
+      override = true
+    }
+  }
+}
+
 resource "aws_cloudfront_distribution" "media" {
   enabled             = true
   comment             = "gwj ${var.cdn_domain} CDN over ${aws_s3_bucket.media.bucket}"
@@ -40,14 +55,17 @@ resource "aws_cloudfront_distribution" "media" {
   aliases = [var.cdn_domain]
 
   # Default behavior: cache GET/HEAD from S3 using the AWS-managed
-  # CachingOptimized policy (id 658327ea-f89d-4fab-a63d-7e88639e58f6).
+  # CachingOptimized policy (id 658327ea-f89d-4fab-a63d-7e88639e58f6), and send a
+  # long-lived immutable Cache-Control to the browser (media is content-addressed
+  # by UUID, so it never changes under a given URL).
   default_cache_behavior {
-    target_origin_id       = "gwj-media-s3"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    compress               = true
-    cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    target_origin_id           = "gwj-media-s3"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.media.id
   }
 
   restrictions {
