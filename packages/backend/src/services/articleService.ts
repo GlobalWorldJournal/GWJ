@@ -117,9 +117,15 @@ export const articleService: ArticleService = {
     if (query.featured) filter.featured = { $gt: 0 }
     if (options?.author) filter.author = options.author
 
+    // Free-text search (title/deck/body via the text index). Lets the admin/MCP
+    // check for an EXISTING similar story before writing a new one — incl. drafts
+    // on the admin path — so the newsroom does not publish duplicates.
+    const q = query.q?.trim()
+    if (q) filter.$text = { $search: q }
+
     const total = await ArticleModel.countDocuments(filter)
     const docs = await ArticleModel.find(filter)
-      .sort({ featured: -1, publishedAt: -1, createdAt: -1 })
+      .sort(q ? { score: { $meta: 'textScore' }, publishedAt: -1 } : { featured: -1, publishedAt: -1, createdAt: -1 })
       .skip((query.page - 1) * query.limit)
       .limit(query.limit)
     return buildPaginated(docs, total, query.page, query.limit)

@@ -95,7 +95,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'list_articles',
     {
       description:
-        'List articles (including drafts) with optional category/status/featured filters and pagination.',
+        'List or SEARCH articles (including drafts). Pass `q` to full-text search titles/decks/bodies — ALWAYS do this before create_article to check whether a similar story already exists and avoid publishing a duplicate. Also supports category/status/featured filters and pagination.',
       inputSchema: ArticleListQuerySchema.shape,
     },
     (args) => guard(async () => jsonResult(await client.listArticles(args))),
