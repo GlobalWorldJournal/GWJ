@@ -163,7 +163,14 @@ function SectionBands({ articles }: { articles: Article[] }) {
         return (
           <Fragment key={category}>
             <CategorySection name={category} articles={inCategory} />
-            {idx % 2 === 1 ? <AdSlot variant="leaderboard" className="my-2" /> : null}
+            {/* Bounded wrapper: the leaderboard keeps the sticky property but has
+                no taller container to travel within, so it can't float over the
+                following sections. */}
+            {idx % 2 === 1 ? (
+              <div className="my-2">
+                <AdSlot variant="leaderboard" />
+              </div>
+            ) : null}
           </Fragment>
         )
       })}

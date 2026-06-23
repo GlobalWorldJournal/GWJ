@@ -2,7 +2,11 @@ type AdVariant = 'leaderboard' | 'mrec' | 'inline'
 
 interface AdSlotProps {
   variant?: AdVariant
-  /** Stick to the top (below the nav) as the column scrolls past — for rail ads. */
+  /**
+   * Stick to the top (below the nav) as the surrounding column scrolls past.
+   * On by default; where the containing block is no taller than the ad there
+   * is simply no room to stick and it renders in place.
+   */
   sticky?: boolean
   className?: string
 }
@@ -19,7 +23,7 @@ const SIZE: Record<AdVariant, string> = {
  * A labelled advertising slot. Renders a neutral placeholder now; fills the
  * white space a news grid leaves and marks where real ad units will go.
  */
-export function AdSlot({ variant = 'mrec', sticky = false, className }: AdSlotProps) {
+export function AdSlot({ variant = 'mrec', sticky = true, className }: AdSlotProps) {
   return (
     <aside
       className={`flex flex-col items-center ${sticky ? 'lg:sticky lg:top-20' : ''} ${className ?? ''}`}
