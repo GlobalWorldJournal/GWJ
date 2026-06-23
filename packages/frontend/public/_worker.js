@@ -72,17 +72,32 @@ function articleImage(article) {
   return ''
 }
 
-function buildMetaTags({ title, description, url, image, type, jsonLd }) {
+function slugifyName(value) {
+  return String(value)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+}
+
+function buildMetaTags({ title, description, url, image, type, jsonLd, extraMeta = [] }) {
   const tags = [
     `<title>${escapeHtml(title)}</title>`,
     `<meta name="description" content="${escapeHtml(description)}" />`,
     `<link rel="canonical" href="${escapeHtml(url)}" />`,
+    `<link rel="alternate" hreflang="en" href="${escapeHtml(url)}" />`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}" />`,
     `<meta property="og:type" content="${escapeHtml(type)}" />`,
     `<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}" />`,
+    `<meta property="og:locale" content="en_US" />`,
     `<meta property="og:title" content="${escapeHtml(title)}" />`,
     `<meta property="og:description" content="${escapeHtml(description)}" />`,
     `<meta property="og:url" content="${escapeHtml(url)}" />`,
     `<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}" />`,
+    `<meta name="twitter:site" content="@globalworldjrnl" />`,
     `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
   ]
@@ -90,12 +105,29 @@ function buildMetaTags({ title, description, url, image, type, jsonLd }) {
     tags.push(`<meta property="og:image" content="${escapeHtml(image)}" />`)
     tags.push(`<meta name="twitter:image" content="${escapeHtml(image)}" />`)
   }
+  for (const m of extraMeta) {
+    tags.push(`<meta property="${escapeHtml(m.property)}" content="${escapeHtml(m.content)}" />`)
+  }
   if (jsonLd) {
-    tags.push(
-      `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>`,
-    )
+    const blocks = Array.isArray(jsonLd) ? jsonLd : [jsonLd]
+    for (const block of blocks) {
+      tags.push(
+        `<script type="application/ld+json">${JSON.stringify(block).replace(/</g, '\\u003c')}</script>`,
+      )
+    }
   }
   return tags.join('\n    ')
+}
+
+function organizationJsonLd(siteUrl) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'NewsMediaOrganization',
+    name: SITE_NAME,
+    url: `${siteUrl}/`,
+    logo: { '@type': 'ImageObject', url: `${siteUrl}/favicon.svg` },
+    sameAs: [],
+  }
 }
 
 // Replace the shell's <title> and inject our SEO tags before </head>.
@@ -123,7 +155,7 @@ function websiteJsonLd(siteUrl) {
   }
 }
 
-function newsArticleJsonLd(article, url, image) {
+function newsArticleJsonLd(article, url, image, siteUrl) {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
@@ -131,8 +163,19 @@ function newsArticleJsonLd(article, url, image) {
     description: articleDescription(article),
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
     articleSection: article.category,
-    author: { '@type': 'Person', name: article.author },
-    publisher: { '@type': 'Organization', name: SITE_NAME },
+    author: {
+      '@type': 'Person',
+      name: article.author,
+      url: `${siteUrl}/author/${slugifyName(article.author)}`,
+    },
+    publisher: {
+      '@type': 'NewsMediaOrganization',
+      name: SITE_NAME,
+      logo: { '@type': 'ImageObject', url: `${siteUrl}/favicon.svg` },
+    },
+  }
+  if (article.kicker) {
+    jsonLd.alternativeHeadline = article.deck || article.kicker
   }
   if (article.publishedAt) {
     jsonLd.datePublished = article.publishedAt
@@ -175,7 +218,7 @@ async function handleHome(env, request, config) {
     url: `${config.siteUrl}/`,
     image: '',
     type: 'website',
-    jsonLd: websiteJsonLd(config.siteUrl),
+    jsonLd: [websiteJsonLd(config.siteUrl), organizationJsonLd(config.siteUrl)],
   })
   return withHtmlBody(shell, injectHead(html, metaTags))
 }
@@ -210,13 +253,24 @@ async function handleArticle(env, request, config, slug) {
   const image = articleImage(article)
   const title = (article.seo && article.seo.metaTitle) || `${article.title} — ${SITE_NAME}`
 
+  const extraMeta = [
+    { property: 'article:section', content: article.category },
+    { property: 'article:author', content: article.author },
+  ]
+  if (article.publishedAt) {
+    extraMeta.push({ property: 'article:published_time', content: article.publishedAt })
+  }
+  if (article.updatedAt) {
+    extraMeta.push({ property: 'article:modified_time', content: article.updatedAt })
+  }
   const metaTags = buildMetaTags({
     title,
     description,
     url,
     image,
     type: 'article',
-    jsonLd: newsArticleJsonLd(article, url, image),
+    jsonLd: newsArticleJsonLd(article, url, image, config.siteUrl),
+    extraMeta,
   })
   return withHtmlBody(shell, injectHead(html, metaTags))
 }
@@ -236,32 +290,88 @@ async function handleCategory(env, request, config, slug) {
   return withHtmlBody(shell, injectHead(html, metaTags))
 }
 
+async function fetchArticles(config, request) {
+  if (!config.apiBaseUrl) return []
+  const payload = await fetchJson(`${config.apiBaseUrl}/api/articles?limit=50&page=1`, request.signal)
+  return payload && Array.isArray(payload.data) ? payload.data : []
+}
+
 async function handleSitemap(request, config) {
-  const entries = [`${config.siteUrl}/`]
-  for (const slug of CATEGORY_SLUGS) {
-    entries.push(`${config.siteUrl}/${slug}`)
-  }
+  const articles = await fetchArticles(config, request)
+  const staticUrls = [
+    { loc: `${config.siteUrl}/` },
+    ...CATEGORY_SLUGS.map((slug) => ({ loc: `${config.siteUrl}/${slug}` })),
+  ]
+  const authorSlugs = [...new Set(articles.map((a) => slugifyName(a.author)).filter(Boolean))]
+  const authorUrls = authorSlugs.map((s) => ({ loc: `${config.siteUrl}/author/${s}` }))
 
-  if (config.apiBaseUrl) {
-    const payload = await fetchJson(
-      `${config.apiBaseUrl}/api/articles?limit=50&page=1`,
-      request.signal,
-    )
-    const articles = payload && Array.isArray(payload.data) ? payload.data : []
-    for (const article of articles) {
-      if (article && article.slug) {
-        entries.push(`${config.siteUrl}/article/${article.slug}`)
+  const articleUrls = articles
+    .filter((a) => a && a.slug)
+    .map((a) => {
+      const lastmod = a.updatedAt || a.publishedAt
+      const news = a.publishedAt
+        ? `<news:news><news:publication><news:name>${escapeXml(SITE_NAME)}</news:name>` +
+          `<news:language>en</news:language></news:publication>` +
+          `<news:publication_date>${escapeXml(a.publishedAt)}</news:publication_date>` +
+          `<news:title>${escapeXml(a.title)}</news:title></news:news>`
+        : ''
+      return {
+        loc: `${config.siteUrl}/article/${a.slug}`,
+        lastmod,
+        news,
       }
-    }
-  }
+    })
 
-  const urls = entries
-    .map((loc) => `  <url><loc>${escapeXml(loc)}</loc></url>`)
+  const all = [...staticUrls, ...authorUrls, ...articleUrls]
+  const urls = all
+    .map((u) => {
+      const parts = [`<loc>${escapeXml(u.loc)}</loc>`]
+      if (u.lastmod) parts.push(`<lastmod>${escapeXml(u.lastmod)}</lastmod>`)
+      if (u.news) parts.push(u.news)
+      return `  <url>${parts.join('')}</url>`
+    })
     .join('\n')
-  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`
+  const body =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" ` +
+    `xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n${urls}\n</urlset>`
   return new Response(body, {
     status: 200,
     headers: { 'content-type': 'application/xml; charset=utf-8' },
+  })
+}
+
+async function handleFeed(request, config) {
+  const articles = await fetchArticles(config, request)
+  const items = articles
+    .filter((a) => a && a.slug)
+    .map((a) => {
+      const link = `${config.siteUrl}/article/${a.slug}`
+      const date = a.publishedAt ? new Date(a.publishedAt).toUTCString() : ''
+      return (
+        `    <item>\n` +
+        `      <title>${escapeXml(a.title)}</title>\n` +
+        `      <link>${escapeXml(link)}</link>\n` +
+        `      <guid isPermaLink="true">${escapeXml(link)}</guid>\n` +
+        `      <dc:creator>${escapeXml(a.author)}</dc:creator>\n` +
+        `      <category>${escapeXml(a.category)}</category>\n` +
+        (date ? `      <pubDate>${escapeXml(date)}</pubDate>\n` : '') +
+        `      <description>${escapeXml(articleDescription(a))}</description>\n` +
+        `    </item>`
+      )
+    })
+    .join('\n')
+  const body =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">\n` +
+    `  <channel>\n` +
+    `    <title>${escapeXml(SITE_NAME)}</title>\n` +
+    `    <link>${escapeXml(config.siteUrl)}/</link>\n` +
+    `    <description>Breaking news and in-depth reporting from ${escapeXml(SITE_NAME)}.</description>\n` +
+    `    <language>en</language>\n${items}\n  </channel>\n</rss>`
+  return new Response(body, {
+    status: 200,
+    headers: { 'content-type': 'application/rss+xml; charset=utf-8' },
   })
 }
 
@@ -277,6 +387,10 @@ export default {
 
     if (pathname === '/sitemap.xml') {
       return handleSitemap(request, config)
+    }
+
+    if (pathname === '/feed.xml' || pathname === '/rss.xml') {
+      return handleFeed(request, config)
     }
 
     // Never prerender the admin app.
