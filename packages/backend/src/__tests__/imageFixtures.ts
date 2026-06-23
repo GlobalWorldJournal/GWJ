@@ -89,3 +89,33 @@ export function truncatedPngBuffer(width = 800, height = 700): Buffer {
 export function tooSmallPngBuffer(): Buffer {
   return Buffer.from(buildValidPng(100, 100))
 }
+
+/**
+ * A minimal, structurally-complete GIF89a at the given size, ending with the
+ * trailer byte the validator requires. Used to assert GIFs pass through the
+ * upload pipeline UNCONVERTED (no WebP flattening of potential animation).
+ */
+export function validGifBuffer(width = 800, height = 600): Buffer {
+  const header = Uint8Array.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]) // "GIF89a"
+  // Logical Screen Descriptor: width, height (LE), packed=0 (no GCT), bg, ratio.
+  const lsd = new Uint8Array(7)
+  const dv = new DataView(lsd.buffer)
+  dv.setUint16(0, width, true)
+  dv.setUint16(2, height, true)
+  lsd[4] = 0x00
+  lsd[5] = 0x00
+  lsd[6] = 0x00
+  // Image Descriptor (0x2C) at 0,0 sized to the screen, no local color table.
+  const imageDescriptor = new Uint8Array(10)
+  const idv = new DataView(imageDescriptor.buffer)
+  imageDescriptor[0] = 0x2c
+  idv.setUint16(1, 0, true) // left
+  idv.setUint16(3, 0, true) // top
+  idv.setUint16(5, width, true)
+  idv.setUint16(7, height, true)
+  imageDescriptor[9] = 0x00 // packed: no local color table
+  // Image data: LZW min code size, one empty sub-block, block terminator.
+  const imageData = Uint8Array.from([0x02, 0x00])
+  const trailer = Uint8Array.from([0x3b])
+  return Buffer.from(concat([header, lsd, imageDescriptor, imageData, trailer]))
+}
