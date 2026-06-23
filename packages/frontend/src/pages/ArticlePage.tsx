@@ -183,15 +183,18 @@ export function ArticlePage() {
         </div>
       </article>
 
-      {/* RIGHT RAIL — Most Popular → sticky ad → newsletter CTA. Desktop only;
-          on mobile it stacks below the article (after the related grid). */}
+      {/* RIGHT RAIL — Most Popular scrolls away; the ad + newsletter pin together
+          as one sticky block (so the newsletter never overlaps the ad). Desktop
+          only; on mobile it stacks below the article (after the related grid). */}
       <aside className="mt-12 flex flex-col gap-8 lg:mt-0 lg:border-l lg:border-rule lg:pl-8">
         <MostPopular articles={mostPopular} title={t('mostPopular')} />
-        <AdSlot variant="mrec" sticky />
-        <NewsletterCard
-          title={t('newsletters')}
-          subscribeLabel={t('subscribe')}
-        />
+        <div className="flex flex-col gap-8 lg:sticky lg:top-20">
+          <AdSlot variant="mrec" sticky={false} />
+          <NewsletterCard
+            title={t('newsletters')}
+            subscribeLabel={t('subscribe')}
+          />
+        </div>
       </aside>
 
       {/* BOTTOM — "More in {category}": same-edition grid of cards. Spans both
