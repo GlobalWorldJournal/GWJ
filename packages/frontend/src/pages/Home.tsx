@@ -3,13 +3,12 @@ import { Link } from 'react-router-dom'
 import { CATEGORIES, categorySlug, type Article, type Category } from '@gwj/shared-types'
 import { getArticles } from '../lib/api'
 import { ArticleCard } from '../components/ArticleCard'
-import { WhatsNews } from '../components/WhatsNews'
 import { StatusMessage } from '../components/StatusMessage'
 
 function useHomeArticles() {
   return useQuery({
     queryKey: ['articles', 'home'],
-    queryFn: ({ signal }) => getArticles({ limit: 40 }, signal),
+    queryFn: ({ signal }) => getArticles({ limit: 50 }, signal),
   })
 }
 
@@ -19,7 +18,6 @@ export function Home() {
   if (isPending) {
     return <StatusMessage title="Loading the latest&hellip;" />
   }
-
   if (isError) {
     return (
       <StatusMessage
@@ -29,47 +27,100 @@ export function Home() {
     )
   }
 
-  const articles = [...data.data].sort((a, b) => b.featured - a.featured)
-
-  if (articles.length === 0) {
+  const all = [...data.data].sort((a, b) => b.featured - a.featured)
+  if (all.length === 0) {
     return <StatusMessage title="No stories yet." detail="Check back soon." />
   }
 
-  const [lead, ...rest] = articles
-  const secondary = rest.slice(0, 4)
-  const briefs = rest.slice(0, 8)
+  const opinion = all.filter((a) => a.category === 'Opinion')
+  const news = all.filter((a) => a.category !== 'Opinion')
+
+  const lead = news[0] ?? all[0]
+  if (!lead) {
+    return <StatusMessage title="No stories yet." detail="Check back soon." />
+  }
+  const leftStack = news.filter((a) => a.id !== lead.id).slice(0, 4)
+  const leadBullets = news.filter((a) => a.id !== lead.id).slice(4, 8)
 
   return (
-    <div className="flex flex-col gap-10">
-      <section className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-        {/* Lead story */}
-        <div className="lg:col-span-7 lg:border-r lg:border-rule lg:pr-8">
-          {lead ? <ArticleCard article={lead} variant="lead" showImage showDeck /> : null}
-        </div>
-
-        {/* Secondary column */}
-        <div className="flex flex-col divide-y divide-rule lg:col-span-3 lg:border-r lg:border-rule lg:pr-8">
-          {secondary.map((article) => (
+    <div>
+      {/* TOP STORIES — WSJ 3-column grid: news stack | lead+image | Opinion rail */}
+      <section className="grid grid-cols-1 gap-8 lg:grid-cols-[17rem_minmax(0,1fr)_18rem]">
+        {/* LEFT — stacked top headlines */}
+        <div className="flex flex-col divide-y divide-rule lg:border-r lg:border-rule lg:pr-7">
+          {leftStack.map((article) => (
             <div key={article.id} className="py-4 first:pt-0">
-              <ArticleCard article={article} variant="feature" />
+              <ArticleCard article={article} variant="feature" showByline={false} />
             </div>
           ))}
         </div>
 
-        {/* What's News rail */}
-        <div className="lg:col-span-2">
-          <WhatsNews articles={briefs} />
+        {/* CENTER — lead story with hero image + related bullets */}
+        <div className="lg:border-r lg:border-rule lg:px-7">
+          <ArticleCard article={lead} variant="lead" showImage showDeck showByline />
+          {leadBullets.length > 0 ? (
+            <ul className="mt-4 flex flex-col divide-y divide-rule border-t border-rule">
+              {leadBullets.map((article) => (
+                <li key={article.id} className="py-2.5">
+                  <Link
+                    to={`/article/${article.slug}`}
+                    className="group flex gap-2 font-body text-[0.95rem] font-semibold leading-snug text-ink transition-colors hover:text-accent"
+                  >
+                    {article.kicker ? (
+                      <span className="label shrink-0 text-accent">{article.kicker}</span>
+                    ) : null}
+                    <span>{article.title}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
+
+        {/* RIGHT — Opinion rail */}
+        <OpinionRail articles={opinion} />
       </section>
 
-      {CATEGORIES.map((category) => {
-        const inCategory = articles.filter((article) => article.category === category).slice(0, 4)
-        if (inCategory.length === 0) {
-          return null
-        }
-        return <CategorySection key={category} name={category} articles={inCategory} />
-      })}
+      {/* SECTION BANDS — 3-up rows per category, like WSJ's section blocks */}
+      <div className="mt-12 flex flex-col gap-10">
+        {CATEGORIES.filter((c) => c !== 'Opinion').map((category) => {
+          const inCategory = all.filter((a) => a.category === category).slice(0, 3)
+          if (inCategory.length === 0) return null
+          return <CategorySection key={category} name={category} articles={inCategory} />
+        })}
+      </div>
     </div>
+  )
+}
+
+function OpinionRail({ articles }: { articles: Article[] }) {
+  if (articles.length === 0) return null
+  return (
+    <aside className="lg:pl-1">
+      <div className="mb-3 border-t-3 border-ink pt-2">
+        <h2 className="headline text-2xl text-ink">Opinion</h2>
+      </div>
+      <ul className="flex flex-col divide-y divide-rule">
+        {articles.slice(0, 6).map((article) => (
+          <li key={article.id} className="py-3 first:pt-0">
+            <Link to={`/article/${article.slug}`} className="group flex items-start gap-3">
+              <span
+                aria-hidden
+                className="headline mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink/5 text-sm text-ink"
+              >
+                {article.author.charAt(0)}
+              </span>
+              <div>
+                <p className="label text-[0.625rem] text-muted">{article.author}</p>
+                <p className="font-body text-[0.95rem] font-semibold italic leading-snug text-ink transition-colors group-hover:text-accent">
+                  {article.title}
+                </p>
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </aside>
   )
 }
 
@@ -77,7 +128,7 @@ function CategorySection({ name, articles }: { name: Category; articles: Article
   return (
     <section>
       <div className="mb-4 flex items-baseline justify-between border-t-3 border-ink pt-2">
-        <h2 className="headline text-xl text-ink">{name}</h2>
+        <h2 className="headline text-2xl text-ink">{name}</h2>
         <Link
           to={`/${categorySlug(name)}`}
           className="label text-[0.6875rem] text-accent transition-colors hover:text-ink"
@@ -85,13 +136,17 @@ function CategorySection({ name, articles }: { name: Category; articles: Article
           More {name}
         </Link>
       </div>
-      <div className="grid grid-cols-1 gap-6 divide-y divide-rule sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4">
-        {articles.map((article) => (
-          <div key={article.id} className="pt-4 first:pt-0 sm:pt-0">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-rule">
+        {articles.map((article, index) => (
+          <div
+            key={article.id}
+            className={`sm:px-5 sm:first:pl-0 sm:last:pr-0 ${index > 0 ? 'border-t border-rule pt-4 sm:border-t-0 sm:pt-0' : ''}`}
+          >
             <ArticleCard
               article={article}
               variant="standard"
-              showImage={Boolean(article.heroImage)}
+              showImage={index === 0 && Boolean(article.heroImage)}
+              showByline={false}
             />
           </div>
         ))}

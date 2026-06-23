@@ -6,33 +6,30 @@ interface WhatsNewsProps {
   className?: string
 }
 
-/** Compact bulleted "What's News" rail of brief items. */
+/**
+ * "What's News" rail — a bordered box in the 300px right column, mirroring WSJ.
+ * Heavy top rule, boxed, bulleted brief items.
+ */
 export function WhatsNews({ articles, className }: WhatsNewsProps) {
   if (articles.length === 0) {
     return null
   }
 
   return (
-    <aside className={`border-t-3 border-ink pt-3 ${className ?? ''}`}>
-      <h2 className="label mb-3 text-sm font-bold text-ink">What&rsquo;s News</h2>
-      <ul className="flex flex-col">
+    <aside className={`border border-rule ${className ?? ''}`}>
+      <div className="border-t-3 border-ink px-4 pt-3 pb-2">
+        <h2 className="headline text-2xl text-ink">What&rsquo;s News</h2>
+      </div>
+      <ul className="flex flex-col px-4 pb-2">
         {articles.map((article) => (
-          <li
-            key={article.id}
-            className="border-b border-rule py-3 last:border-b-0"
-          >
+          <li key={article.id} className="border-t border-rule py-3">
             <Link to={`/article/${article.slug}`} className="group flex gap-2">
-              <span aria-hidden className="mt-1 font-bold text-accent">
+              <span aria-hidden className="mt-[0.15rem] font-bold text-accent">
                 &bull;
               </span>
-              <div>
-                <p className="font-body text-[0.95rem] font-bold leading-snug text-ink transition-colors group-hover:text-accent">
-                  {article.title}
-                </p>
-                {article.deck ? (
-                  <p className="mt-1 text-[0.85rem] leading-snug text-muted">{article.deck}</p>
-                ) : null}
-              </div>
+              <p className="font-body text-[0.95rem] font-semibold leading-snug text-ink transition-colors group-hover:text-accent">
+                {article.title}
+              </p>
             </Link>
           </li>
         ))}

@@ -14,11 +14,12 @@ interface ArticleCardProps {
   className?: string
 }
 
+// Sizes mirror WSJ's Escrow scale (lead 40 / feature 28 / standard 22 / compact 18).
 const HEADLINE_SIZE: Record<CardVariant, string> = {
-  lead: 'text-4xl md:text-5xl lg:text-6xl',
-  feature: 'text-2xl md:text-3xl',
-  standard: 'text-xl md:text-2xl',
-  compact: 'text-base md:text-lg',
+  lead: 'text-[2rem] leading-[1.06] sm:text-[2.5rem]',
+  feature: 'text-[1.5rem] leading-[1.1]',
+  standard: 'text-[1.375rem] leading-[1.12]',
+  compact: 'text-[1.05rem] leading-[1.15]',
 }
 
 /** A single story teaser used across the home page, category pages and search. */
@@ -35,14 +36,21 @@ export function ArticleCard({
   return (
     <article className={`group flex flex-col gap-2 ${className ?? ''}`}>
       {showImage && article.heroImage ? (
-        <Link to={href} className="block overflow-hidden">
-          <img
-            src={article.heroImage.url}
-            alt={article.heroImage.alt}
-            className="aspect-[3/2] w-full object-cover"
-            loading="lazy"
-          />
-        </Link>
+        <figure className="m-0">
+          <Link to={href} className="block overflow-hidden">
+            <img
+              src={article.heroImage.url}
+              alt={article.heroImage.alt}
+              className="aspect-[3/2] w-full object-cover"
+              loading="lazy"
+            />
+          </Link>
+          {article.heroImage.credit ? (
+            <figcaption className="mt-1 text-[0.6875rem] leading-tight text-muted">
+              {article.heroImage.credit}
+            </figcaption>
+          ) : null}
+        </figure>
       ) : null}
 
       {article.kicker ? <Kicker>{article.kicker}</Kicker> : null}
