@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { CATEGORIES, categorySlug, type Article, type Category } from '@gwj/shared-types'
@@ -83,14 +84,43 @@ export function Home() {
         <OpinionRail articles={opinion} />
       </section>
 
-      {/* SECTION BANDS — 3-up rows per category, like WSJ's section blocks */}
-      <div className="mt-12 flex flex-col gap-10">
-        {CATEGORIES.filter((c) => c !== 'Opinion').map((category) => {
-          const inCategory = all.filter((a) => a.category === category).slice(0, 3)
-          if (inCategory.length === 0) return null
-          return <CategorySection key={category} name={category} articles={inCategory} />
-        })}
-      </div>
+      {/* SECTION BANDS — load more on scroll, like WSJ's front page */}
+      <SectionBands articles={all} />
+    </div>
+  )
+}
+
+/** Section bands that reveal progressively as the reader scrolls (infinite-scroll feel). */
+function SectionBands({ articles }: { articles: Article[] }) {
+  const sections = CATEGORIES.filter((c) => c !== 'Opinion').filter((c) =>
+    articles.some((a) => a.category === c),
+  )
+  const STEP = 2
+  const [visible, setVisible] = useState(STEP)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const node = sentinelRef.current
+    if (!node || visible >= sections.length) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible((v) => Math.min(v + STEP, sections.length))
+        }
+      },
+      { rootMargin: '600px 0px' },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [visible, sections.length])
+
+  return (
+    <div className="mt-12 flex flex-col gap-10">
+      {sections.slice(0, visible).map((category) => {
+        const inCategory = articles.filter((a) => a.category === category).slice(0, 3)
+        return <CategorySection key={category} name={category} articles={inCategory} />
+      })}
+      {visible < sections.length ? <div ref={sentinelRef} aria-hidden className="h-px" /> : null}
     </div>
   )
 }
