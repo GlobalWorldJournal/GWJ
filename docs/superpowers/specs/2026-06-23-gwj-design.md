@@ -95,7 +95,7 @@ Tools call the backend **service layer** directly (same process or internal HTTP
 - **Tests:** Vitest (Zod schema validation, service-layer logic, slug generation, JSON-LD builder) + supertest (API routes incl. auth + validation failures). MCP tool smoke tests against the service layer.
 
 ## Repo
-New repo on personal GitHub `NateIsern/GWJ` (NOT oxy). NOTE: `gh` token for NateIsern is expired — user must `gh auth login` before remote create/push.
+New repo under the dedicated company GitHub org `GlobalWorldJournal/GWJ` (NOT oxy).
 
 ## Open items (resolved)
 - Rendering: A (SPA + `_worker.js` SEO). ✅

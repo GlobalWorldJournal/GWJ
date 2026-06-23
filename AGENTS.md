@@ -7,16 +7,17 @@
 **GWJ has NOTHING to do with the Oxy ecosystem.** It is Nate's personal company project (Global World Journal, globalworldjournal.com), separate from OxyHQ/Mention/Allo/Homiio/etc.
 
 - Do **NOT** use any `@oxyhq/*` package (core, services, auth, bloom, contracts). GWJ has its own types, auth, and UI.
-- Do **NOT** use Oxy SSO/FedCM, `cloud.oxy.so` media, Oxy API, or any Oxy infra/SSM/terraform.
+- Do **NOT** use Oxy SSO/FedCM, `cloud.oxy.so` media, the Oxy API, Oxy's MongoDB, or any Oxy application data.
 - Do **NOT** spawn the Oxy team agents (mention-*, oxy-*, bloom, allo, etc.) for GWJ work.
-- Do **NOT** deploy to the Oxy AWS account or Oxy Cloudflare projects. GWJ has its own AWS resources and its own Cloudflare Pages project.
-- The global `~/AGENTS.md` Oxy rules (Oxy SDK versions, SSO architecture, Oxy infra, agent-first Oxy team) **do not apply here**, except for universal quality standards (below).
+- The global `~/AGENTS.md` Oxy rules (Oxy SDK versions, SSO architecture, agent-first Oxy team) **do not apply here**, except for universal quality standards (below).
+
+**Hosting (user decision, 2026-06-23):** GWJ is hosted ON the Oxy AWS account (`237343248947`, us-west-2, CLI `--profile oxy`) for convenience, but as **fully ISOLATED `gwj-*` resources** — its own ECR repos, ECS services, S3 bucket (`gwj-media`), CloudFront, and a **NEW dedicated MongoDB** (NOT Oxy's Mongo EC2). GWJ shares no application data, database, SSO, or SDKs with Oxy. Frontend deploys to Cloudflare Pages (project `gwj`). Infra still belongs in `~/Oxy/oxy-infra/terraform-uswest2/` (e.g. `app-gwj.tf`), applied manually — do not patch it ad hoc.
 
 ## What GWJ is
 WSJ-style news site for "Global World Journal". Public reader SPA + admin CMS + a remote MCP server so AI agents manage the newspaper.
 
 - **Domain:** globalworldjournal.com (Cloudflare DNS)
-- **Repo:** `NateIsern/GWJ` (personal GitHub, NOT the OxyHQ org)
+- **Repo:** `GlobalWorldJournal/GWJ` (dedicated company GitHub org, NOT the OxyHQ org)
 - **Design spec:** `docs/superpowers/specs/2026-06-23-gwj-design.md`
 - **Build plan:** `docs/superpowers/plans/2026-06-23-gwj-build.md`
 

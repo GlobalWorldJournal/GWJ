@@ -1,18 +1,18 @@
 # GWJ Infrastructure Provisioning
 
-> GWJ runs on **its own** AWS + Cloudflare — completely separate from any Oxy account/infra. Provision these manually with Nate; never hardcode values into the repo.
+> Hosted ON the Oxy AWS account (`237343248947`, us-west-2, CLI `--profile oxy`) by user decision, but as fully ISOLATED `gwj-*` resources with a NEW dedicated MongoDB — GWJ shares no application data, database, SSO, or SDKs with Oxy. Infra belongs in `~/Oxy/oxy-infra/terraform-uswest2/` (`app-gwj.tf`), applied manually. Never hardcode secret values into the repo.
 
 ## Overview
 - **Frontend:** Cloudflare Pages project `gwj` → `globalworldjournal.com` + `www`.
-- **Backend + MCP:** Docker (linux/arm64) → ECR → ECS Fargate, behind an ALB.
-- **DB:** MongoDB Atlas M0 (free, dedicated cluster).
+- **Backend + MCP:** Docker (linux/arm64) → ECR (`gwj-backend`, `gwj-mcp`) → ECS Fargate, behind an ALB.
+- **DB:** a NEW dedicated MongoDB on AWS (separate from Oxy's Mongo) — small EC2 (arm64) running mongod with an EBS volume + its own security group, or AWS DocumentDB. NOT Oxy's Mongo EC2.
 - **Media:** S3 bucket `gwj-media` + CloudFront `cdn.globalworldjournal.com`.
 - **DNS:** Cloudflare (domain already added).
 
-## 1. MongoDB Atlas
-1. Create a new **free M0** project/cluster (region near AWS region).
-2. DB user + password; network access allowlist (ECS egress IPs or 0.0.0.0/0 for M0 dev).
-3. Copy the SRV connection string → GitHub secret `MONGO_URI`.
+## 1. MongoDB (new, dedicated)
+1. Provision a NEW MongoDB separate from Oxy's: e.g. a `t4g.small` EC2 (arm64) in us-west-2 running MongoDB 8 with a dedicated EBS data volume and a GWJ-only security group (only the ECS tasks' SG may reach 27017), OR an AWS DocumentDB cluster.
+2. Create a DB user + strong password; restrict network access to the backend/MCP security group only.
+3. Connection string → GitHub secret `MONGO_URI`. Do NOT reuse Oxy's Mongo credentials or instance.
 
 ## 2. S3 + CloudFront (media)
 1. Create S3 bucket `gwj-media` (block public ACLs; serve via CloudFront OAC).
@@ -31,7 +31,7 @@ Create two repos: `gwj-backend`, `gwj-mcp` (set repo vars `ECR_BACKEND`, `ECR_MC
 5. Cloudflare DNS: `api` and `mcp` → ALB (DNS-only).
 
 ## 5. OIDC deploy role
-Create IAM role `gwj-github-deploy` trusting GitHub OIDC for `NateIsern/GWJ`, with ECR push + `ecs:UpdateService` + `ssm:PutParameter` perms. ARN → secret `AWS_DEPLOY_ROLE_ARN`.
+Create IAM role `gwj-github-deploy` trusting GitHub OIDC for `GlobalWorldJournal/GWJ`, with ECR push + `ecs:UpdateService` + `ssm:PutParameter` perms. ARN → secret `AWS_DEPLOY_ROLE_ARN`.
 
 ## 6. Cloudflare Pages
 1. Create Pages project `gwj` (direct upload via wrangler in CI).
