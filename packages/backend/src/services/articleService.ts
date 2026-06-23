@@ -129,6 +129,7 @@ export const articleService: ArticleService = {
     if (patch.featured !== undefined) doc.featured = patch.featured
     if (patch.tags !== undefined) doc.tags = patch.tags
     if (patch.seo !== undefined) doc.seo = patch.seo
+    if (patch.source !== undefined) doc.source = patch.source
     if (patch.status !== undefined) {
       doc.status = patch.status
       if (patch.status === 'published' && !doc.publishedAt) doc.publishedAt = new Date()
