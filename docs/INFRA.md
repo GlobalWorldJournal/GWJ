@@ -37,6 +37,7 @@ Create IAM role `gwj-github-deploy` trusting GitHub OIDC for `NateIsern/GWJ`, wi
 1. Create Pages project `gwj` (direct upload via wrangler in CI).
 2. Custom domains `globalworldjournal.com` + `www`.
 3. Account ID → secret `CLOUDFLARE_ACCOUNT_ID`; scoped API token (Pages:Edit) → secret `CLOUDFLARE_API_TOKEN`.
+4. **Pages runtime env vars (required by `_worker.js` for SEO):** in the Pages project → Settings → Environment variables (Production), set `API_BASE_URL` = `https://api.globalworldjournal.com` and `SITE_URL` = `https://globalworldjournal.com`. These are RUNTIME bindings read by the SEO worker (meta/OG/JSON-LD/sitemap) and are distinct from the build-time `VITE_API_BASE_URL`.
 
 ## GitHub configuration
 **Secrets** (Settings → Secrets → Actions): `MONGO_URI`, `JWT_SECRET`, `MCP_TOKEN`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEPLOY_ROLE_ARN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
