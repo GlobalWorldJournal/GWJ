@@ -10,6 +10,7 @@ let mongod: MongoMemoryServer
 const baseInput = (overrides: Partial<ArticleInput> = {}): ArticleInput => ({
   title: 'Global Equities Climb, Again!',
   category: CATEGORIES[0],
+  language: 'en',
   author: 'Nate',
   body: '# Markets\n\nMarkets rose **today**.',
   status: 'draft',

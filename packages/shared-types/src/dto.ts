@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { CategorySchema } from './category'
+import { LanguageSchema } from './language'
 import { ArticleSchema, ArticleStatusSchema } from './article'
 
 export const LoginInputSchema = z.object({
@@ -17,6 +18,7 @@ export type LoginResponse = z.infer<typeof LoginResponseSchema>
 /** Query params for listing articles (coerced from strings). */
 export const ArticleListQuerySchema = z.object({
   category: CategorySchema.optional(),
+  language: LanguageSchema.optional(),
   featured: z.coerce.boolean().optional(),
   status: ArticleStatusSchema.optional(),
   q: z.string().optional(),

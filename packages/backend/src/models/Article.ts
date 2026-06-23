@@ -4,6 +4,7 @@ import {
   type ArticleStatus,
   type Category,
   type HeroImage,
+  type Language,
   type Seo,
   type Source,
 } from '@gwj/shared-types'
@@ -19,6 +20,7 @@ export interface ArticleAttrs {
   deck?: string
   kicker?: string
   category: Category
+  language: Language
   author: string
   body: string
   heroImage?: HeroImage
@@ -75,6 +77,7 @@ const articleSchema = new Schema<ArticleAttrs, ArticleModelType>(
     deck: { type: String },
     kicker: { type: String },
     category: { type: String, required: true },
+    language: { type: String, default: 'en', required: true },
     author: { type: String, required: true },
     body: { type: String, required: true },
     heroImage: { type: heroImageSchema },
@@ -89,6 +92,7 @@ const articleSchema = new Schema<ArticleAttrs, ArticleModelType>(
 )
 
 articleSchema.index({ status: 1, publishedAt: -1 })
+articleSchema.index({ language: 1, status: 1, publishedAt: -1 })
 articleSchema.index({ category: 1, publishedAt: -1 })
 articleSchema.index({ title: 'text', deck: 'text' })
 
@@ -122,6 +126,7 @@ export function articleToDTO(doc: ArticleDoc): Article {
     deck: doc.deck,
     kicker: doc.kicker,
     category: doc.category,
+    language: doc.language,
     author: doc.author,
     body: doc.body,
     heroImage,

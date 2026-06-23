@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { CategorySchema } from './category'
+import { LanguageSchema } from './language'
 
 /** Ordered content blocks that make up an article body. */
 export const ContentBlockSchema = z.discriminatedUnion('type', [
@@ -59,6 +60,9 @@ export const ArticleInputSchema = z.object({
   deck: z.string().optional(),
   kicker: z.string().optional(),
   category: CategorySchema,
+  // Edition this article belongs to. Readers see content for the selected
+  // language; the AI writers publish the same story across editions.
+  language: LanguageSchema.default('en'),
   author: z.string().min(1),
   // Article body is stored as Markdown (GitHub-flavored), rendered to HTML on
   // the client. The legacy ContentBlock union remains exported for reference

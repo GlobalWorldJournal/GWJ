@@ -84,6 +84,7 @@ export const articleService: ArticleService = {
       filter.status = 'published'
     }
     if (query.category) filter.category = query.category
+    if (query.language) filter.language = query.language
     if (query.featured) filter.featured = { $gt: 0 }
 
     const total = await ArticleModel.countDocuments(filter)
@@ -123,6 +124,7 @@ export const articleService: ArticleService = {
     if (patch.deck !== undefined) doc.deck = patch.deck
     if (patch.kicker !== undefined) doc.kicker = patch.kicker
     if (patch.category !== undefined) doc.category = patch.category
+    if (patch.language !== undefined) doc.language = patch.language
     if (patch.author !== undefined) doc.author = patch.author
     if (patch.body !== undefined) doc.body = patch.body
     if (patch.heroImage !== undefined) doc.heroImage = patch.heroImage
@@ -168,6 +170,7 @@ export const articleService: ArticleService = {
       $text: { $search: q },
     }
     if (query.category) filter.category = query.category
+    if (query.language) filter.language = query.language
 
     const total = await ArticleModel.countDocuments(filter)
     const docs = await ArticleModel.find(filter)

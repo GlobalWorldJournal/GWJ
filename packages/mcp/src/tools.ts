@@ -2,6 +2,8 @@ import {
   ArticleInputSchema,
   ArticleListQuerySchema,
   ArticleUpdateSchema,
+  LANGUAGE_NAMES,
+  SUPPORTED_LANGUAGES,
   WRITERS,
   authorSlug,
   pickWriter,
@@ -179,6 +181,18 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'list_categories',
     { description: 'List the fixed set of newspaper categories.' },
     () => guard(async () => jsonResult(await client.listCategories())),
+  )
+
+  server.registerTool(
+    'list_languages',
+    {
+      description:
+        "List the editions (languages) the paper publishes in. Pass an article's `language` to create_article to publish it in that edition; write the article's prose in that language.",
+    },
+    () =>
+      guard(async () =>
+        jsonResult(SUPPORTED_LANGUAGES.map((code) => ({ code, name: LANGUAGE_NAMES[code] }))),
+      ),
   )
 
   server.registerTool(
