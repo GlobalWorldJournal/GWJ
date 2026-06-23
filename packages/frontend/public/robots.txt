@@ -2,4 +2,12 @@ User-agent: *
 Allow: /
 Disallow: /admin
 
+User-agent: Googlebot
+Allow: /
+Disallow: /admin
+
+User-agent: Googlebot-News
+Allow: /
+Disallow: /admin
+
 Sitemap: https://globalworldjournal.com/sitemap.xml

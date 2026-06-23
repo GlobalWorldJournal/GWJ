@@ -178,10 +178,13 @@ function newsArticleJsonLd(article, url, image, siteUrl) {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
-    headline: article.title,
+    // Google News recommends headlines <= 110 characters.
+    headline: String(article.title).slice(0, 110),
     description: articleDescription(article),
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
     articleSection: article.category,
+    inLanguage: article.language || 'en',
+    isAccessibleForFree: true,
     author: {
       '@type': 'Person',
       name: article.author,
@@ -206,6 +209,94 @@ function newsArticleJsonLd(article, url, image, siteUrl) {
     jsonLd.image = [image]
   }
   return jsonLd
+}
+
+// Inline Markdown → HTML (escaped). Supports the subset our articles use so the
+// rendered prose ships in the server HTML for crawlers (esp. Google News).
+function mdInline(escaped) {
+  return escaped
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" rel="noopener">$1</a>')
+}
+
+function mdToHtml(markdown) {
+  const lines = String(markdown).split('\n')
+  const out = []
+  let para = []
+  let list = []
+  const flushPara = () => {
+    if (para.length) {
+      out.push(`<p>${mdInline(escapeHtml(para.join(' ')))}</p>`)
+      para = []
+    }
+  }
+  const flushList = () => {
+    if (list.length) {
+      out.push(`<ul>${list.map((li) => `<li>${mdInline(escapeHtml(li))}</li>`).join('')}</ul>`)
+      list = []
+    }
+  }
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line) {
+      flushPara()
+      flushList()
+      continue
+    }
+    let m
+    if ((m = line.match(/^###\s+(.*)/))) {
+      flushPara()
+      flushList()
+      out.push(`<h3>${mdInline(escapeHtml(m[1]))}</h3>`)
+    } else if ((m = line.match(/^##\s+(.*)/))) {
+      flushPara()
+      flushList()
+      out.push(`<h2>${mdInline(escapeHtml(m[1]))}</h2>`)
+    } else if ((m = line.match(/^>\s?(.*)/))) {
+      flushPara()
+      flushList()
+      out.push(`<blockquote><p>${mdInline(escapeHtml(m[1]))}</p></blockquote>`)
+    } else if ((m = line.match(/^[-*]\s+(.*)/))) {
+      flushPara()
+      list.push(m[1])
+    } else if ((m = line.match(/^!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/))) {
+      flushPara()
+      flushList()
+      out.push(`<figure><img src="${escapeHtml(m[2])}" alt="${escapeHtml(m[1])}" /></figure>`)
+    } else {
+      flushList()
+      para.push(line)
+    }
+  }
+  flushPara()
+  flushList()
+  return out.join('\n')
+}
+
+/** Server-rendered article markup injected into #root so crawlers get the full text. */
+function articleContentHtml(article, image) {
+  const parts = ['<article>']
+  if (article.kicker) parts.push(`<p>${escapeHtml(article.kicker)}</p>`)
+  parts.push(`<h1>${escapeHtml(article.title)}</h1>`)
+  if (article.deck) parts.push(`<p>${escapeHtml(article.deck)}</p>`)
+  parts.push(`<p>By ${escapeHtml(article.author)}</p>`)
+  if (image) {
+    const credit = article.heroImage && article.heroImage.credit ? article.heroImage.credit : ''
+    parts.push(
+      `<figure><img src="${escapeHtml(image)}" alt="${escapeHtml((article.heroImage && article.heroImage.alt) || article.title)}" />` +
+        (credit ? `<figcaption>${escapeHtml(credit)}</figcaption>` : '') +
+        '</figure>',
+    )
+  }
+  parts.push(mdToHtml(article.body || ''))
+  parts.push('</article>')
+  return parts.join('\n')
+}
+
+/** Put server-rendered content inside #root. React replaces it on hydrate; crawlers read it. */
+function injectRoot(html, contentHtml) {
+  return html.replace(/<div id="root">\s*<\/div>/i, `<div id="root">${contentHtml}</div>`)
 }
 
 async function getShell(env, request) {
@@ -299,7 +390,12 @@ async function handleArticle(env, request, config, slug) {
     extraMeta,
     lang,
   })
-  return withHtmlBody(shell, injectHead(html, metaTags, lang))
+  // Server-render the article text into #root so crawlers (and Google News) get
+  // the full content without executing JS; React replaces it on mount.
+  return withHtmlBody(
+    shell,
+    injectRoot(injectHead(html, metaTags, lang), articleContentHtml(article, image)),
+  )
 }
 
 async function handleCategory(env, request, config, slug) {
