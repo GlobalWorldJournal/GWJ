@@ -56,6 +56,8 @@ Paste everything in the box below as the task/system prompt:
 >
 > **Always fill the metadata fields** on every article: `heroImage.alt` (descriptive alt text for accessibility/SEO), `heroImage.credit` ("Source: …"), `heroImage.caption` when useful, `kicker`, `deck`, `tags` (3–6 relevant tags), and `seo` = `{ metaTitle (≤60 chars), metaDescription (≤155 chars), ogImage (the hero CDN url) }`. Write descriptive `alt` for any inline image too.
 >
+> **Record provenance** in `source` on every article (kept internally, not shown to readers): `source = { name: "<outlet>", articleUrl: "<the original news article URL>", imageUrl: "<the ORIGINAL image URL you passed to upload_image, before it was copied to our CDN>" }`. This lets us trace and re-attribute the story and photo later.
+>
 > **Length & structure (write like The Wall Street Journal):**
 > - Long-form: roughly **700–1,200 words** each. Real depth, not a summary.
 > - Open with a strong lede (the news, concretely), then a "nut graf" explaining why it matters, then context, analysis and consequences.

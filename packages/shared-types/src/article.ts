@@ -41,6 +41,18 @@ export const SeoSchema = z
   .default({})
 export type Seo = z.infer<typeof SeoSchema>
 
+/**
+ * Provenance for internal record-keeping (not shown to readers). Captures where
+ * the story and its hero image originally came from so we can trace/attribute
+ * later. `imageUrl` is the ORIGINAL image URL before we copied it to our CDN.
+ */
+export const SourceSchema = z.object({
+  name: z.string().optional(),
+  articleUrl: z.string().url().optional(),
+  imageUrl: z.string().url().optional(),
+})
+export type Source = z.infer<typeof SourceSchema>
+
 /** Payload to create an article. */
 export const ArticleInputSchema = z.object({
   title: z.string().min(1),
@@ -57,6 +69,8 @@ export const ArticleInputSchema = z.object({
   featured: z.number().int().min(0).default(0),
   tags: z.array(z.string()).default([]),
   seo: SeoSchema,
+  // Internal provenance (original source article + original image URL).
+  source: SourceSchema.optional(),
 })
 export type ArticleInput = z.infer<typeof ArticleInputSchema>
 

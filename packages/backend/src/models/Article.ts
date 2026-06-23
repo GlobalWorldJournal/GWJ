@@ -5,6 +5,7 @@ import {
   type Category,
   type HeroImage,
   type Seo,
+  type Source,
 } from '@gwj/shared-types'
 
 /**
@@ -25,6 +26,7 @@ export interface ArticleAttrs {
   featured: number
   tags: string[]
   seo: Seo
+  source?: Source
   publishedAt: Date | null
   createdAt: Date
   updatedAt: Date
@@ -52,6 +54,15 @@ const seoSchema = new Schema<Seo>(
   { _id: false },
 )
 
+const sourceSchema = new Schema<Source>(
+  {
+    name: { type: String },
+    articleUrl: { type: String },
+    imageUrl: { type: String },
+  },
+  { _id: false },
+)
+
 /**
  * The body is stored as a Markdown string (GitHub-flavored), rendered to HTML on
  * the client. The Zod `ArticleInputSchema` is the authority that validates it
@@ -71,6 +82,7 @@ const articleSchema = new Schema<ArticleAttrs, ArticleModelType>(
     featured: { type: Number, default: 0, min: 0 },
     tags: { type: [String], default: [] },
     seo: { type: seoSchema, default: () => ({}) },
+    source: { type: sourceSchema },
     publishedAt: { type: Date, default: null },
   },
   { timestamps: true, minimize: false },
@@ -99,6 +111,10 @@ export function articleToDTO(doc: ArticleDoc): Article {
     ogImage: doc.seo?.ogImage,
   }
 
+  const source: Source | undefined = doc.source
+    ? { name: doc.source.name, articleUrl: doc.source.articleUrl, imageUrl: doc.source.imageUrl }
+    : undefined
+
   return {
     id: doc._id.toString(),
     slug: doc.slug,
@@ -113,6 +129,7 @@ export function articleToDTO(doc: ArticleDoc): Article {
     featured: doc.featured,
     tags: doc.tags,
     seo,
+    source,
     publishedAt: doc.publishedAt ? doc.publishedAt.toISOString() : null,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),

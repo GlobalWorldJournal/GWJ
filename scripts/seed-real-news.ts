@@ -383,8 +383,12 @@ async function main(): Promise<void> {
   let created = 0
   for (const story of STORIES) {
     let heroImage: ArticleInput['heroImage']
+    let source: ArticleInput['source']
     if (story.source) {
       const og = await getOgImage(story.source.url)
+      // Record provenance: the source outlet, the original article URL, and the
+      // ORIGINAL image URL (before we copied it to our CDN).
+      source = { name: story.source.name, articleUrl: story.source.url, imageUrl: og ?? undefined }
       if (og) {
         const cdn = await uploadToCdn(token, og, `${story.kicker.toLowerCase()}-${created}.jpg`)
         if (cdn) heroImage = { url: cdn, alt: story.imageAlt, credit: `Source: ${story.source.name}` }
@@ -403,6 +407,7 @@ async function main(): Promise<void> {
       featured: story.featured,
       tags: [],
       seo: {},
+      source,
     }
     const res = await fetch(`${API}/api/admin/articles`, {
       method: 'POST',
