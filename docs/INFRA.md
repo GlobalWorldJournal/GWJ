@@ -1,6 +1,6 @@
 # GWJ Infrastructure Provisioning
 
-> Hosted ON the Oxy AWS account (`237343248947`, us-west-2, CLI `--profile oxy`) by user decision, but as fully ISOLATED `gwj-*` resources with a NEW dedicated MongoDB — GWJ shares no application data, database, SSO, or SDKs with Oxy. Infra belongs in `~/Oxy/oxy-infra/terraform-uswest2/` (`app-gwj.tf`), applied manually. Never hardcode secret values into the repo.
+> Hosted ON the Oxy AWS account (`237343248947`, us-west-2, CLI `--profile oxy`) by user decision, but as fully ISOLATED `gwj-*` resources with a NEW dedicated MongoDB — GWJ shares no application data, database, SSO, or SDKs with Oxy. **Infra is STANDALONE terraform in `~/GWJ/infra/`** with its own state (S3 key `gwj/terraform.tfstate`), own IAM roles, own SSM `/gwj/*`, and own `gwj-tasks` security group; Oxy's shared VPC/ALB/ECS-cluster are consumed read-only via data sources, so a GWJ apply never touches Oxy. Applied manually. Never hardcode secret values into the repo.
 
 ## Overview
 - **Frontend:** Cloudflare Pages project `gwj` → `globalworldjournal.com` + `www`.
