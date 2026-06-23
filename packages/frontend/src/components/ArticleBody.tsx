@@ -17,7 +17,7 @@ interface ArticleBodyProps {
 export function ArticleBody({ markdown }: ArticleBodyProps) {
   return (
     <div className="prose-article font-body text-[1.125rem] leading-[1.7] text-ink">
-      <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+      <Markdown remarkPlugins={[remarkGfm]} skipHtml components={MARKDOWN_COMPONENTS}>
         {markdown}
       </Markdown>
     </div>

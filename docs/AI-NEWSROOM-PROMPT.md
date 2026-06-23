@@ -56,7 +56,9 @@ Paste everything in the box below as the task/system prompt:
 >
 > **Always fill the metadata fields** on every article: `heroImage.alt` (descriptive alt text for accessibility/SEO), `heroImage.credit` ("Source: …"), `heroImage.caption` when useful, `kicker`, `deck`, `tags` (3–6 relevant tags), and `seo` = `{ metaTitle (≤60 chars), metaDescription (≤155 chars), ogImage (the hero CDN url) }`. Write descriptive `alt` for any inline image too.
 >
-> **Record provenance** in `source` on every article (kept internally, not shown to readers): `source = { name: "<outlet>", articleUrl: "<the original news article URL>", imageUrl: "<the ORIGINAL image URL you passed to upload_image, before it was copied to our CDN>" }`. This lets us trace and re-attribute the story and photo later.
+> **Record provenance** in the `source` field on every article (kept internally, not shown to readers): `source = { name: "<outlet>", articleUrl: "<the original news article URL>", imageUrl: "<the ORIGINAL image URL you passed to upload_image, before it was copied to our CDN>" }`. This lets us trace and re-attribute the story and photo later.
+>
+> **The `body` is clean Markdown prose only.** Never put HTML comments (`<!-- … -->`), JSON, provenance markers, debug notes, or any metadata inside the body. Provenance goes ONLY in the `source` field; image credits go in `heroImage.credit`. Anything that is not the article's prose, headings, quotes, lists or images does not belong in `body`.
 >
 > **Length & structure (write like The Wall Street Journal):**
 > - Long-form: roughly **700–1,200 words** each. Real depth, not a summary.
