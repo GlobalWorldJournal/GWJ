@@ -14,37 +14,37 @@ const COLUMNS: { title: string; links: FooterLink[] }[] = [
   {
     title: 'Customer Service',
     links: [
-      { label: 'Customer Center', to: '#' },
-      { label: 'Contact Us', to: '#' },
-      { label: 'Subscribe', to: '#' },
-      { label: 'Newsletters', to: '#' },
+      { label: 'Customer Center', to: '/customer-center' },
+      { label: 'Contact Us', to: '/contact' },
+      { label: 'Subscribe', to: '/subscribe' },
+      { label: 'Newsletters', to: '/newsletters' },
     ],
   },
   {
     title: 'Tools & Features',
     links: [
       { label: 'Search', to: '/search' },
-      { label: 'RSS Feeds', to: '#' },
-      { label: 'Podcasts', to: '#' },
-      { label: 'Video', to: '#' },
+      { label: 'RSS Feeds', to: '/rss' },
+      { label: 'Podcasts', to: '/podcasts' },
+      { label: 'Video', to: '/video' },
     ],
   },
   {
     title: 'Company',
     links: [
-      { label: 'About Us', to: '#' },
-      { label: 'Careers', to: '#' },
-      { label: 'Advertise', to: '#' },
-      { label: 'Corrections', to: '#' },
+      { label: 'About Us', to: '/about' },
+      { label: 'Careers', to: '/careers' },
+      { label: 'Advertise', to: '/advertise' },
+      { label: 'Corrections', to: '/corrections' },
     ],
   },
   {
     title: 'More',
     links: [
-      { label: 'Privacy Notice', to: '#' },
-      { label: 'Cookie Notice', to: '#' },
-      { label: 'Terms of Use', to: '#' },
-      { label: 'Accessibility', to: '#' },
+      { label: 'Privacy Notice', to: '/privacy' },
+      { label: 'Cookie Notice', to: '/cookie-notice' },
+      { label: 'Terms of Use', to: '/terms' },
+      { label: 'Accessibility', to: '/accessibility' },
     ],
   },
 ]
