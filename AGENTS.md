@@ -1,6 +1,6 @@
 # GWJ — Global World Journal
 
-> Shared instructions for every AI coding agent (Claude Code, Codex, Gemini CLI, etc.) working in this repo.
+> Shared instructions for every AI coding agent (Claude Code, Codex, Gemini CLI, etc.) working in this repo. Documentation belongs in `docs/`, history in git, status in issues — this file holds only rules, commands and pointers. **Budget: under 8 KB.**
 
 ## ⚠️ This project is INDEPENDENT of Oxy
 
