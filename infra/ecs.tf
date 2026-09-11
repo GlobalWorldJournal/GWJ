@@ -99,7 +99,7 @@ resource "aws_ecs_service" "backend" {
   network_configuration {
     subnets          = local.subnets
     security_groups  = [aws_security_group.tasks.id]
-    assign_public_ip = true
+    assign_public_ip = false
   }
 
   load_balancer {
@@ -200,7 +200,7 @@ resource "aws_ecs_service" "mcp" {
   network_configuration {
     subnets          = local.subnets
     security_groups  = [aws_security_group.tasks.id]
-    assign_public_ip = true
+    assign_public_ip = false
   }
 
   load_balancer {
