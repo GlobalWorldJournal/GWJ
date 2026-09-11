@@ -10,6 +10,8 @@
 #   Cluster  oxy-cluster (ACTIVE)
 #   Public   subnet-08f5cc132b3cab15c (us-west-2a, oxy-public-a),
 #            subnet-0bfb367f29d1fd375 (us-west-2b, oxy-public-b)
+#   Private  subnet-09be52663c9affaea (us-west-2a, oxy-private-a),
+#            subnet-0f338d0c3f0497225 (us-west-2b, oxy-private-b)
 #   OIDC     arn:aws:iam::237343248947:oidc-provider/token.actions.githubusercontent.com
 # ---------------------------------------------------------------------------
 
@@ -23,17 +25,16 @@ data "aws_vpc" "oxy" {
   }
 }
 
-# Oxy's PUBLIC subnets only (map-public-ip-on-launch=true) — the private subnet
-# is excluded so GWJ tasks/Mongo land in public subnets (assign_public_ip=true,
-# no NAT gateway, mirroring how Oxy runs its Fargate tasks).
-data "aws_subnets" "oxy_public" {
+# Oxy's private application subnets. They have same-zone NAT egress and an S3
+# gateway endpoint; GWJ tasks use them without receiving public IPv4 addresses.
+data "aws_subnets" "oxy_private" {
   filter {
     name   = "vpc-id"
     values = [data.aws_vpc.oxy.id]
   }
   filter {
-    name   = "map-public-ip-on-launch"
-    values = ["true"]
+    name   = "tag:Name"
+    values = ["oxy-private-*"]
   }
 }
 
@@ -78,5 +79,5 @@ data "aws_iam_openid_connect_provider" "github" {
 
 locals {
   vpc_id  = data.aws_vpc.oxy.id
-  subnets = data.aws_subnets.oxy_public.ids
+  subnets = data.aws_subnets.oxy_private.ids
 }
