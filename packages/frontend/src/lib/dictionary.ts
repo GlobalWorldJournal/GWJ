@@ -85,6 +85,9 @@ export const DICT: Record<Language, Record<string, string>> = {
     cookieNotice: 'Cookie Notice',
     terms: 'Terms of Use',
     accessibility: 'Accessibility',
+
+    // Static pages
+    lastUpdated: 'Last updated: {x}',
   },
   es: {
     whatsNews: 'Lo esencial',
@@ -159,6 +162,8 @@ export const DICT: Record<Language, Record<string, string>> = {
     cookieNotice: 'Aviso de cookies',
     terms: 'Términos de uso',
     accessibility: 'Accesibilidad',
+
+    lastUpdated: 'Última actualización: {x}',
   },
   fr: {
     whatsNews: 'L’essentiel',
@@ -226,13 +231,15 @@ export const DICT: Record<Language, Record<string, string>> = {
     video: 'Vidéo',
     aboutUs: 'À propos',
     careers: 'Carrières',
-    advertise: 'Annoncer',
+    advertise: 'Publicité',
     corrections: 'Corrections',
     reportContent: 'Signaler un contenu',
     privacy: 'Politique de confidentialité',
-    cookieNotice: 'Notice sur les cookies',
+    cookieNotice: 'Politique relative aux cookies',
     terms: 'Conditions d’utilisation',
     accessibility: 'Accessibilité',
+
+    lastUpdated: 'Dernière mise à jour\u00a0: {x}',
   },
 };
 

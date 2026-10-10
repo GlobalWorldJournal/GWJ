@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { LanguageProvider } from '../../lib/i18n';
 
 const submitTakedownRequest = vi.fn<(input: unknown) => Promise<{ id: string; status: string }>>();
 
@@ -15,7 +16,9 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ReportContent />
+      <LanguageProvider lang="en">
+        <ReportContent />
+      </LanguageProvider>
     </QueryClientProvider>,
   );
 }

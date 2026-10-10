@@ -22,6 +22,21 @@ export function formatDateline(date: Date, lang: Language): string {
   return new Intl.DateTimeFormat(bcp47(lang), { dateStyle: 'full' }).format(date);
 }
 
+/**
+ * Month and year of a calendar date, for "Last updated" notes: "June 2026" /
+ * "junio de 2026" / "juin 2026". Formatted in UTC so a `YYYY-MM-DD` date never
+ * shifts into the previous month in a western time zone.
+ */
+export function formatMonthYear(isoDate: string, lang: Language): string {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat(bcp47(lang), {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
+}
+
 /** Date and time, for "Updated …". */
 export function formatDateTime(iso: string, lang: Language): string {
   const date = new Date(iso);
