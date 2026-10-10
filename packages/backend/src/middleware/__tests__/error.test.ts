@@ -20,6 +20,7 @@ describe('error handler', () => {
     const res = await request(app).get('/boom?secret=1').set('x-request-id', 'trace-42');
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'Internal server error' });
+    expect(res.headers['cache-control']).toBe('no-store');
 
     const lines = stderr.mock.calls.map(
       ([chunk]) => JSON.parse(String(chunk)) as Record<string, unknown>,

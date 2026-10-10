@@ -34,6 +34,8 @@ export function createErrorHandler(isDev: boolean): ErrorRequestHandler {
       return;
     }
 
+    // A failure must never be served from a cache after the fault is fixed.
+    res.set('Cache-Control', 'no-store');
     logger.error('unhandled error', {
       requestId: requestIdOf(res),
       method: req.method,

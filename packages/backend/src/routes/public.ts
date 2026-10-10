@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import {
   CATEGORIES,
   categorySlug,
@@ -32,8 +32,20 @@ function toPublicPage(page: PaginatedArticles): PaginatedPublicArticles {
   return { data: page.data.map(toPublicArticle), pagination: page.pagination };
 }
 
+/**
+ * Public reads may be reused for a minute by browsers and shared caches (the
+ * SEO worker's fetches through Cloudflare), and served stale while revalidating
+ * for five more: a newly published story shows up within a minute.
+ */
+const PUBLIC_CACHE_CONTROL = 'public, max-age=60, stale-while-revalidate=300';
+
 export function createPublicRouter(): Router {
   const router = Router();
+
+  router.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method === 'GET') res.set('Cache-Control', PUBLIC_CACHE_CONTROL);
+    next();
+  });
 
   router.get(
     '/articles',
