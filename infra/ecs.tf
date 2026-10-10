@@ -5,6 +5,11 @@
 # /healthz. Services use the dedicated gwj-tasks SG (not Oxy's).
 # ---------------------------------------------------------------------------
 
+locals {
+  # Connection draining for a task leaving a target group (see the target groups).
+  deregistration_delay_seconds = 30
+}
+
 # === backend ===
 resource "aws_ecs_task_definition" "backend" {
   family                   = "${var.prefix}-backend"
@@ -61,6 +66,10 @@ resource "aws_lb_target_group" "backend" {
   protocol    = "HTTP"
   vpc_id      = local.vpc_id
   target_type = "ip"
+  # A replaced task drains for this long before it is stopped. The AWS default
+  # (300 s) made every rollout wait five minutes per task; requests here are
+  # short-lived, and the app finishes in-flight ones on SIGTERM.
+  deregistration_delay = local.deregistration_delay_seconds
 
   health_check {
     path                = "/healthz"
@@ -199,6 +208,10 @@ resource "aws_lb_target_group" "mcp" {
   protocol    = "HTTP"
   vpc_id      = local.vpc_id
   target_type = "ip"
+  # A replaced task drains for this long before it is stopped. The AWS default
+  # (300 s) made every rollout wait five minutes per task; requests here are
+  # short-lived, and the app finishes in-flight ones on SIGTERM.
+  deregistration_delay = local.deregistration_delay_seconds
 
   health_check {
     path                = "/healthz"
