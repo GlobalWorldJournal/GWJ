@@ -136,9 +136,10 @@ export function Home() {
                     {/* Fixed width, not just shrink-0: a kicker's own text length
                         ("Tech" vs. "Commentary") otherwise pushes each row's title
                         to a different start position, breaking the column's
-                        alignment. A long kicker wraps onto a second line within
-                        that width rather than being cut off. */}
-                    <span className="label w-20 shrink-0 text-accent">{article.kicker}</span>
+                        alignment. Wide enough that real kickers ("Commentary",
+                        "World Cup", ~10-11 chars) fit on one line; a longer one
+                        still wraps onto a second rather than being cut off. */}
+                    <span className="label w-28 shrink-0 text-accent">{article.kicker}</span>
                     <span>{article.title}</span>
                   </LocaleLink>
                 </li>
