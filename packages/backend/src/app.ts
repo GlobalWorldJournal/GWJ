@@ -87,11 +87,14 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
     standardHeaders: true,
     legacyHeaders: false,
   });
+  // Brute-force protection: only FAILED logins count, so an admin (or the MCP
+  // server re-authenticating) is never locked out by successful sign-ins.
   const authLimiter = rateLimit({
     windowMs: RATE_WINDOW_MS,
     max: AUTH_MAX,
     standardHeaders: true,
     legacyHeaders: false,
+    skipSuccessfulRequests: true,
   });
   const adminLimiter = rateLimit({
     windowMs: RATE_WINDOW_MS,

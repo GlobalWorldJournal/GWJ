@@ -5,6 +5,8 @@ import {
   type ArticleListQuery,
   type ArticleUpdate,
   type PaginatedArticles,
+  type ArticleRevision,
+  type ArticleRevisionSummary,
   type Language,
   type Seo,
   slugify,
@@ -28,6 +30,12 @@ import {
   type Executor,
 } from '../db/repositories/articleRepository';
 import type { ArticleRow, NewArticleRow } from '../db/schema/articles';
+import {
+  findRevision,
+  insertRevision,
+  listRevisions,
+  snapshotOf,
+} from '../db/repositories/revisionRepository';
 import { BadRequestError, ConflictError, NotFoundError } from '../errors';
 
 /** Fallback slug stem when a title slugifies to an empty string (e.g. all symbols). */
@@ -238,8 +246,12 @@ function sameValue(a: unknown, b: unknown): boolean {
  * `updated_at` moves only when something did — a re-save of identical values was
  * a no-op `save()` under Mongoose and stays one here.
  */
+/** The actor recorded for changes no person or agent made directly. */
+export const SYSTEM_ACTOR = 'system';
+
 async function mutateArticle(
   id: string,
+  actor: string,
   apply: (current: ArticleRow, tx: Executor) => Promise<Partial<NewArticleRow>>,
 ): Promise<{ before: ArticleRow; after: ArticleRow }> {
   if (!isRecordId(id)) throw new NotFoundError('Article not found');
@@ -255,6 +267,8 @@ async function mutateArticle(
       }
     }
     if (Object.keys(changes).length === 0) return { before: current, after: current };
+    // History: the state this change replaces, in the same transaction.
+    await insertRevision(tx, id, snapshotOf(current), actor);
     const after = await updateArticle(tx, id, { ...changes, updatedAt: new Date() });
     return { before: current, after };
   });
@@ -282,9 +296,18 @@ export interface ArticleService {
   getBySlug(slug: string, options?: GetOptions): Promise<Article>;
   getById(id: string): Promise<Article>;
   create(input: ArticleInput): Promise<Article>;
-  update(id: string, patch: ArticleUpdate): Promise<Article>;
-  publish(id: string): Promise<Article>;
-  unpublish(id: string): Promise<Article>;
+  /** `actor` (the admin/agent username) is recorded in the article's history. */
+  update(id: string, patch: ArticleUpdate, actor?: string): Promise<Article>;
+  publish(id: string, actor?: string): Promise<Article>;
+  unpublish(id: string, actor?: string): Promise<Article>;
+  /** The article's history, newest first. */
+  listRevisions(id: string): Promise<ArticleRevisionSummary[]>;
+  getRevision(id: string, revisionId: number): Promise<ArticleRevision>;
+  /**
+   * Put the article's content back to a revision's snapshot (status and slug
+   * stay as they are). Recorded as a change itself, so a restore can be undone.
+   */
+  restoreRevision(id: string, revisionId: number, actor?: string): Promise<Article>;
   remove(id: string): Promise<void>;
   search(q: string, query: ArticleListQuery): Promise<PaginatedArticles>;
   /** The current slug of the PUBLISHED article that used to live at `oldSlug`. */
@@ -370,8 +393,8 @@ export const articleService: ArticleService = {
     return article;
   },
 
-  async update(id, patch) {
-    const { before, after } = await mutateArticle(id, async (current, tx) => {
+  async update(id, patch, actor = SYSTEM_ACTOR) {
+    const { before, after } = await mutateArticle(id, actor, async (current, tx) => {
       const changes: Partial<NewArticleRow> = {
         title: patch.title,
         deck: patch.deck,
@@ -434,8 +457,8 @@ export const articleService: ArticleService = {
     return article;
   },
 
-  async publish(id) {
-    const { before, after } = await mutateArticle(id, async (current) =>
+  async publish(id, actor = SYSTEM_ACTOR) {
+    const { before, after } = await mutateArticle(id, actor, async (current) =>
       current.status === 'published' ? {} : publishStamps(current, new Date()),
     );
     const article = rowToArticle(after);
@@ -443,10 +466,10 @@ export const articleService: ArticleService = {
     return article;
   },
 
-  async unpublish(id) {
+  async unpublish(id, actor = SYSTEM_ACTOR) {
     // `firstPublishedAt` is kept: the slug stays frozen and a later re-publish
     // restores the original date without re-announcing the story.
-    const { before, after } = await mutateArticle(id, async () => ({
+    const { before, after } = await mutateArticle(id, actor, async () => ({
       status: 'draft',
       publishedAt: null,
     }));
@@ -456,6 +479,46 @@ export const articleService: ArticleService = {
 
   async findRedirectSlug(oldSlug) {
     return findRedirectSlug(oldSlug);
+  },
+
+  async listRevisions(id) {
+    if (!isRecordId(id) || !(await findArticleById(id)))
+      throw new NotFoundError('Article not found');
+    return listRevisions(id);
+  },
+
+  async getRevision(id, revisionId) {
+    const revision = isRecordId(id) ? await findRevision(id, revisionId) : null;
+    if (!revision) throw new NotFoundError('Revision not found');
+    return revision;
+  },
+
+  async restoreRevision(id, revisionId, actor = SYSTEM_ACTOR) {
+    const { snapshot } = await articleService.getRevision(id, revisionId);
+    const { after } = await mutateArticle(id, actor, async (current, tx) => {
+      // The story's other editions keep their language: a restore may not
+      // collide with one of them.
+      if (snapshot.language !== current.language) {
+        await assertEditionFree(tx, current.translationGroupId, snapshot.language, id);
+      }
+      // Content only. Whether the story is live, and its URL, are not history
+      // to roll back: those change through publish/unpublish and an explicit slug.
+      return {
+        title: snapshot.title,
+        deck: snapshot.deck,
+        kicker: snapshot.kicker,
+        category: snapshot.category,
+        language: snapshot.language,
+        author: snapshot.author,
+        body: snapshot.body,
+        heroImage: snapshot.heroImage,
+        featured: snapshot.featured,
+        tags: snapshot.tags,
+        seo: snapshot.seo,
+        source: snapshot.source,
+      };
+    });
+    return withTranslations(after, false);
   },
 
   async remove(id) {

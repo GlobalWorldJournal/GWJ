@@ -22,9 +22,27 @@ import { fetchRemoteImage, type RemoteImageOptions } from '../services/remoteIma
 import { requireAuth } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { requireParam } from '../middleware/params';
-import { BadRequestError, UnprocessableEntityError } from '../errors';
+import {
+  BadRequestError,
+  NotFoundError,
+  UnauthorizedError,
+  UnprocessableEntityError,
+} from '../errors';
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+/** Who is making this change, for the article history (set by requireAuth). */
+function actorOf(req: Request): string {
+  if (!req.auth) throw new UnauthorizedError('Missing authenticated user');
+  return req.auth.username;
+}
+
+/** A revision id path parameter; anything but a positive integer is a 404. */
+function revisionIdOf(req: Request): number {
+  const value = Number(requireParam(req, 'revisionId'));
+  if (!Number.isSafeInteger(value) || value < 1) throw new NotFoundError('Revision not found');
+  return value;
+}
 
 export function createAdminRouter(
   jwtSecret: string,
@@ -76,6 +94,7 @@ export function createAdminRouter(
       const article = await articleService.update(
         requireParam(req, 'id'),
         req.body as ArticleUpdate,
+        actorOf(req),
       );
       res.json(article);
     },
@@ -87,14 +106,34 @@ export function createAdminRouter(
   });
 
   router.post('/articles/:id/publish', async (req: Request, res: Response) => {
-    const article = await articleService.publish(requireParam(req, 'id'));
+    const article = await articleService.publish(requireParam(req, 'id'), actorOf(req));
     res.json(article);
   });
 
   router.post('/articles/:id/unpublish', async (req: Request, res: Response) => {
-    const article = await articleService.unpublish(requireParam(req, 'id'));
+    const article = await articleService.unpublish(requireParam(req, 'id'), actorOf(req));
     res.json(article);
   });
+
+  router.get('/articles/:id/revisions', async (req: Request, res: Response) => {
+    res.json(await articleService.listRevisions(requireParam(req, 'id')));
+  });
+
+  router.get('/articles/:id/revisions/:revisionId', async (req: Request, res: Response) => {
+    res.json(await articleService.getRevision(requireParam(req, 'id'), revisionIdOf(req)));
+  });
+
+  router.post(
+    '/articles/:id/revisions/:revisionId/restore',
+    async (req: Request, res: Response) => {
+      const article = await articleService.restoreRevision(
+        requireParam(req, 'id'),
+        revisionIdOf(req),
+        actorOf(req),
+      );
+      res.json(article);
+    },
+  );
 
   router.post('/upload', upload.single('file'), async (req: Request, res: Response) => {
     const file = req.file;

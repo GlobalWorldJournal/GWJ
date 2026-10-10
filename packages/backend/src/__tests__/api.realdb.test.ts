@@ -279,6 +279,21 @@ describe('GWJ API', () => {
     expect(firstB.headers['ratelimit-remaining']).toBe(firstA.headers['ratelimit-remaining']);
   });
 
+  it('the login limiter counts failed attempts only', async () => {
+    const ip = '203.0.113.9';
+    const login = (password: string) =>
+      request(app)
+        .post('/api/auth/login')
+        .set('x-forwarded-for', ip)
+        .send({ username: ADMIN_USERNAME, password });
+    const firstFailure = await login('wrong-password');
+    const remaining = Number(firstFailure.headers['ratelimit-remaining']);
+    await login(ADMIN_PASSWORD).expect(200);
+    await login(ADMIN_PASSWORD).expect(200);
+    const nextFailure = await login('wrong-password');
+    expect(Number(nextFailure.headers['ratelimit-remaining'])).toBe(remaining - 1);
+  });
+
   it('refuses an off-allowlist browser origin without a server error', async () => {
     const res = await request(app).get('/api/categories').set('origin', 'https://evil.example');
     expect(res.status).toBe(200);
@@ -339,6 +354,40 @@ describe('GWJ API', () => {
       .send({ ...validArticle(), title: 'Otra', language: 'es', translationOf: en.body.id });
     expect(clash.status).toBe(409);
     expect(clash.body.error).toMatch(/already has an edition in es/);
+  });
+
+  it('records the logged-in admin as the author of each change, and restores over HTTP', async () => {
+    const token = await loginToken();
+    const auth = { authorization: `Bearer ${token}` };
+    const created = await request(app)
+      .post('/api/admin/articles')
+      .set(auth)
+      .send({ ...validArticle(), title: 'Versioned story' });
+    await request(app)
+      .patch(`/api/admin/articles/${created.body.id}`)
+      .set(auth)
+      .send({ title: 'Versioned story, edited' })
+      .expect(200);
+
+    const history = await request(app)
+      .get(`/api/admin/articles/${created.body.id}/revisions`)
+      .set(auth);
+    expect(history.status).toBe(200);
+    expect(history.body).toHaveLength(1);
+    expect(history.body[0]).toMatchObject({ actor: ADMIN_USERNAME, title: 'Versioned story' });
+
+    const restored = await request(app)
+      .post(`/api/admin/articles/${created.body.id}/revisions/${history.body[0].id}/restore`)
+      .set(auth);
+    expect(restored.status).toBe(200);
+    expect(restored.body.title).toBe('Versioned story');
+
+    const bogus = await request(app)
+      .get(`/api/admin/articles/${created.body.id}/revisions/not-a-number`)
+      .set(auth);
+    expect(bogus.status).toBe(404);
+    const anonymous = await request(app).get(`/api/admin/articles/${created.body.id}/revisions`);
+    expect(anonymous.status).toBe(401);
   });
 
   it('GET /api/categories returns the 7 fixed categories', async () => {

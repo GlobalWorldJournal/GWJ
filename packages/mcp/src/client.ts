@@ -1,5 +1,7 @@
 import {
   ArticleListQuerySchema,
+  ArticleRevisionSchema,
+  ArticleRevisionSummarySchema,
   ArticleSchema,
   CategoryDocSchema,
   LoginResponseSchema,
@@ -7,6 +9,8 @@ import {
   UploadResponseSchema,
   type Article,
   type ArticleInput,
+  type ArticleRevision,
+  type ArticleRevisionSummary,
   type ArticleListQuery,
   type ArticleUpdate,
   type CategoryDoc,
@@ -47,6 +51,9 @@ export interface GwjClient {
   deleteArticle(id: string): Promise<{ deleted: true; id: string }>;
   uploadImage(input: UploadImageInput): Promise<UploadResponse>;
   listCategories(): Promise<CategoryDoc[]>;
+  listRevisions(id: string): Promise<ArticleRevisionSummary[]>;
+  getRevision(id: string, revisionId: number): Promise<ArticleRevision>;
+  restoreRevision(id: string, revisionId: number): Promise<Article>;
 }
 
 export interface UploadImageInput {
@@ -231,6 +238,28 @@ export function createGwjClient(options: GwjClientOptions): GwjClient {
         return UploadResponseSchema.parse(payload);
       }
       throw new BackendError('upload_image requires either `url` or `base64`', 400);
+    },
+
+    async listRevisions(id) {
+      const payload = await authedRequest(
+        `/api/admin/articles/${encodeURIComponent(id)}/revisions`,
+      );
+      return z.array(ArticleRevisionSummarySchema).parse(payload);
+    },
+
+    async getRevision(id, revisionId) {
+      const payload = await authedRequest(
+        `/api/admin/articles/${encodeURIComponent(id)}/revisions/${revisionId}`,
+      );
+      return ArticleRevisionSchema.parse(payload);
+    },
+
+    async restoreRevision(id, revisionId) {
+      const payload = await authedRequest(
+        `/api/admin/articles/${encodeURIComponent(id)}/revisions/${revisionId}/restore`,
+        { method: 'POST' },
+      );
+      return ArticleSchema.parse(payload);
     },
 
     async listCategories() {

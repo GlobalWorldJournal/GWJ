@@ -211,3 +211,42 @@ export function slugify(title: string): string {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
 }
+
+/**
+ * An article's editable state at one point in time, as a revision stores it
+ * (the state BEFORE the change the revision records).
+ */
+export const ArticleSnapshotSchema = z.object({
+  slug: z.string(),
+  title: z.string(),
+  deck: z.string().nullable(),
+  kicker: z.string().nullable(),
+  category: CategorySchema,
+  language: LanguageSchema,
+  author: z.string(),
+  body: z.string(),
+  heroImage: HeroImageSchema.nullable(),
+  status: ArticleStatusSchema,
+  featured: z.number().int(),
+  tags: z.array(z.string()),
+  seo: SeoSchema,
+  source: SourceSchema.nullable(),
+});
+export type ArticleSnapshot = z.infer<typeof ArticleSnapshotSchema>;
+
+/** One entry of an article's history (newest first in listings). */
+export const ArticleRevisionSummarySchema = z.object({
+  id: z.number().int(),
+  createdAt: z.string().datetime(),
+  /** Who made the change this revision preceded (the admin/agent username). */
+  actor: z.string(),
+  title: z.string(),
+  status: ArticleStatusSchema,
+});
+export type ArticleRevisionSummary = z.infer<typeof ArticleRevisionSummarySchema>;
+
+export const ArticleRevisionSchema = ArticleRevisionSummarySchema.extend({
+  articleId: z.string(),
+  snapshot: ArticleSnapshotSchema,
+});
+export type ArticleRevision = z.infer<typeof ArticleRevisionSchema>;
