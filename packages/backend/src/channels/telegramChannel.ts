@@ -20,11 +20,10 @@ const TELEGRAM_TIMEOUT_MS = 10_000;
  * One Telegram channel binding: a single edition (`language`) delivered to one
  * `chatId`, authorized by the bot token read from `env` via `resolveToken`.
  *
- * This is DATA, not code: adding a language is a new entry here (plus its token env
- * var on the schema), never a new channel implementation. Today only the English
- * channel (`@GWJOfficial`, `TELEGRAM_BOT_TOKEN`) is configured; a Spanish channel is
- * a one-line addition, e.g.
- *   { language: 'es', resolveChatId: (env) => env.TELEGRAM_CHANNEL_ES, resolveToken: (env) => env.TELEGRAM_BOT_TOKEN_ES }
+ * This is DATA, not code: adding a language is a new entry here (plus its chat id
+ * env var on the schema). English (`@GWJOfficial`) and Spanish (`@gwj_ES`) are both
+ * configured today, sharing the one bot (`TELEGRAM_BOT_TOKEN`) added as admin to
+ * both channels — a French channel would be the same one-line pattern.
  */
 interface TelegramChannelConfig {
   /** The single edition this Telegram channel serves. */
@@ -44,6 +43,13 @@ const TELEGRAM_CHANNELS: readonly TelegramChannelConfig[] = [
   {
     language: 'en',
     resolveChatId: (env) => env.TELEGRAM_CHANNEL,
+    resolveToken: (env) => env.TELEGRAM_BOT_TOKEN,
+  },
+  {
+    // Same bot as the English channel (TELEGRAM_BOT_TOKEN) — one bot, added as
+    // admin to both channels, rather than a second BotFather bot to manage.
+    language: 'es',
+    resolveChatId: (env) => env.TELEGRAM_CHANNEL_ES,
     resolveToken: (env) => env.TELEGRAM_BOT_TOKEN,
   },
 ];

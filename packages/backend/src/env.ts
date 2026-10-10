@@ -1,6 +1,6 @@
 import { config as loadDotenv } from 'dotenv';
 import { z } from 'zod';
-import { TELEGRAM_CHANNEL_HANDLE } from '@gwj/shared-types';
+import { TELEGRAM_CHANNEL_HANDLE, TELEGRAM_CHANNEL_HANDLE_ES } from '@gwj/shared-types';
 
 /**
  * Reject placeholder secret values. A secret set to `'-'` or empty string is a
@@ -124,6 +124,13 @@ const EnvSchema = z.object({
     .transform((v) => v.trim())
     .transform((v) => (v.length === 0 ? TELEGRAM_CHANNEL_HANDLE : v))
     .default(TELEGRAM_CHANNEL_HANDLE),
+  // Spanish edition's channel. Same bot/token as the English one (TELEGRAM_BOT_TOKEN) —
+  // one bot, added as admin to both channels — rather than a second bot to manage.
+  TELEGRAM_CHANNEL_ES: z
+    .string()
+    .transform((v) => v.trim())
+    .transform((v) => (v.length === 0 ? TELEGRAM_CHANNEL_HANDLE_ES : v))
+    .default(TELEGRAM_CHANNEL_HANDLE_ES),
 });
 
 /**
