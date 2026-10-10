@@ -399,3 +399,30 @@ export async function deleteArticle(id: string, executor: Executor = getDb()): P
     .returning({ id: articles.id });
   return rows.length > 0;
 }
+
+/**
+ * Record a hero image's size and renditions on every article showing it — a
+ * technical fill-in (the image backfill), not an edit: the picture itself is
+ * unchanged, so neither `updated_at`, the history nor distribution are touched.
+ * Returns the ids of the articles updated.
+ */
+export async function setHeroImageMetadata(
+  url: string,
+  metadata: Pick<HeroImage, 'width' | 'height' | 'variants'>,
+): Promise<string[]> {
+  const rows = await getDb()
+    .update(articles)
+    .set({ heroImage: sql`${articles.heroImage} || ${JSON.stringify(metadata)}::jsonb` })
+    .where(sql`${articles.heroImage}->>'url' = ${url}`)
+    .returning({ id: articles.id });
+  return rows.map((row) => row.id);
+}
+
+/** The distinct hero image URLs that have no recorded renditions yet. */
+export async function findHeroImagesWithoutMetadata(): Promise<string[]> {
+  const rows = await getDb()
+    .selectDistinct({ url: sql<string>`${articles.heroImage}->>'url'` })
+    .from(articles)
+    .where(sql`${articles.heroImage} is not null and not (${articles.heroImage} ? 'width')`);
+  return rows.map((row) => row.url);
+}
