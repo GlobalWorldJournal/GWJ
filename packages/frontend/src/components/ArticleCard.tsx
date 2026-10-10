@@ -99,11 +99,6 @@ export function ArticleCard({
               decoding="async"
             />
           </LocaleLink>
-          {article.heroImage.credit ? (
-            <figcaption className="mt-1 text-[0.6875rem] leading-tight text-muted">
-              {article.heroImage.credit}
-            </figcaption>
-          ) : null}
         </figure>
       ) : null}
 
