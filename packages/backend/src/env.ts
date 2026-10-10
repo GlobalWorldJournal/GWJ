@@ -89,6 +89,9 @@ const EnvSchema = z.object({
   // through Cloudflare). Without it `req.ip` is the ALB's address, so every
   // reader shares ONE rate-limit bucket and anyone can lock the admin out of login.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(1),
+  // The git SHA of the running release, stamped into the task definition by the
+  // deploy (absent locally). Reported by /healthz.
+  GWJ_RELEASE: z.string().min(1).optional(),
 
   // --- ActivityPub / fediverse federation ---
   // The handles live on the APEX domain (`@news@globalworldjournal.com`), so every

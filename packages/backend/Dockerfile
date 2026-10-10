@@ -10,7 +10,11 @@ COPY packages/backend/package.json packages/backend/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/frontend/package.json packages/frontend/
 COPY packages/mongo-migration/package.json packages/mongo-migration/
-RUN bun install --frozen-lockfile
+# Production dependencies of the workspaces this image runs (the backend, and
+# until the Mongo decommission the one-time migration CLI), nothing else (no
+# test/build tooling, no frontend). Every manifest above is still copied: the
+# frozen lockfile describes the whole workspace.
+RUN bun install --frozen-lockfile --production --filter '@gwj/backend' --filter '@gwj/mongo-migration'
 
 # Source needed at runtime (bun runs TypeScript directly). `packages/backend`
 # includes `drizzle/` — the migrations the one-shot `src/db/migrate.ts` applies.
@@ -26,4 +30,6 @@ ENV NODE_ENV=production
 ENV PORT=4000
 EXPOSE 4000
 WORKDIR /app/packages/backend
+# The base image's unprivileged user: the app writes nothing to disk.
+USER bun
 CMD ["bun", "run", "src/index.ts"]

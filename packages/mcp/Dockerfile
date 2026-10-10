@@ -9,7 +9,10 @@ COPY packages/mcp/package.json packages/mcp/
 COPY packages/frontend/package.json packages/frontend/
 # Every workspace in bun.lock must be present, or --frozen-lockfile refuses.
 COPY packages/mongo-migration/package.json packages/mongo-migration/
-RUN bun install --frozen-lockfile
+# Production dependencies of the workspaces this image runs, nothing else (no
+# test/build tooling, no frontend). Every manifest above is still copied: the
+# frozen lockfile describes the whole workspace.
+RUN bun install --frozen-lockfile --production --filter '@gwj/mcp'
 
 COPY tsconfig.base.json ./
 COPY packages/shared-types packages/shared-types
@@ -19,4 +22,6 @@ ENV NODE_ENV=production
 ENV MCP_PORT=4100
 EXPOSE 4100
 WORKDIR /app/packages/mcp
+# The base image's unprivileged user: the app writes nothing to disk.
+USER bun
 CMD ["bun", "run", "src/index.ts"]

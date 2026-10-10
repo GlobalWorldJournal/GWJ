@@ -111,6 +111,13 @@ resource "aws_ecs_service" "backend" {
     container_port   = 4000
   }
 
+  # The deploy owns which revision runs (scripts/ecs-register-release.sh pins
+  # each release's image by digest). Terraform owns the family's configuration:
+  # a change here registers a new revision that the NEXT deploy builds on.
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
   depends_on = [aws_lb_listener_rule.backend]
 }
 
@@ -210,6 +217,13 @@ resource "aws_ecs_service" "mcp" {
     target_group_arn = aws_lb_target_group.mcp.arn
     container_name   = "${var.prefix}-mcp"
     container_port   = 4100
+  }
+
+  # The deploy owns which revision runs (scripts/ecs-register-release.sh pins
+  # each release's image by digest). Terraform owns the family's configuration:
+  # a change here registers a new revision that the NEXT deploy builds on.
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   depends_on = [aws_lb_listener_rule.mcp]

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Run ONE command as a Fargate one-shot from an ECS service's CURRENT task
-# definition (same image, secrets, roles), in the service's OWN network
+# definition (or TASK_DEFINITION; same secrets, roles), in the service's OWN network
 # configuration; wait for it, print its log, and exit with ITS exit code.
 #
-#   AWS_REGION=us-west-2 ECS_CLUSTER=oxy-cluster \
+#   AWS_REGION=us-west-2 ECS_CLUSTER=oxy-cluster [TASK_DEFINITION=<arn>] \
 #     scripts/ecs-oneshot.sh gwj-backend migrate-pre -- \
 #     bun run src/db/migrate.ts --phase=pre --target-database=gwj
 #
@@ -30,8 +30,10 @@ shift 3
 
 aws_() { aws --region "$AWS_REGION" "$@"; }
 
-TASK_DEF="$(aws_ ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" \
-  --query 'services[0].taskDefinition' --output text)"
+# TASK_DEFINITION (optional) runs a specific revision — the deploy passes the
+# release it just registered, so pre-deploy migrations run from the NEW image.
+TASK_DEF="${TASK_DEFINITION:-$(aws_ ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" \
+  --query 'services[0].taskDefinition' --output text)}"
 NETWORK="$(aws_ ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" \
   --query 'services[0].networkConfiguration' --output json)"
 CONTAINER="$(aws_ ecs describe-task-definition --task-definition "$TASK_DEF" \

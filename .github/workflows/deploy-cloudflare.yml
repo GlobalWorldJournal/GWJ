@@ -1,21 +1,34 @@
 name: Deploy Cloudflare Pages (frontend)
 
+# Builds the reader SPA + SEO worker and deploys it to Cloudflare Pages. Called by
+# CI (ci.yml) only after every check passed on main; `workflow_dispatch` remains
+# for operators.
+
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'packages/frontend/**'
-      - 'packages/shared-types/**'
-      - '.github/workflows/deploy-cloudflare.yml'
+  workflow_call:
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: true
+      CLOUDFLARE_ACCOUNT_ID:
+        required: true
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SITE_URL: https://globalworldjournal.com
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: deploy-cloudflare
+      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.14
 
@@ -31,8 +44,25 @@ jobs:
         run: bun run --filter '@gwj/frontend' build
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy packages/frontend/dist --project-name=gwj --branch=main
+
+      # The live page must reference the entry bundle this build produced (its
+      # name is content-hashed), i.e. readers get THIS deploy, not a previous one.
+      - name: Verify the new build is serving
+        run: |
+          entry="$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' packages/frontend/dist/index.html | head -1)"
+          test -n "$entry"
+          for attempt in $(seq 1 20); do
+            if curl -fsS --max-time 10 "$SITE_URL/" | grep -qF "$entry"; then
+              echo "serving $entry"
+              exit 0
+            fi
+            echo "attempt $attempt/20: $SITE_URL does not reference $entry yet"
+            sleep 6
+          done
+          echo "$SITE_URL never served $entry" >&2
+          exit 1

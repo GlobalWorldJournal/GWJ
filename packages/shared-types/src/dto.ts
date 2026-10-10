@@ -79,6 +79,17 @@ export type UploadFromUrlInput = z.infer<typeof UploadFromUrlInputSchema>;
 export const UploadResponseSchema = z.object({ url: z.string().url() });
 export type UploadResponse = z.infer<typeof UploadResponseSchema>;
 
+/**
+ * `/healthz` of the backend and the MCP server. `release` is the git SHA the
+ * deploy stamped into the running task definition (null outside a deploy), so a
+ * post-deploy check can tell the new release from a rolled-back one.
+ */
+export const HealthSchema = z.object({
+  ok: z.literal(true),
+  release: z.string().nullable(),
+});
+export type Health = z.infer<typeof HealthSchema>;
+
 export const ApiErrorSchema = z.object({
   error: z.string(),
   details: z.unknown().optional(),

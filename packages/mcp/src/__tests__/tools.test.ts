@@ -2,7 +2,8 @@ import { CATEGORIES, WRITERS, pickWriter, type Article } from '@gwj/shared-types
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkBearer } from '../index.js';
+import type { AddressInfo } from 'node:net';
+import { checkBearer, createApp } from '../index.js';
 import { createMcpServer } from '../tools.js';
 import type { GwjClient } from '../client.js';
 
@@ -274,5 +275,27 @@ describe('loadEnv', () => {
     const env = loadEnv({ ...base, API_BASE_URL: 'https://api.example.com/' });
     expect(env.MCP_PORT).toBe(4100);
     expect(env.API_BASE_URL).toBe('https://api.example.com');
+  });
+});
+
+describe('GET /healthz', () => {
+  it('reports the running release without requiring the MCP token', async () => {
+    const { loadEnv } = await import('../env.js');
+    const env = loadEnv({
+      MCP_TOKEN: 'secret',
+      API_BASE_URL: 'https://api.example.com',
+      ADMIN_USERNAME: 'nate',
+      ADMIN_PASSWORD: 'pw',
+      GWJ_RELEASE: 'abc123',
+    });
+    const server = createApp(env, mockClient()).listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/healthz`);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true, release: 'abc123' });
+    } finally {
+      server.close();
+    }
   });
 });

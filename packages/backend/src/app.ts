@@ -2,6 +2,7 @@ import express, { type Express, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import type { Health } from '@gwj/shared-types';
 import { parseCorsOrigins, type Env } from './env';
 import { createPublicRouter } from './routes/public';
 import { createAuthRouter } from './routes/auth';
@@ -100,8 +101,9 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
     legacyHeaders: false,
   });
 
+  const health: Health = { ok: true, release: env.GWJ_RELEASE ?? null };
   app.get('/healthz', (_req: Request, res: Response) => {
-    res.json({ ok: true });
+    res.json(health);
   });
 
   // ActivityPub is mounted BEFORE the global JSON body parser: its inbox routes

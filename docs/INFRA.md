@@ -32,7 +32,7 @@ Create two repos: `gwj-backend`, `gwj-mcp` (set repo vars `ECR_BACKEND`, `ECR_MC
 5. Cloudflare DNS: `api` and `mcp` → ALB (DNS-only).
 
 ## 5. OIDC deploy role
-Create IAM role `gwj-github-deploy` trusting GitHub OIDC for `GlobalWorldJournal/GWJ` (main only), with ECR push, `ecs:UpdateService`, and `ecs:RunTask` + `iam:PassRole` for the migration one-shots (`infra/iam.tf`). It has NO `ssm:PutParameter`.
+Create IAM role `gwj-github-deploy` trusting GitHub OIDC for `GlobalWorldJournal/GWJ` (main only), with ECR push, `ecs:RegisterTaskDefinition` (each deploy registers a revision running the new image by digest), `ecs:UpdateService`, and `ecs:RunTask` + `iam:PassRole` for the migration one-shots (`infra/iam.tf`). It has NO `ssm:PutParameter`. Deploys run from CI (`ci.yml`) only after every check passed, and each ends by verifying `/healthz` reports the new release.
 
 ## 6. Cloudflare Pages
 1. Create Pages project `gwj` (direct upload via wrangler in CI).

@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { Health } from '@gwj/shared-types';
 import { createGwjClient, type GwjClient } from './client.js';
 import { loadEnv, type Env } from './env.js';
 import { createMcpServer } from './tools.js';
@@ -56,8 +57,9 @@ export function createApp(env: Env, client: GwjClient): express.Express {
   const app = express();
   app.use(express.json({ limit: '25mb' }));
 
+  const health: Health = { ok: true, release: env.GWJ_RELEASE ?? null };
   app.get('/healthz', (_req, res) => {
-    res.json({ ok: true });
+    res.json(health);
   });
 
   app.use(MCP_PATH, requireBearer(env.MCP_TOKEN));
