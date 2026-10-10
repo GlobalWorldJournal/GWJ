@@ -251,6 +251,10 @@ function EditorForm({ initial, article }: EditorFormProps) {
   const publish = useMutation({
     mutationFn: async (): Promise<Article> => {
       if (!token) throw new Error('Not authenticated');
+      // Readers using screen readers (and search engines) depend on it.
+      if (form.heroImage && !form.heroImage.alt.trim()) {
+        throw new Error('Describe the hero image (alt text) before publishing.');
+      }
       const stored = await persist(token);
       onSaved(stored);
       return publishArticle(token, stored.id);

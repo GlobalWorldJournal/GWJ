@@ -43,7 +43,7 @@ export function Search() {
           onChange={(event) => setDraft(event.target.value)}
           placeholder="Search articles"
           aria-label="Search articles"
-          className="w-full bg-transparent font-body text-lg text-ink outline-none placeholder:text-muted"
+          className="w-full bg-transparent font-body text-lg text-ink placeholder:text-muted"
         />
         <button type="submit" className="label text-[0.75rem] text-accent">
           {t('search')}

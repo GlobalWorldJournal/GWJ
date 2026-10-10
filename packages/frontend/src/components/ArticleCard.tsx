@@ -62,7 +62,12 @@ export function ArticleCard({
           ) : null}
         </div>
         {showImage && article.heroImage ? (
-          <LocaleLink to={href} className="block shrink-0 overflow-hidden">
+          <LocaleLink
+            to={href}
+            className="block shrink-0 overflow-hidden"
+            tabIndex={-1}
+            aria-hidden="true"
+          >
             <img
               src={article.heroImage.url}
               alt={article.heroImage.alt}
@@ -82,7 +87,7 @@ export function ArticleCard({
     <article className={`group flex flex-col gap-2 ${className ?? ''}`}>
       {showImage && article.heroImage ? (
         <figure className="m-0">
-          <LocaleLink to={href} className="block overflow-hidden">
+          <LocaleLink to={href} className="block overflow-hidden" tabIndex={-1} aria-hidden="true">
             <img
               src={article.heroImage.url}
               alt={article.heroImage.alt}

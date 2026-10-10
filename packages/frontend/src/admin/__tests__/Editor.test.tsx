@@ -215,3 +215,23 @@ describe('Editor workflow', () => {
     });
   });
 });
+
+describe('Editor publishing rules', () => {
+  it('will not publish a story whose hero image has no alt text', async () => {
+    getAdminArticle.mockResolvedValueOnce(
+      article({
+        status: 'draft',
+        publishedAt: null,
+        firstPublishedAt: null,
+        heroImage: { url: 'https://cdn.example.test/a.webp', alt: '' },
+      }),
+    );
+    renderEditor();
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }));
+    expect(
+      await screen.findByText('Describe the hero image (alt text) before publishing.'),
+    ).toBeInTheDocument();
+    expect(updateArticle).not.toHaveBeenCalled();
+    expect(publishArticle).not.toHaveBeenCalled();
+  });
+});

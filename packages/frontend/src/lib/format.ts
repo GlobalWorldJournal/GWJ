@@ -17,6 +17,11 @@ export function formatDate(iso: string, lang: Language): string {
   return new Intl.DateTimeFormat(bcp47(lang), { dateStyle: 'long' }).format(date);
 }
 
+/** The masthead dateline: "Saturday, October 10, 2026" in the edition's language. */
+export function formatDateline(date: Date, lang: Language): string {
+  return new Intl.DateTimeFormat(bcp47(lang), { dateStyle: 'full' }).format(date);
+}
+
 /** Date and time, for "Updated …". */
 export function formatDateTime(iso: string, lang: Language): string {
   const date = new Date(iso);
