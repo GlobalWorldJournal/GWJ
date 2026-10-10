@@ -1,5 +1,5 @@
 # Build context is the REPO ROOT (see deploy-aws.yml: context: .)
-FROM oven/bun:1.3.14-alpine AS base
+FROM oven/bun:1.4.2-alpine AS base
 WORKDIR /app
 
 # Install deps with the full workspace manifest set so the hoisted linker
