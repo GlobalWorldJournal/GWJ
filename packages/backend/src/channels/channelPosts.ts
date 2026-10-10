@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { articleChannelPosts, type ArticleChannelPostRow } from '../db/schema/articleChannelPosts';
 
@@ -33,4 +33,28 @@ export async function channelPostsFor(articleId: string): Promise<ArticleChannel
 /** Drop one article's recorded deliveries once retraction has been attempted. */
 export async function removeChannelPosts(articleId: string): Promise<void> {
   await getDb().delete(articleChannelPosts).where(eq(articleChannelPosts.articleId, articleId));
+}
+
+/** The recorded delivery of one article on one channel, if any. */
+export async function channelPostFor(
+  articleId: string,
+  channel: string,
+): Promise<ArticleChannelPostRow | null> {
+  const [row] = await getDb()
+    .select()
+    .from(articleChannelPosts)
+    .where(
+      and(eq(articleChannelPosts.articleId, articleId), eq(articleChannelPosts.channel, channel)),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/** Forget one channel's delivery of an article once it has been retracted. */
+export async function removeChannelPost(articleId: string, channel: string): Promise<void> {
+  await getDb()
+    .delete(articleChannelPosts)
+    .where(
+      and(eq(articleChannelPosts.articleId, articleId), eq(articleChannelPosts.channel, channel)),
+    );
 }

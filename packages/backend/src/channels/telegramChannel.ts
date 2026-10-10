@@ -67,48 +67,82 @@ function buildCaption(article: Article, url: string): string {
   return lines.join('\n\n');
 }
 
-/** The one shape read out of a Telegram `send*` reply's `result`: enough to retract it later. */
+/** How a post was sent, which decides how it can be edited. */
+type TelegramPostKind = 'photo' | 'text';
+
+/** What a delivered post is recorded as: enough to edit or delete it later. */
 interface TelegramMessageRef {
   chatId: number;
   messageId: number;
+  kind?: TelegramPostKind;
 }
 
+type TelegramMethod =
+  | 'sendPhoto'
+  | 'sendMessage'
+  | 'editMessageMedia'
+  | 'editMessageCaption'
+  | 'editMessageText'
+  | 'deleteMessage';
+
 /**
- * POST a JSON body to a Telegram Bot API method, logging a warning and
- * resolving `undefined` on any failure (non-OK status, timeout, non-JSON body)
- * — a delivery hiccup must never throw into the registry's fan-out. On success
- * resolves the raw `result` field, whose shape differs per method: a
- * `send*` reply's `result` is the message object `parseMessageRef` reads;
- * `deleteMessage`'s is just `true`, read as a plain success/failure instead.
+ * Telegram refusals that mean the work is already done — the post is gone, or
+ * already reads what an edit would make it read. Matched on the API's
+ * `description`, the only place Telegram says which 400 it is.
  */
-async function callTelegram(
-  token: string,
-  method: 'sendPhoto' | 'sendMessage' | 'deleteMessage',
-  payload: Record<string, unknown>,
-): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TELEGRAM_TIMEOUT_MS);
-  try {
-    const res = await fetch(`${TELEGRAM_API_BASE}/bot${token}/${method}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      logger.warn('telegram request non-ok response', { method, status: res.status, detail });
-      return undefined;
-    }
-    const body = (await res.json().catch(() => undefined)) as { result?: unknown } | undefined;
-    return body?.result;
-  } finally {
-    clearTimeout(timer);
+const SETTLED_ERRORS: readonly RegExp[] = [
+  /message to delete not found/i,
+  /message to edit not found/i,
+  /message is not modified/i,
+];
+
+/** A failed Telegram call (non-OK reply, timeout, network). The outbox retries it. */
+export class TelegramError extends Error {
+  constructor(
+    readonly method: TelegramMethod,
+    message: string,
+  ) {
+    super(`telegram ${method}: ${message}`);
+    this.name = 'TelegramError';
   }
 }
 
-/** Read `{ chatId, messageId }` out of a `send*` reply's `result` object, if it's shaped as expected. */
-function parseMessageRef(result: unknown): TelegramMessageRef | undefined {
+/**
+ * POST a JSON body to a Telegram Bot API method and resolve its `result` — or
+ * `undefined` when Telegram answers with a {@link SETTLED_ERRORS} refusal.
+ * Rejects with a {@link TelegramError} on any other failure (non-OK reply,
+ * timeout, network) so the distribution job is retried.
+ */
+async function callTelegram(
+  token: string,
+  method: TelegramMethod,
+  payload: Record<string, unknown>,
+): Promise<unknown> {
+  let res: Response;
+  try {
+    res = await fetch(`${TELEGRAM_API_BASE}/bot${token}/${method}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw new TelegramError(method, err instanceof Error ? err.message : String(err));
+  }
+  const body = (await res.json().catch(() => undefined)) as
+    | { ok?: boolean; result?: unknown; description?: unknown }
+    | undefined;
+  if (res.ok && body?.ok !== false) return body?.result;
+  const description = typeof body?.description === 'string' ? body.description : '';
+  if (SETTLED_ERRORS.some((pattern) => pattern.test(description))) {
+    logger.info('telegram: nothing left to do', { method, description });
+    return undefined;
+  }
+  throw new TelegramError(method, `HTTP ${res.status} ${description}`.trim());
+}
+
+/** Read `{ chatId, messageId }` out of a `send*` reply's `result` object. */
+function parseMessageRef(result: unknown): Omit<TelegramMessageRef, 'kind'> | undefined {
   const messageId = (result as { message_id?: unknown } | undefined)?.message_id;
   const chatId = (result as { chat?: { id?: unknown } } | undefined)?.chat?.id;
   if (typeof messageId !== 'number' || typeof chatId !== 'number') return undefined;
@@ -118,7 +152,11 @@ function parseMessageRef(result: unknown): TelegramMessageRef | undefined {
 function isTelegramRef(
   ref: Record<string, unknown>,
 ): ref is Record<string, unknown> & TelegramMessageRef {
-  return typeof ref.chatId === 'number' && typeof ref.messageId === 'number';
+  return (
+    typeof ref.chatId === 'number' &&
+    typeof ref.messageId === 'number' &&
+    (ref.kind === undefined || ref.kind === 'photo' || ref.kind === 'text')
+  );
 }
 
 /**
@@ -127,14 +165,16 @@ function isTelegramRef(
  * The channel serves exactly one edition (`servesLanguage` true only for its
  * language) and is gated on its token (`isEnabled()` = token present), so an
  * unconfigured edition is a no-op. With a hero image the post is a `sendPhoto`
- * (Telegram fetches the CDN URL); without one it is a `sendMessage`. Errors are
- * logged, not thrown — the registry isolates channels, and a delivery hiccup must
- * never affect the publish response.
+ * (Telegram fetches the CDN URL); without one it is a `sendMessage`. An update
+ * edits the post in place (photo and caption, or text); a retraction deletes it.
  */
 function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishChannel {
   const token = config.resolveToken(env);
   const chatId = config.resolveChatId(env);
   const { language } = config;
+
+  const captionFor = (article: Article): string =>
+    buildCaption(article, articlePublicUrl(env.FEDIVERSE_DOMAIN, language, article.slug));
 
   return {
     name: `telegram:${language}`,
@@ -148,25 +188,51 @@ function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishC
       const articleLanguage = isLanguage(article.language) ? article.language : DEFAULT_LANGUAGE;
       if (articleLanguage !== language) return;
 
-      const url = articlePublicUrl(env.FEDIVERSE_DOMAIN, articleLanguage, article.slug);
-      const caption = buildCaption(article, url);
-
-      const result = article.heroImage?.url
-        ? await callTelegram(token, 'sendPhoto', {
-            chat_id: chatId,
-            photo: article.heroImage.url,
-            caption,
-            parse_mode: 'HTML',
-          })
-        : await callTelegram(token, 'sendMessage', {
-            chat_id: chatId,
-            text: caption,
-            parse_mode: 'HTML',
-          });
+      const caption = captionFor(article);
+      const kind: TelegramPostKind = article.heroImage?.url ? 'photo' : 'text';
+      const result =
+        kind === 'photo'
+          ? await callTelegram(token, 'sendPhoto', {
+              chat_id: chatId,
+              photo: article.heroImage?.url,
+              caption,
+              parse_mode: 'HTML',
+            })
+          : await callTelegram(token, 'sendMessage', {
+              chat_id: chatId,
+              text: caption,
+              parse_mode: 'HTML',
+            });
 
       const ref = parseMessageRef(result);
-      if (!ref) return;
-      return { chatId: ref.chatId, messageId: ref.messageId };
+      if (!ref)
+        throw new TelegramError(
+          kind === 'photo' ? 'sendPhoto' : 'sendMessage',
+          'no message in the reply',
+        );
+      return { ...ref, kind };
+    },
+    async update(article: Article, ref: Record<string, unknown>) {
+      if (!token || !isTelegramRef(ref)) return;
+      const target = { chat_id: ref.chatId, message_id: ref.messageId };
+      const caption = captionFor(article);
+      if (ref.kind === 'text') {
+        await callTelegram(token, 'editMessageText', {
+          ...target,
+          text: caption,
+          parse_mode: 'HTML',
+        });
+      } else if (ref.kind === 'photo') {
+        await (article.heroImage?.url
+          ? callTelegram(token, 'editMessageMedia', {
+              ...target,
+              media: { type: 'photo', media: article.heroImage.url, caption, parse_mode: 'HTML' },
+            })
+          : callTelegram(token, 'editMessageCaption', { ...target, caption, parse_mode: 'HTML' }));
+      } else {
+        // Recorded before posts carried their kind: which edit applies is unknown.
+        logger.info('telegram: post predates edits; left as posted', { messageId: ref.messageId });
+      }
     },
     async retract(ref: Record<string, unknown>) {
       if (!token || !isTelegramRef(ref)) return;

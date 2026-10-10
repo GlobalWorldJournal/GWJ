@@ -77,6 +77,8 @@ export const NoteSchema = z.object({
   content: z.string(),
   url: z.string().url(),
   published: z.string(),
+  /** Set once the Note has been edited (Mastodon shows it as "edited"). */
+  updated: z.string().optional(),
   to: z.array(z.string()),
   cc: z.array(z.string()),
   attachment: z.array(ActivityImageSchema).optional(),
@@ -112,6 +114,30 @@ export const AnnounceActivitySchema = z.object({
   object: z.string().url(),
 });
 export type AnnounceActivity = z.infer<typeof AnnounceActivitySchema>;
+
+/** An Update activity carrying the edited Note (an article's correction or rewrite). */
+export const UpdateActivitySchema = z.object({
+  '@context': z.array(z.string()).optional(),
+  id: z.string().url(),
+  type: z.literal('Update'),
+  actor: z.string().url(),
+  published: z.string(),
+  to: z.array(z.string()),
+  cc: z.array(z.string()),
+  object: NoteSchema,
+});
+export type UpdateActivity = z.infer<typeof UpdateActivitySchema>;
+
+/** A Delete activity: the Note is gone (the article was unpublished, deleted or taken down). */
+export const DeleteActivitySchema = z.object({
+  '@context': z.array(z.string()).optional(),
+  id: z.string().url(),
+  type: z.literal('Delete'),
+  actor: z.string().url(),
+  to: z.array(z.string()),
+  object: z.object({ id: z.string().url(), type: z.literal('Tombstone') }),
+});
+export type DeleteActivity = z.infer<typeof DeleteActivitySchema>;
 
 /** An OrderedCollection (the head document, links to its first page). */
 export const OrderedCollectionSchema = z.object({

@@ -4,7 +4,12 @@ import { DEFAULT_LANGUAGE, isLanguage } from '@gwj/shared-types';
 import type { Env } from '../env';
 import { countArticles } from '../db/repositories/articleRepository';
 import { logger } from '../logger';
-import { buildActorRegistry, type ActorIdentity, type ActorRegistry } from './identity';
+import {
+  buildActorRegistry,
+  publicationNoteId,
+  type ActorIdentity,
+  type ActorRegistry,
+} from './identity';
 import { resolveActorKeyPair, type ActorKeyPair } from './keyService';
 import { createActivityPubRouter } from './router';
 import { createInboxService } from './inboxService';
@@ -12,18 +17,16 @@ import { createDeliveryService, type DeliveryService } from './deliveryService';
 import type { FederationFetchOptions } from './remoteActor';
 
 /**
- * The wired multi-actor ActivityPub feature: an Express router to mount and a
- * `deliverArticle` step that federates one published article.
+ * The wired multi-actor ActivityPub feature: an Express router to mount and the
+ * steps that federate an article: deliver it, update it, delete it.
  *
  * (The boot-time `initialize()` that re-scoped legacy single-actor follower rows
  * is gone: `followers.actor_username` is NOT NULL in PostgreSQL, and the one-time
  * Mongo → Postgres copy assigns such a row to the default edition while copying.)
  *
- * The module no longer subscribes to article-published transitions itself: the
- * Mastodon distribution channel calls {@link ActivityPubModule.deliverArticle}, and
- * the channel registry owns the single article-published subscription. This keeps
- * the federation delivery logic intact while letting it fan out alongside other
- * channels (Telegram, …).
+ * The module does not watch articles itself: the Mastodon distribution channel
+ * calls these steps from the distribution outbox (channels/outbox.ts), alongside
+ * the other channels (Telegram, …).
  *
  * Per-actor signing keys are resolved LAZILY and cached: the first time an actor's
  * key is needed (its Actor document is fetched, or it delivers/accepts), the key is
@@ -35,12 +38,24 @@ export interface ActivityPubModule {
   registry: ActorRegistry;
   delivery: DeliveryService;
   /**
-   * Federate one published article: the WRITER actor authors the Create and the
-   * EDITION actor Announces it (or, for a non-roster byline, the edition authors the
-   * Create directly). Best-effort — rejects only on an unexpected delivery error;
-   * with no followers or signing key it is a logged no-op.
+   * Federate one publication of an article (`deliveryId` names it — see
+   * `publicationNoteId`): the WRITER actor authors the Create and the EDITION
+   * actor Announces it (or, for a non-roster byline, the edition authors the
+   * Create directly). With no followers or signing key it is a logged no-op.
+   * Resolves the delivered Note, which a later update or delete needs.
    */
-  deliverArticle(article: Article): Promise<void>;
+  deliverArticle(article: Article, deliveryId: number): Promise<FederatedNote>;
+  /** Send an Update of a delivered Note, bringing it in line with `article`. */
+  updateArticle(article: Article, note: FederatedNote): Promise<void>;
+  /** Send a Delete of a delivered Note (the story left public view). */
+  deleteArticle(note: FederatedNote): Promise<void>;
+}
+
+/** A delivered Note: its id, the actor that authored it and the edition that boosted it. */
+export interface FederatedNote {
+  noteId: string;
+  author: string;
+  announcer?: string;
 }
 
 export interface ActivityPubOptions {
@@ -136,22 +151,52 @@ export function createActivityPub(env: Env, options: ActivityPubOptions = {}): A
    * edition-followers get a boost, no duplicate Notes. Fallback: a non-roster byline
    * has no writer actor, so the edition authors the Create directly (no Announce).
    */
-  async function deliverArticle(article: Article): Promise<void> {
+  async function deliverArticle(article: Article, deliveryId: number): Promise<FederatedNote> {
     const language = isLanguage(article.language) ? article.language : DEFAULT_LANGUAGE;
     const edition = registry.editionFor(language);
     const writer = registry.writerForAuthor(article.author);
 
     if (writer) {
-      // The writer Create (to the writer's followers) and the edition Announce (to
-      // the edition's followers) are independent — different follower sets, no shared
-      // state — so run them concurrently rather than serially.
-      await Promise.allSettled([
-        delivery.deliverCreate(writer, article),
-        delivery.deliverAnnounce(edition, writer, article),
+      const noteId = publicationNoteId(writer, article.id, deliveryId);
+      // The Create (writer's followers) and the Announce (edition's followers) go
+      // to different audiences with no shared state: run them concurrently.
+      await Promise.all([
+        delivery.deliverCreate(writer, article, noteId),
+        delivery.deliverAnnounce(edition, article, noteId),
       ]);
-    } else {
-      await delivery.deliverCreate(edition, article);
+      return { noteId, author: writer.username, announcer: edition.username };
     }
+    const noteId = publicationNoteId(edition, article.id, deliveryId);
+    await delivery.deliverCreate(edition, article, noteId);
+    return { noteId, author: edition.username };
+  }
+
+  /**
+   * The actors a delivered Note concerns: its author (who signs) and everyone
+   * whose followers saw it. Null when the author is no longer on the roster —
+   * there is no key left to sign with.
+   */
+  function noteActors(note: FederatedNote): {
+    author: ActorIdentity;
+    audience: ActorIdentity[];
+  } | null {
+    const author = registry.get(note.author);
+    if (!author) {
+      logger.warn('activitypub: delivered note has no local author', { ...note });
+      return null;
+    }
+    const announcer = note.announcer ? registry.get(note.announcer) : undefined;
+    return { author, audience: announcer ? [author, announcer] : [author] };
+  }
+
+  async function updateArticle(article: Article, note: FederatedNote): Promise<void> {
+    const actors = noteActors(note);
+    if (actors) await delivery.deliverUpdate(actors.author, actors.audience, article, note.noteId);
+  }
+
+  async function deleteArticle(note: FederatedNote): Promise<void> {
+    const actors = noteActors(note);
+    if (actors) await delivery.deliverDelete(actors.author, actors.audience, note.noteId);
   }
 
   return {
@@ -159,5 +204,7 @@ export function createActivityPub(env: Env, options: ActivityPubOptions = {}): A
     registry,
     delivery,
     deliverArticle,
+    updateArticle,
+    deleteArticle,
   };
 }

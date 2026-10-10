@@ -3,34 +3,35 @@ import type { Article, Language } from '@gwj/shared-types';
 /** The distribution platforms the paper fans articles out to. */
 export type ChannelPlatform = 'mastodon' | 'telegram' | 'whatsapp';
 
+/** Context for one delivery, from the distribution job that runs it. */
+export interface DeliveryContext {
+  /** Unique per publication, stable across retries of it (the job's id). */
+  deliveryId: number;
+}
+
 /**
- * A distribution channel that fans a freshly published article out to one external
- * destination (a Mastodon/fediverse presence, a specific Telegram channel, …).
- * Channels are the generalized replacement for the article→federation wiring: each
- * published article is routed to every channel whose language set matches the
- * article's edition, and each enabled channel publishes it on its own.
+ * A distribution channel: one external destination (a Mastodon/fediverse
+ * presence, a specific Telegram channel, …) that the paper's articles are posted
+ * to, kept in line with edits, and taken down from.
  *
  * Channels are language-scoped so the same platform can run several editions (e.g. a
  * Telegram channel per language) without per-app branching — the registry routes by
  * {@link PublishChannel.servesLanguage}.
  *
- * Contract:
- *  - `name` is a short, stable identifier used in per-channel log lines.
+ * Every call comes from a job of the distribution outbox (outbox.ts), one job per
+ * channel, so a failing channel never affects the others. Each method SHOULD
+ * resolve when there is nothing to do (no followers, a post already gone) and
+ * MUST reject on a failure worth retrying — the outbox retries the job with
+ * backoff, so a method must also be safe to run again for the same job.
+ *
+ *  - `name` is a short, stable identifier (job rows and log lines carry it).
  *  - `platform` is the destination kind (for grouping/observability).
- *  - `servesLanguage(lang)` decides whether this channel handles an article's
- *    edition. A single-language channel returns true only for its language; an
- *    all-editions channel (e.g. Mastodon, whose per-edition actors handle each
- *    language) returns true for every language.
- *  - `isEnabled()` decides whether this channel runs for the current process
- *    (typically gated on the presence of its credentials/config). A disabled
- *    channel's `publish` is never called.
- *  - `publish(article)` performs the delivery. It SHOULD resolve even when the
- *    destination has nothing to do (e.g. no followers); it MAY reject on a real
- *    failure — the registry isolates each channel under `Promise.allSettled`, so a
- *    rejection from one channel never affects the others or the publish response.
+ *  - `servesLanguage(lang)` decides whether this channel handles an edition.
+ *  - `isEnabled()` decides whether this channel runs in this process (typically
+ *    gated on its credentials). A disabled channel is never given a job.
  */
 export interface PublishChannel {
-  /** Short, stable identifier for this channel (used in logs). */
+  /** Short, stable identifier for this channel. */
   readonly name: string;
   /** The destination platform this channel delivers to. */
   readonly platform: ChannelPlatform;
@@ -39,17 +40,20 @@ export interface PublishChannel {
   /** Whether this channel is active in the current process (config/credentials present). */
   isEnabled(): boolean;
   /**
-   * Distribute one published article to this channel's destination. Returning a
-   * `ref` means the delivery can later be retracted (stored, then passed back to
-   * `retract`); returning nothing means it can't (today: Mastodon, WhatsApp) and
-   * the registry never records or retracts it.
+   * Post one published article. Returning a `ref` (whatever the channel needs to
+   * find the post again) records the delivery, so it can later be updated and
+   * retracted; returning nothing records nothing.
    */
-  publish(article: Article): Promise<Record<string, unknown> | void>;
+  publish(article: Article, context: DeliveryContext): Promise<Record<string, unknown> | void>;
   /**
-   * Remove a previously delivered post, given the exact `ref` `publish` returned
-   * for it. Optional — only implemented by channels whose `publish` can return a
-   * ref. Must not throw: a message already gone (deleted by hand, a stale ref) is
-   * not a failure the registry should retry forever over.
+   * Bring a delivered post in line with the article after a visible change
+   * (headline, image, correction…), given the `ref` `publish` returned.
+   * Optional — a channel without it keeps the original post.
+   */
+  update?(article: Article, ref: Record<string, unknown>): Promise<void>;
+  /**
+   * Take a delivered post down, given the `ref` `publish` returned. Optional — a
+   * channel without it never retracts.
    */
   retract?(ref: Record<string, unknown>): Promise<void>;
 }

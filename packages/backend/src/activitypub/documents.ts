@@ -4,19 +4,15 @@ import type {
   AnnounceActivity,
   Article,
   CreateActivity,
+  DeleteActivity,
   Note,
   OrderedCollection,
   OrderedCollectionPage,
+  UpdateActivity,
   WebFinger,
 } from '@gwj/shared-types';
 import { ACTIVITY_JSON_TYPE, AS2_CONTEXT, AS2_PUBLIC } from '@gwj/shared-types';
-import {
-  announceActivityId,
-  articleUrl,
-  createActivityId,
-  noteId,
-  type ActorIdentity,
-} from './identity';
+import { articleUrl, createActivityId, noteId, type ActorIdentity } from './identity';
 
 /** Length budget for the auto-generated story summary in a Note. */
 const SUMMARY_MAX_CHARS = 280;
@@ -114,9 +110,15 @@ export function buildActor(identity: ActorIdentity, publicKeyPem: string): Actor
 /**
  * Render a published article as an AS2 Note authored by `author` (a writer actor,
  * or an edition actor for a non-roster byline). Addressed to the public and CC'd
- * to the author's followers.
+ * to the author's followers. `id` defaults to the article's canonical Note id
+ * (the outbox's); a delivered publication passes its own (`publicationNoteId`).
+ * `updated` marks an edited Note.
  */
-export function buildNote(author: ActorIdentity, article: Article): Note {
+export function buildNote(
+  author: ActorIdentity,
+  article: Article,
+  options: { id?: string; updated?: string } = {},
+): Note {
   const url = articleUrl(author.origin, article.slug);
   const summary = deriveSummary(article);
   const headline = escapeHtml(article.title);
@@ -124,28 +126,33 @@ export function buildNote(author: ActorIdentity, article: Article): Note {
   const content = `<p><strong>${headline}</strong></p>${summaryHtml}<p><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`;
   const attachment = heroAttachment(article);
   return {
-    id: noteId(author, article.id),
+    id: options.id ?? noteId(author, article.id),
     type: 'Note',
     attributedTo: author.actorId,
     content,
     url,
     published: article.publishedAt ?? article.createdAt,
+    ...(options.updated ? { updated: options.updated } : {}),
     to: [AS2_PUBLIC],
     cc: [author.followers],
     ...(attachment ? { attachment: [attachment] } : {}),
   };
 }
 
-/** Wrap a Note in a Create activity by its author. `withContext` adds top-level `@context`. */
+/**
+ * Wrap a Note in a Create activity by its author. `withContext` adds top-level
+ * `@context`; `noteId` names a delivered publication's Note (default: the
+ * canonical one, as the outbox lists it).
+ */
 export function buildCreateActivity(
   author: ActorIdentity,
   article: Article,
-  options: { withContext?: boolean } = {},
+  options: { withContext?: boolean; noteId?: string } = {},
 ): CreateActivity {
-  const note = buildNote(author, article);
+  const note = buildNote(author, article, { id: options.noteId });
   return {
     ...(options.withContext ? { '@context': [...AS2_CONTEXT] } : {}),
-    id: createActivityId(author, article.id),
+    id: options.noteId ? `${options.noteId}#create` : createActivityId(author, article.id),
     type: 'Create',
     actor: author.actorId,
     published: note.published,
@@ -156,25 +163,65 @@ export function buildCreateActivity(
 }
 
 /**
- * Build an edition's Announce (boost) of an article's Note. `object` is the Note's
- * id (a string ref to the writer-authored Note) so an edition follower sees a boost
- * rather than a duplicate Note. The Note must be authored by `noteAuthor`.
+ * Build an edition's Announce (boost) of a delivered Note (`noteId`, authored by
+ * a writer actor), so an edition follower sees a boost rather than a duplicate
+ * Note.
  */
 export function buildAnnounceActivity(
   announcer: ActorIdentity,
-  noteAuthor: ActorIdentity,
+  noteId: string,
   article: Article,
   options: { withContext?: boolean } = {},
 ): AnnounceActivity {
   return {
     ...(options.withContext ? { '@context': [...AS2_CONTEXT] } : {}),
-    id: announceActivityId(announcer, article.id),
+    id: `${noteId}#announce`,
     type: 'Announce',
     actor: announcer.actorId,
     published: article.publishedAt ?? article.createdAt,
     to: [AS2_PUBLIC],
     cc: [announcer.followers],
-    object: noteId(noteAuthor, article.id),
+    object: noteId,
+  };
+}
+
+/**
+ * An Update of a delivered Note to the article as it is now (a correction, a new
+ * headline…). The activity id is unique per edit, keyed by the article's
+ * `updatedAt`, which the Note also carries as `updated`.
+ */
+export function buildUpdateActivity(
+  author: ActorIdentity,
+  noteId: string,
+  article: Article,
+  options: { withContext?: boolean } = {},
+): UpdateActivity {
+  const note = buildNote(author, article, { id: noteId, updated: article.updatedAt });
+  return {
+    ...(options.withContext ? { '@context': [...AS2_CONTEXT] } : {}),
+    id: `${noteId}#updates/${Date.parse(article.updatedAt)}`,
+    type: 'Update',
+    actor: author.actorId,
+    published: article.updatedAt,
+    to: note.to,
+    cc: note.cc,
+    object: note,
+  };
+}
+
+/** A Delete of a delivered Note: servers replace it (and its boosts) with a tombstone. */
+export function buildDeleteActivity(
+  author: ActorIdentity,
+  noteId: string,
+  options: { withContext?: boolean } = {},
+): DeleteActivity {
+  return {
+    ...(options.withContext ? { '@context': [...AS2_CONTEXT] } : {}),
+    id: `${noteId}#delete`,
+    type: 'Delete',
+    actor: author.actorId,
+    to: [AS2_PUBLIC],
+    object: { id: noteId, type: 'Tombstone' },
   };
 }
 
