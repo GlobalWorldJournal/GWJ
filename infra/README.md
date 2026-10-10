@@ -4,9 +4,9 @@ Standalone Terraform root module for the Global World Journal backend + MCP
 server. It is **hosted on the Oxy AWS account** (`237343248947`, `us-west-2`,
 CLI `--profile oxy`) but is **fully isolated** from Oxy's stack:
 
-- **Own state** — S3 backend, bucket `oxy-tf-state-237343248947` (eu-west-1),
-  key `gwj/terraform.tfstate`. A separate state file from Oxy's
-  `uswest2/terraform.tfstate`, so a GWJ apply has an independent lifecycle.
+- **Own state** — S3 backend, its own bucket `gwj-tf-state-237343248947`
+  (us-west-2, versioned + encrypted), key `gwj/terraform.tfstate`. Fully
+  separate from Oxy's state, so a GWJ apply has an independent lifecycle.
 - **Own IAM** — `gwj-ecs-execution`, `gwj-ecs-task`, `gwj-mongo`
   (role+instance-profile; removed at the Mongo decommission), `gwj-github-deploy` (OIDC). GWJ never uses Oxy's
   roles, so there is no cross-stack IAM dependency.
@@ -29,13 +29,14 @@ here can only **create GWJ resources** and can never modify Oxy's.
 
 | Area | Resource |
 |------|----------|
-| ECR | `gwj-backend`, `gwj-mcp` (MUTABLE, scan-on-push, keep-10) |
+| ECR | `gwj-backend`, `gwj-mcp` (scan-on-push, keep-10). Services run images by DIGEST; `:latest` is only the bootstrap tag the task definitions name |
 | Secrets | `/gwj/*` SSM params (random-seeded, `ignore_changes=[value]`) |
 | Mongo (until decommission) | dedicated `t4g.small` arm64 box + 30 GB gp3 EBS + `gwj-mongo` SG (27017 from `gwj-tasks` only) |
 | PostgreSQL | `/gwj/DATABASE_URL` (imported; value set out-of-band) — the database itself lives on `oxy-postgres` |
-| Media | private `gwj-media-usw2-<acct>` S3 + CloudFront `cdn.globalworldjournal.com` (OAC, articles/*) |
+| Media | private, versioned `gwj-media-usw2-<acct>` S3 + CloudFront `cdn.globalworldjournal.com` (OAC, articles/*) |
 | ACM | `api`/`mcp.globalworldjournal.com` (us-west-2, SNI-attached to the shared listener) + `cdn` (us-east-1) |
-| ECS | backend (4000) + mcp (4100) task-defs/target-groups/listener-rules (priorities 400/401)/services on the shared cluster |
+| ECS | backend (4000, 2–4 tasks, CPU autoscaling) + mcp (4100) task-defs/target-groups/listener-rules (priorities 400/401)/services on the shared cluster. The deploy owns the running revision (`ignore_changes = [task_definition]`) |
+| Monitoring | SNS `gwj-alerts` (`var.alert_emails`) + CloudWatch alarms (`monitoring.tf`) |
 | IAM | own exec/task/mongo/deploy roles |
 
 ## Usage
