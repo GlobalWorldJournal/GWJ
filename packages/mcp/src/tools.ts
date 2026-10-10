@@ -3,6 +3,9 @@ import {
   ArticleListQuerySchema,
   ArticleUpdateSchema,
   CorrectionInputSchema,
+  PopularArticlesQuerySchema,
+  TakedownActionSchema,
+  TakedownListQuerySchema,
   LANGUAGE_NAMES,
   SUPPORTED_LANGUAGES,
   WRITERS,
@@ -97,6 +100,11 @@ const CreateArticleShape = {
 const UpdateArticleShape = {
   id: z.string().min(1).describe('Article id to update'),
   ...ArticleUpdateSchema.shape,
+};
+
+const TakedownActionShape = {
+  id: z.string().min(1).describe('Takedown request id from list_takedowns'),
+  ...TakedownActionSchema.shape,
 };
 
 const UploadImageShape = {
@@ -260,6 +268,36 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
         await client.updateArticle(id, { translationOf });
         return jsonResult(await client.getArticle({ id }));
       }),
+  );
+
+  server.registerTool(
+    'list_takedowns',
+    {
+      description:
+        'Takedown requests from rights holders and people in our stories, newest first (filter by `status`: pending, actioned, dismissed). Each names the article it matched (`articleId`) when one did. The requester details are personal data: use them to decide, never publish them. Needs the `takedowns` scope.',
+      inputSchema: TakedownListQuerySchema.shape,
+    },
+    (args) => guard(async () => jsonResult(await client.listTakedowns(args))),
+  );
+
+  server.registerTool(
+    'act_on_takedown',
+    {
+      description:
+        'Resolve a takedown request: `actioned` (with `apply`: `unpublish` takes the matched story down everywhere, including its fediverse and Telegram posts; `clear-hero-image` removes just the disputed image, from the posts too; `none` records the decision only) or `dismissed`. Explain the decision in `resolution`. Needs the `takedowns` scope.',
+      inputSchema: TakedownActionShape,
+    },
+    ({ id, ...action }) => guard(async () => jsonResult(await client.actOnTakedown(id, action))),
+  );
+
+  server.registerTool(
+    'get_most_popular',
+    {
+      description:
+        "An edition's most read published stories over the last `days` (default 2, today included), most read first — what readers are following. Use it to decide what to follow up, update or translate.",
+      inputSchema: PopularArticlesQuerySchema.shape,
+    },
+    (args) => guard(async () => jsonResult(await client.popularArticles(args))),
   );
 
   server.registerTool(

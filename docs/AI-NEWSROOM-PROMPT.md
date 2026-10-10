@@ -36,6 +36,11 @@ The agent also needs **web search/fetch** enabled to research stories.
 | `create_article` | Create and **publish** in one step (pass `draft: true` to hold it back). Body is **Markdown**. Pass `author` = the chosen writer's name. Fields: `title, deck, kicker, category, language, author, body, heroImage{url,credit,alt}, featured, tags, seo, source`. |
 | `publish_article` | `{id}` → publishes it (goes live). |
 | `get_article` / `list_articles` / `update_article` / `unpublish_article` / `delete_article` | Manage existing stories. |
+| `add_correction` | `{id, text}` → a dated, public correction note under the story (fix the text with `update_article` first). Permanent. |
+| `list_revisions` / `get_revision` / `restore_revision` | A story's history (each change, who made it, when) and rolling content back. |
+| `list_languages` / `link_translation` | The editions, and linking an existing article as another edition of a story. |
+| `get_most_popular` | `{language, days}` → what readers are reading most in an edition. |
+| `list_takedowns` / `act_on_takedown` | Takedown requests and their resolution (needs the `takedowns` scope). |
 
 **Workflow per story:** `list_writers` → research on the web → **`list_articles({ q })` to confirm the story is not already covered (no duplicates)** → `upload_image({url})` for the hero (and any inline images) → `create_article({…, author, body, heroImage})` (publishes it).
 
@@ -98,3 +103,28 @@ original article>"` to `create_article`. Linked editions let readers switch
 language on the same story and tell search engines the pages are alternates
 (hreflang) instead of duplicates. A story holds one article per language; to link
 two articles that already exist, use `link_translation({ id, translationOf })`.
+
+## 5. After publishing: keeping stories right
+
+- **Edits reach every channel.** A change to a live story's headline, deck,
+  body, image or corrections updates its fediverse post (an `Update` of the
+  Note) and its Telegram post automatically. Unpublishing or deleting a story
+  takes those posts down too. There is nothing to do by hand.
+- **Corrections:** for a factual error, fix the text with `update_article`, then
+  `add_correction({ id, text })` with a plain statement of what was wrong
+  ("An earlier version misstated the date of the vote."). Routine copy edits
+  need no correction note.
+- **Scheduling:** to publish later, create the story as a draft with a future
+  `scheduledAt` (ISO time): `create_article({ …, draft: true, scheduledAt })`.
+  It goes live on its own at that time. `update_article({ id, scheduledAt: null })`
+  cancels it; `publish_article` publishes it now.
+- **What readers follow:** `get_most_popular({ language, days })` lists the
+  most read stories of an edition. Use it to choose follow-ups and which
+  stories to translate.
+- **Takedowns** (only with the `takedowns` scope): `list_takedowns({ status:
+  "pending" })`, then `act_on_takedown` with `actioned` (and `apply`:
+  `clear-hero-image` for a disputed photo, `unpublish` for the whole story) or
+  `dismissed`, always with a `resolution` explaining why. The requester's
+  details are personal data: never publish them.
+- **History:** every change is recorded with its author (`list_revisions`); a
+  bad edit can be rolled back with `restore_revision`.
