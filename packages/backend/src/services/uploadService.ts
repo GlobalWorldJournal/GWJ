@@ -5,7 +5,7 @@ import { validateImageBuffer } from '@gwj/shared-types/image-validation';
 import type { Env } from '../env';
 import { UnprocessableEntityError } from '../errors';
 import { logger } from '../logger';
-import { WEBP_MIME, optimizeToWebp } from './imageOptimizer';
+import { WEBP_MIME, optimizeWithVariants } from './imageOptimizer';
 
 /**
  * Cache headers for uploaded images. Each object key is unique (UUID-prefixed)
@@ -88,7 +88,7 @@ export function createUploadService(env: Env): UploadService {
         CacheControl: IMAGE_CACHE_CONTROL,
       }),
     );
-    return { url: `${cdnBase}/${key}` };
+    return { url: `${cdnBase}/${key}`, variants: [] };
   }
 
   return {
@@ -125,8 +125,25 @@ export function createUploadService(env: Env): UploadService {
       // sound, fall back to storing the original bytes rather than 500-ing a
       // legitimate upload — the image is still served, just unoptimized.
       try {
-        const optimized = await optimizeToWebp(buffer);
-        return put(`${prefix}${withExtension(safeName, 'webp')}`, optimized.buffer, WEBP_MIME);
+        const { main, variants } = await optimizeWithVariants(buffer);
+        const stored = await put(
+          `${prefix}${withExtension(safeName, 'webp')}`,
+          main.buffer,
+          WEBP_MIME,
+        );
+        const storedVariants = await Promise.all(
+          variants.map(async (variant) => {
+            // Beside the main object: `<uuid>-name.w400.webp`.
+            const key = `${prefix}${withExtension(safeName, `w${variant.width}.webp`)}`;
+            return { width: variant.width, url: (await put(key, variant.buffer, WEBP_MIME)).url };
+          }),
+        );
+        return {
+          url: stored.url,
+          width: main.width,
+          height: main.height,
+          variants: storedVariants,
+        };
       } catch (error) {
         logger.warn('Image optimization failed; storing original validated bytes', {
           filename: safeName,

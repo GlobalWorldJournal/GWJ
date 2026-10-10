@@ -34,6 +34,7 @@ import { articleService } from '../services/articleService';
 import { takedownService } from '../services/takedownService';
 import { beginAuthorization } from '../channels/mentionOauthService';
 import type { Env } from '../env';
+import { createMediaService } from '../services/mediaService';
 import type { UploadImageOptions, UploadService } from '../services/uploadService';
 import { fetchRemoteImage, type RemoteImageOptions } from '../services/remoteImageService';
 import {
@@ -113,6 +114,7 @@ export function createAdminRouter(
   remoteImage: RemoteImageOptions = {},
 ): Router {
   const router = Router();
+  const media = createMediaService(uploadService);
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_UPLOAD_BYTES },
@@ -235,7 +237,7 @@ export function createAdminRouter(
     async (req: Request, res: Response) => {
       // Defaults enforce the canonical min width/height and byte cap.
       const file = requireImageFile(req);
-      const result = await uploadService.uploadImage(file.buffer, file.originalname, file.mimetype);
+      const result = await media.upload(file.buffer, file.originalname, file.mimetype);
       res.status(201).json(result);
     },
   );
@@ -250,7 +252,7 @@ export function createAdminRouter(
     async (req: Request, res: Response) => {
       const input = req.body as UploadFromUrlInput;
       const image = await fetchRemoteImage(input.url, input.filename, remoteImage);
-      const result = await uploadService.uploadImage(image.buffer, image.filename, image.mime);
+      const result = await media.upload(image.buffer, image.filename, image.mime);
       res.status(201).json(result);
     },
   );

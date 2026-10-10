@@ -29,6 +29,13 @@ export type ContentBlock = z.infer<typeof ContentBlockSchema>;
 export const ArticleStatusSchema = z.enum(['draft', 'published']);
 export type ArticleStatus = z.infer<typeof ArticleStatusSchema>;
 
+/** A narrower rendition of an uploaded image, for `srcset`. */
+export const ImageVariantSchema = z.object({
+  width: z.number().int().positive(),
+  url: z.string().url(),
+});
+export type ImageVariant = z.infer<typeof ImageVariantSchema>;
+
 export const HeroImageSchema = z.object({
   url: z
     .string()
@@ -45,6 +52,10 @@ export const HeroImageSchema = z.object({
     .optional()
     .describe('Photo credit shown under the image, e.g. "Source: Reuters".'),
   alt: z.string().default('').describe('Descriptive alt text for accessibility and SEO.'),
+  // Filled in by the server from the upload (never needs to be sent).
+  width: z.number().int().positive().optional().describe('Set by the server; do not send.'),
+  height: z.number().int().positive().optional().describe('Set by the server; do not send.'),
+  variants: z.array(ImageVariantSchema).optional().describe('Set by the server; do not send.'),
 });
 export type HeroImage = z.infer<typeof HeroImageSchema>;
 
