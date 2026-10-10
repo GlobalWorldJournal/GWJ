@@ -4,18 +4,24 @@ import {
   ArticleInputSchema,
   ArticleListQuerySchema,
   ArticleUpdateSchema,
+  ChangePasswordInputSchema,
   CorrectionInputSchema,
   CreateApiTokenInputSchema,
+  CreateUserInputSchema,
   TakedownActionSchema,
   TakedownListQuerySchema,
+  UpdateUserInputSchema,
   UploadFromUrlInputSchema,
   type ArticleInput,
   type ArticleListQuery,
   type ArticleUpdate,
+  type ChangePasswordInput,
   type CorrectionInput,
   type CreateApiTokenInput,
+  type CreateUserInput,
   type TakedownAction,
   type TakedownListQuery,
+  type UpdateUserInput,
   type UploadFromUrlInput,
 } from '@gwj/shared-types';
 import { validateImageBuffer } from '@gwj/shared-types/image-validation';
@@ -27,10 +33,13 @@ import { fetchRemoteImage, type RemoteImageOptions } from '../services/remoteIma
 import {
   assertScope,
   principalOf,
+  requireAdmin,
   requireAuth,
   requireScope,
   requireUser,
+  userPrincipalOf,
 } from '../middleware/auth';
+import { userService } from '../services/userService';
 import { actorName } from '../auth/principal';
 import { apiTokenService } from '../services/apiTokenService';
 import { validate } from '../middleware/validate';
@@ -242,21 +251,60 @@ export function createAdminRouter(
     },
   );
 
-  // Agent credentials are managed by people only, never by an agent.
-  router.get('/tokens', requireUser(), async (_req: Request, res: Response) => {
+  // Agent credentials are managed by admins only, never by an agent or an editor.
+  router.get('/tokens', requireAdmin(), async (_req: Request, res: Response) => {
     res.json(await apiTokenService.list());
   });
   router.post(
     '/tokens',
-    requireUser(),
+    requireAdmin(),
     validate(CreateApiTokenInputSchema),
     async (req: Request, res: Response) => {
       res.status(201).json(await apiTokenService.create(req.body as CreateApiTokenInput));
     },
   );
-  router.post('/tokens/:id/revoke', requireUser(), async (req: Request, res: Response) => {
+  router.post('/tokens/:id/revoke', requireAdmin(), async (req: Request, res: Response) => {
     res.json(await apiTokenService.revoke(requireParam(req, 'id')));
   });
+
+  // The newsroom's people: admins manage accounts; everyone manages their password.
+  router.get('/users', requireAdmin(), async (_req: Request, res: Response) => {
+    res.json(await userService.list());
+  });
+  router.post(
+    '/users',
+    requireAdmin(),
+    validate(CreateUserInputSchema),
+    async (req: Request, res: Response) => {
+      res.status(201).json(await userService.create(req.body as CreateUserInput));
+    },
+  );
+  router.patch(
+    '/users/:id',
+    requireAdmin(),
+    validate(UpdateUserInputSchema),
+    async (req: Request, res: Response) => {
+      res.json(
+        await userService.update(
+          requireParam(req, 'id'),
+          req.body as UpdateUserInput,
+          userPrincipalOf(req).userId,
+        ),
+      );
+    },
+  );
+  router.post(
+    '/account/password',
+    requireUser(),
+    validate(ChangePasswordInputSchema),
+    async (req: Request, res: Response) => {
+      await userService.changePassword(
+        userPrincipalOf(req).userId,
+        req.body as ChangePasswordInput,
+      );
+      res.status(204).end();
+    },
+  );
 
   return router;
 }

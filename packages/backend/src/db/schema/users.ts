@@ -4,7 +4,11 @@ import { UserRoleSchema, type UserRole } from '@gwj/shared-types';
 import { RECORD_ID_SQL_PATTERN } from '../ids';
 import { sqlInList } from '../sqlLiterals';
 
-/** CMS admin accounts. `id` keeps the ObjectId shape: it is the JWT `sub`. */
+/**
+ * Newsroom accounts (people). `id` keeps the ObjectId shape: it is the JWT `sub`.
+ * An account is deactivated (`disabled_at`), never deleted, so the article
+ * history keeps naming who did what.
+ */
 export const users = pgTable(
   'users',
   {
@@ -14,6 +18,7 @@ export const users = pgTable(
     passwordHash: text().notNull(),
     role: text().$type<UserRole>().notNull().default('admin'),
     createdAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    disabledAt: timestamp({ withTimezone: true, mode: 'date' }),
   },
   (t) => [
     unique('users_username_unique').on(t.username),

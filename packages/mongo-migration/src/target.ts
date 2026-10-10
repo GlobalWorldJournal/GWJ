@@ -38,7 +38,8 @@ export async function readTarget(
     articles: articleRows.map((row) =>
       Object.fromEntries(ARTICLE_SOURCE_FIELDS.map((field) => [field, row[field]])),
     ),
-    users: userRows.map((row) => ({ ...row })),
+    // Deactivation came after the port: Mongo had no such field.
+    users: userRows.map(({ disabledAt: _sincePort, ...row }) => row),
     actorkeys: keyRows.map((row) => ({ ...row })),
     // The identity id never existed in Mongo; the natural key identifies a follower.
     followers: followerRows.map(({ id: _identity, ...row }) => row),

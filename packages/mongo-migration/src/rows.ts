@@ -196,6 +196,8 @@ export function userRow(doc: LogicalDocument): UserRow {
     passwordHash: c.string('passwordHash', { pattern: /^\$2[aby]\$\d{2}\$.{53}$/ }) ?? '',
     role: c.oneOf('role', ['admin'] as const) ?? 'admin',
     createdAt: c.date('createdAt') ?? new Date(0),
+    // Mongo had no deactivation: every copied account is active.
+    disabledAt: null,
   };
   c.done('users', String(doc.id));
   return row;

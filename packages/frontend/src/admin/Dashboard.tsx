@@ -46,6 +46,8 @@ const SELECT_CLASS =
 
 export function Dashboard() {
   const { token, user, signOut } = useAuth();
+  // Deleting stories and running the newsroom are admin work (the API enforces it).
+  const isAdmin = user?.role === 'admin';
   const queryClient = useQueryClient();
 
   const [params, setParams] = useSearchParams();
@@ -116,11 +118,27 @@ export function Dashboard() {
           >
             Takedown Requests
           </Link>
+          {isAdmin ? (
+            <>
+              <Link
+                to="/admin/users"
+                className="label text-[0.75rem] text-ink-soft transition-colors hover:text-accent"
+              >
+                People
+              </Link>
+              <Link
+                to="/admin/tokens"
+                className="label text-[0.75rem] text-ink-soft transition-colors hover:text-accent"
+              >
+                Agent Tokens
+              </Link>
+            </>
+          ) : null}
           <Link
-            to="/admin/tokens"
+            to="/admin/account"
             className="label text-[0.75rem] text-ink-soft transition-colors hover:text-accent"
           >
-            Agent Tokens
+            Account
           </Link>
           <Link
             to="/admin/articles/new"
@@ -236,11 +254,15 @@ export function Dashboard() {
                 article={article}
                 onPublish={() => publish.mutate(article.id)}
                 onUnpublish={() => unpublish.mutate(article.id)}
-                onDelete={() => {
-                  if (window.confirm(`Delete “${article.title}”? This cannot be undone.`)) {
-                    remove.mutate(article.id);
-                  }
-                }}
+                onDelete={
+                  isAdmin
+                    ? () => {
+                        if (window.confirm(`Delete “${article.title}”? This cannot be undone.`)) {
+                          remove.mutate(article.id);
+                        }
+                      }
+                    : undefined
+                }
                 busy={publish.isPending || unpublish.isPending || remove.isPending}
               />
             ))}
@@ -281,7 +303,8 @@ interface ArticleRowProps {
   article: Article;
   onPublish: () => void;
   onUnpublish: () => void;
-  onDelete: () => void;
+  /** Absent for people who may not delete (editors). */
+  onDelete?: () => void;
   busy: boolean;
 }
 
@@ -331,14 +354,16 @@ function ArticleRow({ article, onPublish, onUnpublish, onDelete, busy }: Article
             Publish
           </button>
         )}
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onDelete}
-          className="label text-[0.6875rem] text-muted transition-colors hover:text-accent disabled:opacity-50"
-        >
-          Delete
-        </button>
+        {onDelete ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onDelete}
+            className="label text-[0.6875rem] text-muted transition-colors hover:text-accent disabled:opacity-50"
+          >
+            Delete
+          </button>
+        ) : null}
       </div>
     </li>
   );

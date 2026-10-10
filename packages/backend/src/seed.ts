@@ -1,17 +1,15 @@
 import { argv } from 'node:process';
 import { fileURLToPath } from 'node:url';
-import bcrypt from 'bcryptjs';
 import { loadEnv, type Env } from './env';
 import { connectDb, disconnectDb, getDb } from './db/client';
 import { newRecordId } from './db/ids';
 import { users } from './db/schema/users';
 import { logger } from './logger';
-
-const BCRYPT_ROUNDS = 12;
+import { hashPassword } from './auth/passwords';
 
 /** Idempotently upsert the single admin user from env. Re-hashes the password each run. */
 export async function seedAdminUser(env: Env): Promise<void> {
-  const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, BCRYPT_ROUNDS);
+  const passwordHash = await hashPassword(env.ADMIN_PASSWORD);
   await getDb()
     .insert(users)
     .values({
