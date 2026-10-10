@@ -75,6 +75,26 @@ resource "aws_ssm_parameter" "mcp_token" {
   }
 }
 
+# The MCP server's own agent token (gwj_…, scopes articles:write,
+# articles:publish, media:upload), minted in the CMS under Agent Tokens and
+# stored out of band: terraform never sees the secret. Adopted from the
+# parameter created alongside the token.
+import {
+  to = aws_ssm_parameter.mcp_api_token
+  id = "/gwj/MCP_API_TOKEN"
+}
+
+resource "aws_ssm_parameter" "mcp_api_token" {
+  name        = "/gwj/MCP_API_TOKEN"
+  type        = "SecureString"
+  value       = "set-out-of-band"
+  description = "The GWJ MCP server's scoped API token (Agent Tokens in the CMS)."
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 resource "aws_ssm_parameter" "admin_username" {
   name  = "/gwj/ADMIN_USERNAME"
   type  = "String"

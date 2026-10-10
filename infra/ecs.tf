@@ -185,10 +185,11 @@ resource "aws_ecs_task_definition" "mcp" {
       { name = "MCP_PORT", value = "4100" },
       { name = "API_BASE_URL", value = "https://${var.api_domain}" },
     ]
+    # The MCP server acts as its own agent (scoped token, shown in article
+    # history as agent:<name>), never with the admin's password.
     secrets = [
       { name = "MCP_TOKEN", valueFrom = aws_ssm_parameter.mcp_token.arn },
-      { name = "ADMIN_USERNAME", valueFrom = aws_ssm_parameter.admin_username.arn },
-      { name = "ADMIN_PASSWORD", valueFrom = aws_ssm_parameter.admin_password.arn },
+      { name = "GWJ_API_TOKEN", valueFrom = aws_ssm_parameter.mcp_api_token.arn },
     ]
     logConfiguration = {
       logDriver = "awslogs"
