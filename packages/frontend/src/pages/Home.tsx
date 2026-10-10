@@ -25,7 +25,11 @@ const HOME_REFETCH_MS = 3 * 60_000;
 function useHomeArticles(lang: Language) {
   return useQuery({
     queryKey: ['articles', 'home', lang],
-    queryFn: ({ signal }) => getArticles({ language: lang, limit: 50 }, signal),
+    // 'latest' (date order), not the API's default 'editorial' (featured first):
+    // the default let old, highly-featured seed articles dominate the fetched
+    // page, especially in English (169 articles total, most of them old seed
+    // data) — isFresh/sortForHome below can't surface what was never fetched.
+    queryFn: ({ signal }) => getArticles({ language: lang, limit: 50, sort: 'latest' }, signal),
     refetchInterval: HOME_REFETCH_MS,
   });
 }
