@@ -14,6 +14,7 @@ import '@fontsource/pt-serif/700-italic.css';
 import { App } from './App';
 import { queryClient } from './lib/queryClient';
 import { readServerArticle } from './lib/serverData';
+import { installStaleReleaseRecovery } from './lib/staleRelease';
 import './index.css';
 
 // An article page arrives with the article already in it (see serverData): seed
@@ -22,6 +23,10 @@ const serverArticle = readServerArticle(document);
 if (serverArticle) {
   queryClient.setQueryData(['article', serverArticle.slug], serverArticle);
 }
+
+// A tab left open across a deploy reloads onto the new release instead of
+// failing to load the next page's code.
+installStaleReleaseRecovery();
 
 const container = document.getElementById('root');
 if (!container) {
