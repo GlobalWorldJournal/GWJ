@@ -237,6 +237,56 @@ describe('worker locale parsing', () => {
     expect(await res.text()).toContain('<meta name="robots" content="noindex" />');
   });
 
+  it('an article declares its published editions as hreflang alternates (x-default: English)', async () => {
+    const env = makeEnv();
+    const article = apiArticle({
+      slug: 'hola-mundo',
+      title: 'Hola Mundo',
+      language: 'es',
+      translations: [
+        { id: 'b'.repeat(24), language: 'en', slug: 'hello-world', status: 'published' },
+        { id: 'c'.repeat(24), language: 'fr', slug: 'bonjour', status: 'draft' },
+      ],
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(article))));
+
+    const html = await (await get('/es/article/hola-mundo', env)).text();
+    expect(html).toContain(`hreflang="es" href="${SITE}/es/article/hola-mundo"`);
+    expect(html).toContain(`hreflang="en" href="${SITE}/article/hello-world"`);
+    expect(html).toContain(`hreflang="x-default" href="${SITE}/article/hello-world"`);
+    // A draft edition is not an alternate.
+    expect(html).not.toContain('hreflang="fr"');
+  });
+
+  it('article JSON-LD carries a breadcrumb and the published corrections', async () => {
+    const env = makeEnv();
+    const article = apiArticle({
+      slug: 'vote',
+      title: 'Vote set for Wednesday',
+      category: 'Politics',
+      corrections: [
+        { at: '2026-06-24T10:00:00.000Z', text: 'An earlier version misstated the day.' },
+      ],
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(article))));
+
+    const html = await (await get('/article/vote', env)).text();
+    expect(html).toContain('"@type":"BreadcrumbList"');
+    expect(html).toContain(`"item":"${SITE}/politics"`);
+    expect(html).toContain(
+      '"correction":[{"@type":"CorrectionComment","text":"An earlier version misstated the day.","datePublished":"2026-06-24T10:00:00.000Z"}]',
+    );
+  });
+
+  it('section and writer pages are titled in the edition language, writers by name', async () => {
+    expect(await (await get('/es/world')).text()).toContain(
+      '<title>Mundo — The Global World Journal</title>',
+    );
+    expect(await (await get('/author/eleanor-vance')).text()).toContain(
+      '<title>Eleanor Vance, Senior Markets Correspondent — The Global World Journal</title>',
+    );
+  });
+
   it('pages allow large image previews; search results are never indexed', async () => {
     expect(await (await get('/')).text()).toContain(
       '<meta name="robots" content="max-image-preview:large" />',

@@ -14,6 +14,7 @@ import {
   CATEGORIES,
   categorySlug,
   DEFAULT_LANGUAGE,
+  findWriterBySlug,
   isLanguage,
   LANGUAGE_LOCALES,
   localePrefix,
@@ -23,10 +24,13 @@ import {
   SUPPORTED_LANGUAGES,
   TELEGRAM_CHANNEL_URL,
   WRITERS,
+  type Category,
   type Language,
   type PaginatedPublicArticles,
   type PublicArticle,
 } from '@gwj/shared-types';
+import { categoryLabel } from '../lib/dictionary';
+import { fetchJson } from './edgeCache';
 import { escapeHtml, firstParagraphText, markdownToHtml } from './markdown';
 
 const SITE_NAME = 'The Global World Journal';
@@ -105,14 +109,35 @@ function indexHreflangLinks(siteUrl: string, relPath: string): string {
 }
 
 /**
- * hreflang alternates for an ARTICLE page. An article is a SINGLE language, so
- * we declare only its own language (self) plus x-default — both pointing at the
- * article's own canonical (language-prefixed) URL.
+ * hreflang alternates for an ARTICLE page: the article itself plus every
+ * PUBLISHED edition of the same story (linked translations), each at its own
+ * canonical URL. x-default is the English edition when the story has one,
+ * otherwise the article itself. An untranslated story declares only itself.
  */
-function articleHreflangLinks(canonicalUrl: string, lang: Language): string {
+function articleHreflangLinks(siteUrl: string, article: PublicArticle): string {
+  const editions = [
+    { language: article.language, slug: article.slug },
+    ...(article.translations ?? [])
+      .filter((t) => t.status === 'published')
+      .map((t) => ({ language: t.language, slug: t.slug })),
+  ];
+  const url = (e: { language: Language; slug: string }) =>
+    editionUrl(siteUrl, e.language, `/article/${e.slug}`);
+  const fallback = editions.find((e) => e.language === DEFAULT_LANGUAGE) ?? editions[0];
+  const links = editions.map(
+    (e) => `<link rel="alternate" hreflang="${e.language}" href="${escapeHtml(url(e))}" />`,
+  );
+  if (fallback) {
+    links.push(`<link rel="alternate" hreflang="x-default" href="${escapeHtml(url(fallback))}" />`);
+  }
+  return links.join('\n    ');
+}
+
+/** hreflang for a URL with no article behind it (an unknown article): itself only. */
+function selfHreflangLinks(url: string, lang: Language): string {
   return [
-    `<link rel="alternate" hreflang="${lang}" href="${escapeHtml(canonicalUrl)}" />`,
-    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(canonicalUrl)}" />`,
+    `<link rel="alternate" hreflang="${lang}" href="${escapeHtml(url)}" />`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}" />`,
   ].join('\n    ');
 }
 
@@ -129,18 +154,6 @@ function escapeXml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
-}
-
-/** GET a JSON document; null on any network/HTTP failure (the page still renders). */
-async function fetchJson(url: string, signal: AbortSignal): Promise<unknown> {
-  try {
-    const response = await fetch(url, { signal, headers: { accept: 'application/json' } });
-    if (!response.ok) return null;
-    return await response.json();
-  } catch {
-    // An unreachable API degrades to the generic shell, never to an error page.
-    return null;
-  }
 }
 
 async function fetchArticle(config: Config, slug: string, signal: AbortSignal) {
@@ -314,7 +327,38 @@ function newsArticleJsonLd(
   if (article.publishedAt) jsonLd.datePublished = article.publishedAt;
   jsonLd.dateModified = article.updatedAt;
   if (image) jsonLd.image = [image];
+  // Published corrections, as schema.org asks news publishers to mark them.
+  const corrections = article.corrections ?? [];
+  if (corrections.length > 0) {
+    jsonLd.correction = corrections.map((c) => ({
+      '@type': 'CorrectionComment',
+      text: c.text,
+      datePublished: c.at,
+    }));
+  }
   return jsonLd;
+}
+
+/** Home › Section › Story, in the article's own edition. */
+function breadcrumbJsonLd(article: PublicArticle, url: string, siteUrl: string): JsonLd {
+  const lang = article.language;
+  const crumbs = [
+    { name: SITE_NAME, item: editionUrl(siteUrl, lang, '/') },
+    {
+      name: categoryLabel(article.category, lang),
+      item: editionUrl(siteUrl, lang, `/${categorySlug(article.category)}`),
+    },
+    { name: article.title, item: url },
+  ];
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: crumbs.map((crumb, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      ...crumb,
+    })),
+  };
 }
 
 /** Server-rendered article markup injected into #root so crawlers get the full text. */
@@ -424,7 +468,7 @@ async function handleArticle(
       type: 'website',
       jsonLd: websiteJsonLd(config.siteUrl),
       lang: reqLang,
-      hreflang: articleHreflangLinks(url, reqLang),
+      hreflang: selfHreflangLinks(url, reqLang),
       robots: 'noindex',
     });
     return withHtmlBody(shell, injectHead(html, metaTags, reqLang), 404);
@@ -456,10 +500,13 @@ async function handleArticle(
     url: canonical,
     image,
     type: 'article',
-    jsonLd: newsArticleJsonLd(article, canonical, image, config.siteUrl),
+    jsonLd: [
+      newsArticleJsonLd(article, canonical, image, config.siteUrl),
+      breadcrumbJsonLd(article, canonical, config.siteUrl),
+    ],
     extraMeta,
     lang,
-    hreflang: articleHreflangLinks(canonical, lang),
+    hreflang: articleHreflangLinks(config.siteUrl, article),
     preloadImage: image,
   });
   // Server-render the article text into #root so crawlers (and Google News) get
@@ -470,8 +517,15 @@ async function handleArticle(
   );
 }
 
-function handleCategory(env: Env, request: Request, config: Config, slug: string, lang: Language) {
-  const name = slug.charAt(0).toUpperCase() + slug.slice(1);
+function handleCategory(
+  env: Env,
+  request: Request,
+  config: Config,
+  category: Category,
+  lang: Language,
+) {
+  const name = categoryLabel(category, lang);
+  const slug = categorySlug(category);
   return renderIndexPage(
     env,
     request,
@@ -488,12 +542,15 @@ function handleCategory(env: Env, request: Request, config: Config, slug: string
 }
 
 function handleAuthor(env: Env, request: Request, config: Config, slug: string, lang: Language) {
+  const writer = findWriterBySlug(slug);
   return renderIndexPage(
     env,
     request,
     {
-      title: `${SITE_NAME} — Author`,
-      description: `Stories by this writer for ${SITE_NAME}.`,
+      title: writer ? `${writer.name}, ${writer.title} — ${SITE_NAME}` : `${SITE_NAME} — Author`,
+      description: writer
+        ? `Stories by ${writer.name}, ${writer.title} at ${SITE_NAME}, covering ${writer.beats.join(', ')}.`
+        : `Stories by this writer for ${SITE_NAME}.`,
       url: editionUrl(config.siteUrl, lang, `/author/${slug}`),
       jsonLd: websiteJsonLd(config.siteUrl),
       lang,
@@ -782,8 +839,9 @@ export default {
     const section = /^\/([^/]+)\/?$/.exec(rest)?.[1];
     if (section) {
       const slug = decodeURIComponent(section).toLowerCase();
-      if (CATEGORY_SLUGS.includes(slug)) {
-        return handleCategory(env, request, config, slug, lang);
+      const category = CATEGORIES.find((c) => categorySlug(c) === slug);
+      if (category) {
+        return handleCategory(env, request, config, category, lang);
       }
     }
 
