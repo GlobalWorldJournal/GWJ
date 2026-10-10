@@ -1,17 +1,29 @@
 import { and, count, desc, eq, gt, ne, sql, type SQL } from 'drizzle-orm';
-import type { Article, HeroImage, Seo, Source, TranslationRef } from '@gwj/shared-types';
+import {
+  SUPPORTED_LANGUAGES,
+  type Article,
+  type HeroImage,
+  type Language,
+  type Seo,
+  type Source,
+  type TranslationRef,
+} from '@gwj/shared-types';
 import { getDb, type Database } from '../client';
-import { articles, type ArticleRow, type NewArticleRow } from '../schema/articles';
+import {
+  articles,
+  TEXT_SEARCH_CONFIG,
+  type ArticleRow,
+  type NewArticleRow,
+} from '../schema/articles';
 import { articleSlugHistory } from '../schema/articleSlugHistory';
 
 /** A transaction handle or the pool — every function here accepts either. */
 export type Executor = Pick<Database, 'select' | 'insert' | 'update' | 'delete'>;
 
-/**
- * The text-search configuration QUERIES are parsed with: the Mongo text index's
- * `default_language`. (Each row's vector uses its own language; see the schema.)
- */
-const QUERY_TS_CONFIG = sql.raw(`'english'::regconfig`);
+/** A query is parsed with the configuration its target rows were stemmed with. */
+function queryTsConfig(language: Language): SQL {
+  return sql.raw(`'${TEXT_SEARCH_CONFIG[language]}'::regconfig`);
+}
 
 /** Map a row to the public DTO. Absent optional values are OMITTED, as before. */
 export function rowToArticle(row: ArticleRow): Article {
@@ -93,16 +105,19 @@ function combine(parts: SQL[], operator: '||' | '&&'): SQL | null {
   return sql`(${sql.join(parts, sql.raw(` ${operator} `))})`;
 }
 
-/** The filter tsquery and the ranking tsquery for a search, or null when nothing can match. */
-function searchQueries(q: string): { filter: SQL; rank: SQL } | null {
+/**
+ * The filter and ranking tsqueries for a search over ONE edition's rows, parsed
+ * with that edition's configuration, or null when nothing can match.
+ */
+function editionSearch(q: string, config: SQL): { filter: SQL; rank: SQL } | null {
   const parsed = parseSearch(q);
-  const termQueries = parsed.terms.map((t) => sql`plainto_tsquery(${QUERY_TS_CONFIG}, ${t})`);
-  const phraseQueries = parsed.phrases.map((p) => sql`phraseto_tsquery(${QUERY_TS_CONFIG}, ${p})`);
+  const termQueries = parsed.terms.map((t) => sql`plainto_tsquery(${config}, ${t})`);
+  const phraseQueries = parsed.phrases.map((p) => sql`phraseto_tsquery(${config}, ${p})`);
   const positive =
     phraseQueries.length > 0 ? combine(phraseQueries, '&&') : combine(termQueries, '||');
   if (!positive) return null;
   const excluded = combine(
-    parsed.excluded.map((t) => sql`!!plainto_tsquery(${QUERY_TS_CONFIG}, ${t})`),
+    parsed.excluded.map((t) => sql`!!plainto_tsquery(${config}, ${t})`),
     '&&',
   );
   const rank = combine([...termQueries, ...phraseQueries], '||') ?? positive;
@@ -114,13 +129,43 @@ function searchQueries(q: string): { filter: SQL; rank: SQL } | null {
   return { filter, rank };
 }
 
+/**
+ * A search across the requested edition — or, with none, across every edition,
+ * each branch parsing the query in its own language so stemming matches (an
+ * inflected Spanish word finds the Spanish article). Each branch is a constant
+ * tsquery against its own rows, so the GIN index serves every branch.
+ */
+function searchQueries(q: string, language?: Language): { filter: SQL; rank: SQL } | null {
+  const branches = (language ? [language] : SUPPORTED_LANGUAGES).flatMap((edition) => {
+    const search = editionSearch(q, queryTsConfig(edition));
+    return search ? [{ edition, search }] : [];
+  });
+  if (branches.length === 0) return null;
+  const filter = sql`(${sql.join(
+    branches.map(
+      ({ edition, search }) => sql`(${articles.language} = ${edition} and ${search.filter})`,
+    ),
+    sql` or `,
+  )})`;
+  const rank = sql`(case ${articles.language} ${sql.join(
+    branches.map(
+      ({ edition, search }) =>
+        sql`when ${edition} then ts_rank(${articles.searchVector}, ${search.rank})`,
+    ),
+    sql` `,
+  )} else 0 end)`;
+  return { filter, rank };
+}
+
 export interface ArticleFilter {
   status?: Article['status'];
   category?: Article['category'];
   language?: Article['language'];
   featuredOnly?: boolean;
   author?: string;
-  /** Free-text search over title + deck. */
+  /** Articles carrying this exact tag. */
+  tag?: string;
+  /** Free-text search over headline, deck and body. */
   q?: string;
 }
 
@@ -147,17 +192,16 @@ export async function listArticles(
   if (filter.language) conditions.push(eq(articles.language, filter.language));
   if (filter.featuredOnly) conditions.push(gt(articles.featured, 0));
   if (filter.author !== undefined) conditions.push(eq(articles.author, filter.author));
+  if (filter.tag !== undefined)
+    conditions.push(sql`${articles.tags} @> array[${filter.tag}]::text[]`);
 
-  const search = filter.q ? searchQueries(filter.q) : null;
+  const search = filter.q ? searchQueries(filter.q, filter.language) : null;
   if (filter.q && !search) return { rows: [], total: 0 };
   if (search) conditions.push(search.filter);
   const where = and(...conditions);
 
   const order: SQL[] = search
-    ? [
-        sql`ts_rank(${articles.searchVector}, ${search.rank}) desc`,
-        sql`${articles.publishedAt} desc nulls last`,
-      ]
+    ? [sql`${search.rank} desc`, sql`${articles.publishedAt} desc nulls last`]
     : [
         desc(articles.featured),
         sql`${articles.publishedAt} desc nulls last`,

@@ -190,7 +190,7 @@ describe('search vector', () => {
     expect(byId.get(en)).not.toContain("'the'");
   });
 
-  it('covers title and deck but not body (the Mongo text index fields)', async () => {
+  it('covers headline (weight A), deck (B) and body (C)', async () => {
     const id = newRecordId();
     await getDb()
       .insert(articles)
@@ -198,8 +198,8 @@ describe('search vector', () => {
     const [row] = await getDb().execute<{ v: string }>(
       sql`select search_vector::text as v from articles where id = ${id}`,
     );
-    expect(row?.v).toContain("'alpha'");
-    expect(row?.v).toContain("'bravo'");
-    expect(row?.v).not.toContain('charli');
+    // Positions run on across the concatenated parts; each lexeme carries its
+    // part's weight letter (only the default weight, D, is printed without one).
+    expect(row?.v).toBe("'alpha':1A 'bravo':2B 'charli':3C");
   });
 });

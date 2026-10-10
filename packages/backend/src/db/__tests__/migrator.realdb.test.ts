@@ -48,7 +48,7 @@ describe('runMigrations against a real server', () => {
     const result = await runMigrations({
       databaseUrl: target.url,
       migrationsFolder: MIGRATIONS_FOLDER,
-      run: 'pre',
+      run: 'all',
       expectedDatabase: target.name,
       dryRun: true,
       logger: silent,

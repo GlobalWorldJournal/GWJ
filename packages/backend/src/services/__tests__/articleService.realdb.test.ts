@@ -280,11 +280,14 @@ describe('articleService.search — Mongo $text semantics on tsvector', () => {
     ]);
   });
 
-  it('searches title and deck only, never body', async () => {
+  it('searches the body too, ranking a deck match above a body-only match', async () => {
     const byDeck = await published('Headline', 'Inflation cools');
-    await published('Other', undefined, { body: 'Inflation is mentioned only in the body.' });
+    const byBody = await published('Other', undefined, {
+      body: 'Inflation is mentioned only in the body.',
+    });
     expect((await articleService.search('inflation', baseQuery())).data.map((a) => a.id)).toEqual([
       byDeck,
+      byBody,
     ]);
   });
 
@@ -479,5 +482,57 @@ describe('articleService — linked translations', () => {
       status: 409,
     });
     expect((await articleService.update(es.id, { language: 'fr' })).language).toBe('fr');
+  });
+});
+
+describe('articleService.search — body, weights, editions and filters', () => {
+  const published = (overrides: Partial<ArticleInput>) =>
+    articleService.create(baseInput({ status: 'published', ...overrides }));
+
+  it('finds a word that appears only in the body, ranking headline matches first', async () => {
+    const bodyOnly = await published({
+      title: 'Quarterly results',
+      body: 'Margins improved on semiconductor demand.',
+    });
+    const headline = await published({
+      title: 'Semiconductor shortage eases',
+      body: 'Supply chains recovered.',
+    });
+    const result = await articleService.search('semiconductor', baseQuery());
+    expect(result.data.map((a) => a.id)).toEqual([headline.id, bodyOnly.id]);
+  });
+
+  it('parses the query in each edition’s language, with or without a language filter', async () => {
+    const es = await published({ title: 'Los precios subieron en septiembre', language: 'es' });
+    // Only the Spanish stemmer reduces both "subir" and "subieron" to the same lexeme.
+    expect(
+      (await articleService.search('subir', baseQuery({ language: 'es' }))).data.map((a) => a.id),
+    ).toEqual([es.id]);
+    expect((await articleService.search('subir', baseQuery())).data.map((a) => a.id)).toEqual([
+      es.id,
+    ]);
+    expect(
+      (await articleService.list(baseQuery({ q: 'subir' }), { includeAll: true })).data.map(
+        (a) => a.id,
+      ),
+    ).toEqual([es.id]);
+  });
+
+  it('filters listings and searches by exact tag and author', async () => {
+    const tagged = await published({
+      title: 'NATO summit opens',
+      tags: ['NATO', 'Ukraine'],
+      author: 'Harper Reyes',
+    });
+    await published({ title: 'NATO budget talks', tags: ['Budget'], author: 'Sofia Marchetti' });
+    expect(
+      (await articleService.list(baseQuery({ tag: 'Ukraine' }))).data.map((a) => a.id),
+    ).toEqual([tagged.id]);
+    expect(
+      (await articleService.list(baseQuery({ author: 'Harper Reyes' }))).data.map((a) => a.id),
+    ).toEqual([tagged.id]);
+    expect(
+      (await articleService.search('nato', baseQuery({ tag: 'NATO' }))).data.map((a) => a.id),
+    ).toEqual([tagged.id]);
   });
 });

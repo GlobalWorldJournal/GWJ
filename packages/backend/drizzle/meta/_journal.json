@@ -43,6 +43,13 @@
       "when": 1791655235862,
       "tag": "0005_translation_groups_not_null",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791655278601,
+      "tag": "0006_search_body_and_feed_indexes",
+      "breakpoints": true
     }
   ]
 }

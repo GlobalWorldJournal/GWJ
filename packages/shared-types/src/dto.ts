@@ -31,6 +31,10 @@ export const ArticleListQuerySchema = z.object({
   language: LanguageSchema.optional(),
   featured: QueryBooleanSchema.optional(),
   status: ArticleStatusSchema.optional(),
+  /** Only articles carrying this exact tag. */
+  tag: z.string().trim().min(1).optional(),
+  /** Only articles by this exact byline (see list_writers for the roster). */
+  author: z.string().trim().min(1).optional(),
   q: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
