@@ -115,6 +115,11 @@ async function publishArticle(overrides: Partial<ArticleInput> = {}): Promise<Ar
 }
 
 /** Let queued microtasks (the registry's best-effort fan-out) settle. */
+/**
+ * Give fire-and-forget work a moment before asserting that something did NOT
+ * happen. A positive expectation never uses this: it waits for its condition
+ * with `vi.waitFor`, so a slow machine cannot make it flaky.
+ */
 async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 20));
 }
@@ -142,9 +147,7 @@ describe('channel registry routing', () => {
     const stop = startChannelPublishing([enabledAll, disabled]);
 
     await publishArticle({ language: 'en' });
-    await flush();
-
-    expect(enabledAll.calls).toHaveLength(1);
+    await vi.waitFor(() => expect(enabledAll.calls).toHaveLength(1));
     expect(enabledAll.calls[0]?.language).toBe('en');
     expect(disabled.calls).toHaveLength(0);
     stop();
@@ -158,11 +161,11 @@ describe('channel registry routing', () => {
 
     await publishArticle({ title: 'English Story', language: 'en' });
     await publishArticle({ title: 'Spanish Story', language: 'es' });
-    await flush();
-
-    expect(enOnly.calls.map((a) => a.title)).toEqual(['English Story']);
-    expect(esOnly.calls.map((a) => a.title)).toEqual(['Spanish Story']);
-    expect(all.calls.map((a) => a.title).sort()).toEqual(['English Story', 'Spanish Story']);
+    await vi.waitFor(() => {
+      expect(enOnly.calls.map((a) => a.title)).toEqual(['English Story']);
+      expect(esOnly.calls.map((a) => a.title)).toEqual(['Spanish Story']);
+      expect(all.calls.map((a) => a.title).sort()).toEqual(['English Story', 'Spanish Story']);
+    });
     stop();
   });
 
@@ -172,10 +175,10 @@ describe('channel registry routing', () => {
     const stop = startChannelPublishing([boom, ok]);
 
     await publishArticle({ title: 'Resilient Story' });
-    await flush();
-
-    expect(boom.calls).toHaveLength(1);
-    expect(ok.calls).toHaveLength(1);
+    await vi.waitFor(() => {
+      expect(boom.calls).toHaveLength(1);
+      expect(ok.calls).toHaveLength(1);
+    });
     expect(ok.calls[0]?.title).toBe('Resilient Story');
     stop();
   });
@@ -198,14 +201,14 @@ describe('channel retraction (unpublish / delete)', () => {
     const stop = startChannelPublishing([ch]);
 
     const article = await publishArticle({ title: 'To Be Unpublished' });
-    await flush();
-    expect(await channelPostsFor(article.id)).toHaveLength(1);
+    await vi.waitFor(async () => expect(await channelPostsFor(article.id)).toHaveLength(1));
 
     await articleService.unpublish(article.id);
-    await flush();
 
-    expect(ch.retracted).toEqual([{ messageId: 42 }]);
-    expect(await channelPostsFor(article.id)).toHaveLength(0);
+    await vi.waitFor(async () => {
+      expect(ch.retracted).toEqual([{ messageId: 42 }]);
+      expect(await channelPostsFor(article.id)).toHaveLength(0);
+    });
     stop();
   });
 
@@ -214,12 +217,11 @@ describe('channel retraction (unpublish / delete)', () => {
     const stop = startChannelPublishing([ch]);
 
     const article = await publishArticle({ title: 'To Be Deleted' });
-    await flush();
+    await vi.waitFor(async () => expect(await channelPostsFor(article.id)).toHaveLength(1));
 
     await articleService.remove(article.id);
-    await flush();
 
-    expect(ch.retracted).toEqual([{ messageId: 7 }]);
+    await vi.waitFor(() => expect(ch.retracted).toEqual([{ messageId: 7 }]));
     stop();
   });
 
@@ -266,14 +268,14 @@ describe('channel retraction (unpublish / delete)', () => {
     const stop = startChannelPublishing([boom, ok]);
 
     const article = await publishArticle({ title: 'Partial Retract Failure' });
-    await flush();
-    expect(await channelPostsFor(article.id)).toHaveLength(2);
+    await vi.waitFor(async () => expect(await channelPostsFor(article.id)).toHaveLength(2));
 
     await articleService.unpublish(article.id);
-    await flush();
 
-    expect(ok.retracted).toEqual([{ messageId: 2 }]);
-    expect(await channelPostsFor(article.id)).toHaveLength(0);
+    await vi.waitFor(async () => {
+      expect(ok.retracted).toEqual([{ messageId: 2 }]);
+      expect(await channelPostsFor(article.id)).toHaveLength(0);
+    });
     stop();
   });
 });
@@ -456,14 +458,15 @@ describe('telegram channel — language routing through the registry', () => {
 
     await publishArticle({ title: 'English Story', language: 'en' });
     await publishArticle({ title: 'Spanish Story', language: 'es' });
-    await flush();
 
-    // Exactly one Telegram send — for the English article only.
-    const telegramCalls = fetchSpy.mock.calls.filter(([url]) =>
-      String(url).startsWith('https://api.telegram.org/'),
-    );
-    expect(telegramCalls).toHaveLength(1);
-    const init = telegramCalls[0]?.[1] as RequestInit | undefined;
+    // Exactly one Telegram send — for the English article only. Wait for it, then
+    // give the Spanish one (which must NOT send) the same chance to show up.
+    const telegramCalls = () =>
+      fetchSpy.mock.calls.filter(([url]) => String(url).startsWith('https://api.telegram.org/'));
+    await vi.waitFor(() => expect(telegramCalls()).toHaveLength(1));
+    await flush();
+    expect(telegramCalls()).toHaveLength(1);
+    const init = telegramCalls()[0]?.[1] as RequestInit | undefined;
     const body = JSON.parse(String(init?.body));
     expect(body.caption ?? body.text).toContain('<b>English Story</b>');
     expect(body.caption ?? body.text).toContain(
