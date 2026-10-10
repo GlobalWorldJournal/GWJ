@@ -217,7 +217,9 @@ function organizationJsonLd(siteUrl) {
     name: SITE_NAME,
     url: `${siteUrl}/`,
     logo: { '@type': 'ImageObject', url: `${siteUrl}/favicon.svg` },
-    sameAs: [],
+    // The paper's profiles (TELEGRAM_CHANNEL_URL / MENTION_PROFILE_URL in
+    // @gwj/shared-types; this worker is plain JS and cannot import it).
+    sameAs: ['https://t.me/GWJOfficial', 'https://mention.earth/@gwj'],
   };
 }
 

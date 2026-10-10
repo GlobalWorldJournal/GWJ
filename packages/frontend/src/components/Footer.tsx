@@ -1,7 +1,13 @@
-import { CATEGORIES, categorySlug } from '@gwj/shared-types';
+import {
+  CATEGORIES,
+  categorySlug,
+  MENTION_PROFILE_URL,
+  TELEGRAM_CHANNEL_URL,
+} from '@gwj/shared-types';
 import { useLang } from '../lib/i18n';
 import { LocaleLink } from '../lib/locale';
 import { categoryLabel } from '../lib/dictionary';
+import { MentionIcon, TelegramIcon } from './SocialIcons';
 
 /** A footer link whose visible label comes from a dictionary key. */
 interface FooterLink {
@@ -58,6 +64,12 @@ const COLUMNS: FooterColumn[] = [
   },
 ];
 
+/** The paper's profiles, shown as icons; `labelKey` names each for screen readers. */
+const SOCIAL_LINKS = [
+  { href: TELEGRAM_CHANNEL_URL, labelKey: 'onTelegram', Icon: TelegramIcon },
+  { href: MENTION_PROFILE_URL, labelKey: 'onMention', Icon: MentionIcon },
+] as const;
+
 const FOOTER_LINK_CLASS =
   'font-body text-[0.85rem] text-ink-soft transition-colors hover:text-accent';
 
@@ -101,12 +113,30 @@ export function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col gap-2 border-t border-rule pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <LocaleLink
-            to="/"
-            className="headline text-2xl text-ink transition-colors hover:text-accent"
-          >
-            The Global World Journal
-          </LocaleLink>
+          <div className="flex items-center gap-5">
+            <LocaleLink
+              to="/"
+              className="headline text-2xl text-ink transition-colors hover:text-accent"
+            >
+              The Global World Journal
+            </LocaleLink>
+            <ul className="flex items-center gap-3">
+              {SOCIAL_LINKS.map(({ href, labelKey, Icon }) => (
+                <li key={href}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={t(labelKey)}
+                    title={t(labelKey)}
+                    className="block text-ink-soft transition-colors hover:text-accent"
+                  >
+                    <Icon className="h-5 w-5" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
           <p className="label text-[0.625rem] text-muted">
             &copy; {new Date().getFullYear()} The Global World Journal. All Rights Reserved.
           </p>

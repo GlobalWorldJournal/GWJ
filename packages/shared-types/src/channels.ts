@@ -7,3 +7,6 @@
  */
 export const TELEGRAM_CHANNEL_HANDLE = '@GWJOfficial';
 export const TELEGRAM_CHANNEL_URL = 'https://t.me/GWJOfficial';
+/** The paper's profile on Mention. */
+export const MENTION_HANDLE = '@gwj';
+export const MENTION_PROFILE_URL = 'https://mention.earth/@gwj';
