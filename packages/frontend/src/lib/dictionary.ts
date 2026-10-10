@@ -10,6 +10,12 @@ import type { Category, Language } from '@gwj/shared-types';
  */
 export const DICT: Record<Language, Record<string, string>> = {
   en: {
+    notFoundTitle: 'Page not found',
+    notFoundDetail: 'The story you’re looking for may have moved or been removed.',
+    backToFrontPage: 'Return to the front page',
+    errorTitle: 'Something went wrong',
+    errorDetail: 'This page could not be displayed. Please try again.',
+    reloadPage: 'Reload the page',
     search: 'Search',
     loadMore: 'Load more',
     loadingMore: 'Loading…',
@@ -80,6 +86,12 @@ export const DICT: Record<Language, Record<string, string>> = {
     accessibility: 'Accessibility',
   },
   es: {
+    notFoundTitle: 'Página no encontrada',
+    notFoundDetail: 'La noticia que busca puede haberse movido o eliminado.',
+    backToFrontPage: 'Volver a la portada',
+    errorTitle: 'Algo salió mal',
+    errorDetail: 'No se pudo mostrar esta página. Inténtelo de nuevo.',
+    reloadPage: 'Recargar la página',
     search: 'Buscar',
     loadMore: 'Cargar más',
     loadingMore: 'Cargando…',
@@ -147,6 +159,12 @@ export const DICT: Record<Language, Record<string, string>> = {
     accessibility: 'Accesibilidad',
   },
   fr: {
+    notFoundTitle: 'Page introuvable',
+    notFoundDetail: 'L’article que vous cherchez a peut-être été déplacé ou supprimé.',
+    backToFrontPage: 'Retour à la une',
+    errorTitle: 'Une erreur est survenue',
+    errorDetail: 'Cette page n’a pas pu s’afficher. Veuillez réessayer.',
+    reloadPage: 'Recharger la page',
     search: 'Rechercher',
     loadMore: 'Afficher plus',
     loadingMore: 'Chargement…',

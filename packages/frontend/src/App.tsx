@@ -1,9 +1,17 @@
-import { Suspense, lazy, useEffect, type ReactElement, type ReactNode } from 'react';
-import { BrowserRouter, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { Suspense, lazy, type ReactElement, type ReactNode } from 'react';
+import {
+  Outlet,
+  Route,
+  RouterProvider,
+  ScrollRestoration,
+  createBrowserRouter,
+  createRoutesFromElements,
+} from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { LanguageProvider } from './lib/i18n';
 import { PREFIXED_LOCALES } from './lib/locale';
+import { RootRouteError, RouteError } from './components/RouteError';
 import { SiteLayout } from './components/SiteLayout';
 import { ArticleSkeleton, ListSkeleton } from './components/Skeletons';
 import { Home } from './pages/Home';
@@ -98,66 +106,61 @@ const STATIC_PAGES: { path: string; element: ReactElement }[] = [
 function publicRoutes(): ReactNode {
   return (
     <Route element={<SiteLayout />}>
-      <Route index element={<Home />} />
-      <Route
-        path="article/:slug"
-        element={
-          <Suspense fallback={<ArticleSkeleton />}>
-            <ArticlePage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="author/:slug"
-        element={
-          <Suspense fallback={<ListSkeleton />}>
-            <AuthorPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="tag/:tag"
-        element={
-          <Suspense fallback={<ListSkeleton />}>
-            <TagPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="search"
-        element={
-          <Suspense fallback={<ListSkeleton />}>
-            <Search />
-          </Suspense>
-        }
-      />
-      {STATIC_PAGES.map((p) => (
+      {/* A page that fails renders its error inside the layout: the masthead,
+          navigation and footer stay usable. */}
+      <Route errorElement={<RouteError />}>
+        <Route index element={<Home />} />
         <Route
-          key={p.path}
-          path={p.path}
-          element={<Suspense fallback={<ListSkeleton />}>{p.element}</Suspense>}
+          path="article/:slug"
+          element={
+            <Suspense fallback={<ArticleSkeleton />}>
+              <ArticlePage />
+            </Suspense>
+          }
         />
-      ))}
-      <Route
-        path=":category"
-        element={
-          <Suspense fallback={<ListSkeleton />}>
-            <Category />
-          </Suspense>
-        }
-      />
-      <Route path="*" element={<NotFound />} />
+        <Route
+          path="author/:slug"
+          element={
+            <Suspense fallback={<ListSkeleton />}>
+              <AuthorPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="tag/:tag"
+          element={
+            <Suspense fallback={<ListSkeleton />}>
+              <TagPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="search"
+          element={
+            <Suspense fallback={<ListSkeleton />}>
+              <Search />
+            </Suspense>
+          }
+        />
+        {STATIC_PAGES.map((p) => (
+          <Route
+            key={p.path}
+            path={p.path}
+            element={<Suspense fallback={<ListSkeleton />}>{p.element}</Suspense>}
+          />
+        ))}
+        <Route
+          path=":category"
+          element={
+            <Suspense fallback={<ListSkeleton />}>
+              <Category />
+            </Suspense>
+          }
+        />
+        <Route path="*" element={<NotFound />} />
+      </Route>
     </Route>
   );
-}
-
-/** Reset scroll to the top on every route change (SPA navigations don't by default). */
-function ScrollToTop() {
-  const { pathname } = useLocation();
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
-  return null;
 }
 
 /** Provides the active edition to the public route tree below it. */
@@ -169,35 +172,52 @@ function Edition({ lang }: { lang?: Parameters<typeof LanguageProvider>[0]['lang
   );
 }
 
+/**
+ * The app shell inside the router: scroll position is restored on back/forward
+ * and starts at the top on a new page. Keyed by pathname, so changing only the
+ * query (a search, a filter) keeps the reader where they are.
+ */
+function Root() {
+  return (
+    <>
+      <ScrollRestoration getKey={(location) => location.pathname} />
+      <Outlet />
+    </>
+  );
+}
+
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route element={<Root />} errorElement={<RootRouteError />}>
+      <Route
+        path="/admin/*"
+        element={
+          <Suspense fallback={null}>
+            <AdminApp />
+          </Suspense>
+        }
+      />
+      {/* Prefixed editions (`/es`, `/fr`) — literal paths, declared before
+          the English root so they match ahead of the `:category` route.
+          An unknown locale-shaped segment (e.g. `/de`) falls through to the
+          English tree and 404s via the category resolver. */}
+      {PREFIXED_LOCALES.map((locale) => (
+        <Route key={locale} path={`/${locale}`} element={<Edition lang={locale} />}>
+          {publicRoutes()}
+        </Route>
+      ))}
+      {/* English edition at the site root (no prefix, canonical). */}
+      <Route path="/" element={<Edition />}>
+        {publicRoutes()}
+      </Route>
+    </Route>,
+  ),
+);
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <ScrollToTop />
-        <Routes>
-          <Route
-            path="/admin/*"
-            element={
-              <Suspense fallback={null}>
-                <AdminApp />
-              </Suspense>
-            }
-          />
-          {/* Prefixed editions (`/es`, `/fr`) — literal paths, declared before
-              the English root so they match ahead of the `:category` route.
-              An unknown locale-shaped segment (e.g. `/de`) falls through to the
-              English tree and 404s via the category resolver. */}
-          {PREFIXED_LOCALES.map((locale) => (
-            <Route key={locale} path={`/${locale}`} element={<Edition lang={locale} />}>
-              {publicRoutes()}
-            </Route>
-          ))}
-          {/* English edition at the site root (no prefix, canonical). */}
-          <Route path="/" element={<Edition />}>
-            {publicRoutes()}
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </QueryClientProvider>
   );
 }
