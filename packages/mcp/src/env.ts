@@ -20,6 +20,9 @@ const EnvSchema = z.object({
   ),
   ADMIN_USERNAME: requiredSecret('ADMIN_USERNAME'),
   ADMIN_PASSWORD: requiredSecret('ADMIN_PASSWORD'),
+  // The git SHA of the running release, stamped into the task definition by the
+  // deploy (absent locally). Reported by /healthz.
+  GWJ_RELEASE: z.string().trim().min(1).optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

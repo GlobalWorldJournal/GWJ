@@ -230,8 +230,8 @@ data "aws_iam_policy_document" "github_deploy" {
     ]
   }
 
-  # Database migrations run as one-shots from the backend's CURRENT task
-  # definition (scripts/ecs-oneshot.sh): start the task on the shared cluster,
+  # Database migrations run as one-shots from the backend's newly registered
+  # release (scripts/ecs-oneshot.sh): start the task on the shared cluster,
   # read the task definition's container/log names, wait for it, read its log.
   statement {
     sid       = "EcsMigrationOneShot"
@@ -251,6 +251,14 @@ data "aws_iam_policy_document" "github_deploy" {
   statement {
     sid       = "EcsDescribeTaskDefinition"
     actions   = ["ecs:DescribeTaskDefinition"]
+    resources = ["*"] # this action does not support resource-level permissions
+  }
+  # Each deploy registers a revision of the gwj-* families that runs the new image
+  # by digest (scripts/ecs-register-release.sh). It can only hand ECS the two GWJ
+  # task roles (PassGwjTaskRoles below).
+  statement {
+    sid       = "EcsRegisterRelease"
+    actions   = ["ecs:RegisterTaskDefinition"]
     resources = ["*"] # this action does not support resource-level permissions
   }
   statement {

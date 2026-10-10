@@ -1,0 +1,24 @@
+# Keeps the SHA-pinned actions, the dependencies and the base images current.
+# Grouped weekly so updates arrive as a few reviewable PRs, each gated by CI.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directories: [/packages/backend, /packages/mcp]
+    schedule:
+      interval: weekly

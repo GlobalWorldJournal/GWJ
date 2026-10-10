@@ -1,37 +1,31 @@
 name: Deploy AWS (backend + mcp)
 
-# Builds linux/arm64 images for the backend and MCP server, pushes to ECR, and
-# rolls the ECS services. For the backend the rollout is bracketed by PostgreSQL
-# migrations run as ECS one-shots from the NEW image (scripts/ecs-oneshot.sh):
+# Builds linux/arm64 images for the backend and MCP server, pushes them to ECR
+# and rolls the ECS services onto them. Called by CI (ci.yml) only after every
+# check passed on main; `workflow_dispatch` remains for operators.
+#
+# Every deploy registers a NEW task-definition revision that runs the image by
+# DIGEST (scripts/ecs-register-release.sh), so each revision is one immutable
+# release and the circuit breaker's rollback really returns to the previous one.
+# For the backend the rollout is bracketed by PostgreSQL migrations run as ECS
+# one-shots from the new revision (scripts/ecs-oneshot.sh):
 #
 #   1. `--phase=pre`  (additive)  BEFORE the rollout — the backend refuses to boot
 #                                 on a schema missing a pre migration
-#   2. rollout, wait until the service is stable
-#   3. `--phase=post` (drops/renames) once the new image is the only one serving
+#   2. rollout, wait until the service is stable, and PROVE the new release is
+#      the one serving (a rolled-back deploy is also "stable")
+#   3. `--phase=post` (drops/renames) once the new release is the only one serving
 #
 # App secrets are NOT synced from GitHub: /gwj/* SSM parameters are owned by
 # terraform (infra/ssm.tf) and the deploy role cannot write SSM.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'packages/backend/**'
-      - 'packages/mcp/**'
-      - 'packages/shared-types/**'
-      - '.github/workflows/deploy-aws.yml'
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   id-token: write   # for OIDC role assumption
   contents: read
-
-# The migrator takes no lock of its own: two overlapping deploys must queue, never
-# run migrations concurrently, and an in-flight one must never be cancelled
-# between its pre and post phases.
-concurrency:
-  group: deploy-aws
-  cancel-in-progress: false
 
 # GWJ runs in its own isolated gwj-* resources on the Oxy AWS account. These are
 # non-secret infrastructure identifiers (the OIDC role's trust policy — not this
@@ -46,37 +40,50 @@ env:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # The migrator takes no lock of its own: two overlapping deploys of a service
+    # must queue, never run migrations concurrently, and an in-flight one must
+    # never be cancelled between its pre and post phases.
+    concurrency:
+      group: deploy-aws-${{ matrix.app }}
+      cancel-in-progress: false
     strategy:
+      # A failure in one service must not cancel the other mid-rollout.
+      fail-fast: false
       matrix:
         include:
           - app: backend
             ecr: gwj-backend
             service: gwj-backend
+            healthz: https://api.globalworldjournal.com/healthz
           - app: mcp
             ecr: gwj-mcp
             service: gwj-mcp
+            healthz: https://mcp.globalworldjournal.com/healthz
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
         id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
 
       - name: Set up QEMU (for linux/arm64 build on the amd64 runner)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
+      # `:latest` is only the bootstrap image terraform's task definition names;
+      # services always run the release registered below, by digest.
       - name: Build and push (linux/arm64)
-        uses: docker/build-push-action@v6
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: packages/${{ matrix.app }}/Dockerfile
@@ -85,9 +92,19 @@ jobs:
           tags: |
             ${{ steps.ecr.outputs.registry }}/${{ matrix.ecr }}:${{ github.sha }}
             ${{ steps.ecr.outputs.registry }}/${{ matrix.ecr }}:latest
+          cache-from: type=gha,scope=image-${{ matrix.app }}
 
-      - name: Apply pre-deploy migrations (one-shot, new image)
+      - name: Register the release (image pinned by digest)
+        id: release
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ matrix.ecr }}@${{ steps.build.outputs.digest }}
+        run: |
+          echo "task-definition=$(scripts/ecs-register-release.sh "${{ matrix.service }}" "$IMAGE" "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
+      - name: Apply pre-deploy migrations (one-shot, new release)
         if: matrix.app == 'backend'
+        env:
+          TASK_DEFINITION: ${{ steps.release.outputs.task-definition }}
         run: |
           scripts/ecs-oneshot.sh "${{ matrix.service }}" "migrate-pre-${GITHUB_SHA::12}" -- \
             bun run src/db/migrate.ts --phase=pre "--target-database=$PG_DATABASE"
@@ -100,28 +117,35 @@ jobs:
       # forgotten variable cannot overwrite PostgreSQL writes. Deleted with Mongo.
       - name: Cutover — copy MongoDB into PostgreSQL and verify (one-shot)
         if: matrix.app == 'backend' && vars.GWJ_PG_CUTOVER == 'copy'
+        env:
+          TASK_DEFINITION: ${{ steps.release.outputs.task-definition }}
         run: |
           scripts/ecs-oneshot.sh "${{ matrix.service }}" "pg-cutover-${GITHUB_SHA::12}" -- \
             bun run /app/packages/mongo-migration/src/cli.ts copy \
             --source-database=gwj "--target-database=$PG_DATABASE"
 
-      - name: Force new ECS deployment
-        env:
-          ECS_SERVICE: ${{ matrix.service }}
+      - name: Roll out the release
         run: |
           aws ecs update-service \
             --cluster "$ECS_CLUSTER" \
-            --service "$ECS_SERVICE" \
-            --force-new-deployment \
+            --service "${{ matrix.service }}" \
+            --task-definition "${{ steps.release.outputs.task-definition }}" \
             --region "$AWS_REGION"
 
       - name: Wait for the rollout to stabilise
-        if: matrix.app == 'backend'
         run: |
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "${{ matrix.service }}" --region "$AWS_REGION"
 
+      # A circuit-breaker rollback ALSO ends "stable"; only the release /healthz
+      # reports tells success apart — and post migrations must never run against
+      # the previous release.
+      - name: Verify the new release is serving
+        run: scripts/check-release.sh "${{ matrix.healthz }}" "$GITHUB_SHA"
+
       - name: Apply post-deploy migrations (one-shot)
         if: matrix.app == 'backend'
+        env:
+          TASK_DEFINITION: ${{ steps.release.outputs.task-definition }}
         run: |
           scripts/ecs-oneshot.sh "${{ matrix.service }}" "migrate-post-${GITHUB_SHA::12}" -- \
             bun run src/db/migrate.ts --phase=post "--target-database=$PG_DATABASE"

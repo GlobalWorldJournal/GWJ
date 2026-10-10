@@ -91,7 +91,7 @@ describe('GWJ API', () => {
   it('GET /healthz returns ok', async () => {
     const res = await request(app).get('/healthz');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
+    expect(res.body).toEqual({ ok: true, release: null });
   });
 
   it('login returns a token and the admin user', async () => {
