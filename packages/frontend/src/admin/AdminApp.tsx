@@ -9,6 +9,7 @@ import { Dashboard } from './Dashboard';
 import { Editor } from './Editor';
 import { Takedowns } from './Takedowns';
 import { NotFound } from '../pages/NotFound';
+import { LanguageProvider } from '../lib/i18n';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -59,49 +60,51 @@ function SignOutOnUnauthorized() {
   return null;
 }
 
-/** Admin CMS subtree mounted at /admin/*. */
+/** Admin CMS subtree mounted at /admin/*. Its chrome is English (the default edition). */
 export function AdminApp() {
   return (
-    <AuthProvider>
-      <SignOutOnUnauthorized />
-      <div className="min-h-screen bg-paper">
-        <Routes>
-          <Route path="login" element={<Login />} />
-          <Route
-            index
-            element={
-              <RequireAuth>
-                <Dashboard />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="articles/new"
-            element={
-              <RequireAuth>
-                <Editor />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="articles/:id"
-            element={
-              <RequireAuth>
-                <Editor />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="takedown-requests"
-            element={
-              <RequireAuth>
-                <Takedowns />
-              </RequireAuth>
-            }
-          />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </div>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <SignOutOnUnauthorized />
+        <div className="min-h-screen bg-paper">
+          <Routes>
+            <Route path="login" element={<Login />} />
+            <Route
+              index
+              element={
+                <RequireAuth>
+                  <Dashboard />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="articles/new"
+              element={
+                <RequireAuth>
+                  <Editor />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="articles/:id"
+              element={
+                <RequireAuth>
+                  <Editor />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="takedown-requests"
+              element={
+                <RequireAuth>
+                  <Takedowns />
+                </RequireAuth>
+              }
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
