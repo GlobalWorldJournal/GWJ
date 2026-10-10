@@ -61,6 +61,11 @@ jobs:
       - name: Banned patterns
         run: bun run scripts/check-banned.ts
 
+      # The deploy runs these directly; a lost executable bit only fails there.
+      - name: Shell scripts are executable
+        run: |
+          git ls-files -s -- 'scripts/*.sh' | awk '$1 != "100755" { print "not executable: " $4; bad = 1 } END { exit bad }'
+
       - name: Typecheck
         run: bun run typecheck
 

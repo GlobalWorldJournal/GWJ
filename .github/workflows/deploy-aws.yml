@@ -98,8 +98,10 @@ jobs:
         id: release
         env:
           IMAGE: ${{ steps.ecr.outputs.registry }}/${{ matrix.ecr }}@${{ steps.build.outputs.digest }}
+        # Assigned first: a failure inside `$(…)` would not fail an `echo`.
         run: |
-          echo "task-definition=$(scripts/ecs-register-release.sh "${{ matrix.service }}" "$IMAGE" "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+          task_definition="$(scripts/ecs-register-release.sh "${{ matrix.service }}" "$IMAGE" "$GITHUB_SHA")"
+          echo "task-definition=$task_definition" >> "$GITHUB_OUTPUT"
 
       - name: Apply pre-deploy migrations (one-shot, new release)
         if: matrix.app == 'backend'
