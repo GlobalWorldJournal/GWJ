@@ -4,6 +4,7 @@ import { useLang } from '../lib/i18n';
 import { LocaleLink, LocaleNavLink } from '../lib/locale';
 import { categoryLabel } from '../lib/dictionary';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { SearchIcon } from './SearchIcon';
 
 const NAV_LINK_BASE = 'label text-[0.75rem] tracking-[0.06em] transition-colors hover:text-accent';
 
@@ -22,7 +23,7 @@ const SUBTOPICS: Record<Category, string[]> = {
   Arts: ['Books', 'Film', 'Music', 'Television', 'Theater', 'Design'],
 };
 
-/** Section navigation: 7 categories + Search. Desktop hover mega-menu; mobile drawer. */
+/** Section navigation: 7 categories + a search icon. Desktop hover mega-menu; mobile drawer. */
 export function SectionNav() {
   const { lang, t } = useLang();
   const [open, setOpen] = useState(false);
@@ -76,9 +77,13 @@ export function SectionNav() {
           <LanguageSwitcher />
           <LocaleNavLink
             to="/search"
-            className={({ isActive }) => `${NAV_LINK_BASE} ${activeClass(isActive)}`}
+            aria-label={t('search')}
+            title={t('search')}
+            className={({ isActive }) =>
+              `inline-flex items-center p-1 transition-colors hover:text-accent ${activeClass(isActive)}`
+            }
           >
-            {t('search')}
+            <SearchIcon className="h-[1.125rem] w-[1.125rem]" />
           </LocaleNavLink>
         </div>
       </div>
