@@ -15,7 +15,8 @@ export interface Writer {
   title: string
 }
 
-export const WRITERS: readonly Writer[] = [
+/** The byline roster. Typed non-empty, so a fallback writer always exists. */
+export const WRITERS: readonly [Writer, ...Writer[]] = [
   { name: 'Eleanor Vance', beats: ['Markets', 'Business'], title: 'Senior Markets Correspondent' },
   { name: 'Ji-ho Park', beats: ['Markets', 'Tech'], title: 'Asia Markets & Tech Reporter' },
   { name: 'Daniel Okafor', beats: ['Business', 'Markets'], title: 'Business Editor' },
@@ -60,7 +61,7 @@ export function pickWriter(category: Category, seed = ''): Writer {
   const onBeat = writersForCategory(category)
   const pool = onBeat.length > 0 ? onBeat : WRITERS
   const index = hash(`${category}:${seed}`) % pool.length
-  return pool[index] ?? pool[0] ?? WRITERS[0]!
+  return pool[index] ?? WRITERS[0]
 }
 
 /** URL slug for an author byline, e.g. "Eleanor Vance" -> "eleanor-vance". */

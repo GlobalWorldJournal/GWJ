@@ -46,10 +46,10 @@ const { createGwjClient } = await import('../packages/mcp/src/client')
 let failures = 0
 function check(label: string, ok: boolean): void {
   if (ok) {
-    console.log(`  ✓ ${label}`)
+    process.stdout.write(`  ✓ ${label}\n`)
   } else {
     failures += 1
-    console.log(`  ✗ ${label}`)
+    process.stdout.write(`  ✗ ${label}\n`)
   }
 }
 
@@ -127,7 +127,7 @@ try {
 }
 
 if (failures > 0) {
-  console.log(`\nE2E FAILED: ${failures} check(s) failed`)
+  process.stdout.write(`\nE2E FAILED: ${failures} check(s) failed\n`)
   process.exit(1)
 }
-console.log('\nE2E PASSED: agent → MCP client → backend → DB → public API verified')
+process.stdout.write('\nE2E PASSED: agent → MCP client → backend → DB → public API verified\n')

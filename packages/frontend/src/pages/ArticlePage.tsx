@@ -1,10 +1,8 @@
 import { Navigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  authorSlug,
   categorySlug,
   TELEGRAM_CHANNEL_URL,
-  type Article,
   type Category,
   type Language,
 } from '@gwj/shared-types'

@@ -34,12 +34,13 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - name: Install (frozen lockfile, self-heal)
-        run: |
-          if ! bun install --frozen-lockfile; then
-            echo "::warning::lockfile out of sync — regenerating"
-            bun install
-          fi
+      # A lockfile out of sync with package.json fails the build: what CI tests
+      # must be exactly what the Docker images install.
+      - name: Install (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
 
       - name: Typecheck
         run: bun run typecheck
@@ -49,6 +50,28 @@ jobs:
 
       - name: Build
         run: bun run build
+
+      # The agent → MCP client → backend → DB → public API contract, end to end.
+      - name: End-to-end contract
+        run: bun run e2e
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+
+      - name: Format
+        run: terraform -chdir=infra fmt -check -recursive
+
+      # Offline: no state, no AWS credentials. `plan`/`apply` stay manual.
+      - name: Validate
+        run: |
+          terraform -chdir=infra init -backend=false -input=false
+          terraform -chdir=infra validate
 
   # Builds the exact images deploy-aws.yml ships (same Dockerfiles, context and
   # platform), without pushing. The `check` job installs from the repo root where
