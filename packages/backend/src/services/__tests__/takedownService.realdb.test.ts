@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CATEGORIES, type ArticleInput, type TakedownRequestInput } from '@gwj/shared-types';
 import { takedownService } from '../takedownService';
 import { NotFoundError } from '../../errors';
-import { articleService } from '../articleService';
+import { articleService, setDeliveryPlanner } from '../articleService';
+import { jobsFor } from '../../channels/jobRepository';
 import { useTestDatabase, type TestDatabase } from '../../test/postgres';
 
 let testDb: TestDatabase;
@@ -126,8 +127,31 @@ describe('takedownService', () => {
     expect(after.heroImage).toBeUndefined();
   });
 
+  it('applies its action through the article service: history and distribution follow', async () => {
+    const unregister = setDeliveryPlanner(() => ['ch']);
+    try {
+      const article = await articleService.create(baseArticle());
+      const record = await takedownService.create(
+        baseInput({ imageUrl: 'https://example.com/photo.jpg' }),
+      );
+      await takedownService.action(
+        record.id,
+        { status: 'actioned', apply: 'clear-hero-image' },
+        'user:nate',
+      );
+      const [revision] = await articleService.listRevisions(article.id);
+      expect(revision?.actor).toBe('user:nate');
+      // The live posts drop the image too.
+      expect((await jobsFor(article.id)).map((job) => job.action)).toEqual(['publish', 'update']);
+    } finally {
+      unregister();
+    }
+  });
+
   it('lists requests newest first, filterable by status', async () => {
     const first = await takedownService.create(baseInput({ requesterEmail: 'a@example.com' }));
+    // Requests made in the same millisecond have no defined order (random-id tie-break).
+    await new Promise((r) => setTimeout(r, 15));
     const second = await takedownService.create(baseInput({ requesterEmail: 'b@example.com' }));
     await takedownService.action(first.id, { status: 'dismissed', apply: 'none' });
 

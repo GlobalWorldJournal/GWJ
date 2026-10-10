@@ -48,9 +48,10 @@ export interface PublishChannel {
   /**
    * Bring a delivered post in line with the article after a visible change
    * (headline, image, correction…), given the `ref` `publish` returned.
-   * Optional — a channel without it keeps the original post.
+   * Returning a new `ref` means the post was replaced by another one (it is
+   * recorded instead). Optional — a channel without it keeps the original post.
    */
-  update?(article: Article, ref: Record<string, unknown>): Promise<void>;
+  update?(article: Article, ref: Record<string, unknown>): Promise<Record<string, unknown> | void>;
   /**
    * Take a delivered post down, given the `ref` `publish` returned. Optional — a
    * channel without it never retracts.

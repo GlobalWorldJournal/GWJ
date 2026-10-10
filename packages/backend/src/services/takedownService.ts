@@ -80,7 +80,8 @@ export interface TakedownService {
   create(input: TakedownRequestInput): Promise<TakedownRequestRecord>;
   list(query: TakedownListQuery): Promise<PaginatedTakedownRequests>;
   getById(id: string): Promise<TakedownRequestRecord>;
-  action(id: string, action: TakedownAction): Promise<TakedownRequestRecord>;
+  /** Resolve a request, applying its action to the article as `actor`. */
+  action(id: string, action: TakedownAction, actor?: string): Promise<TakedownRequestRecord>;
 }
 
 export const takedownService: TakedownService = {
@@ -137,19 +138,14 @@ export const takedownService: TakedownService = {
     return takedownRequestToDTO(await findRowById(id));
   },
 
-  async action(id, action) {
+  async action(id, action, actor) {
     const current = await findRowById(id);
     if (action.status === 'actioned' && action.apply !== 'none' && current.articleId) {
-      if (action.apply === 'unpublish') await articleService.unpublish(current.articleId);
+      // Through the article service, so the change is in the article's history
+      // and its distributed posts (fediverse, Telegram) are retracted or updated.
+      if (action.apply === 'unpublish') await articleService.unpublish(current.articleId, actor);
       else if (action.apply === 'clear-hero-image') {
-        // articleService.update()'s partial-patch semantics treat an absent field as
-        // "leave it alone", so there is no way through it to unset one — this is the
-        // one case that genuinely needs its own direct, minimal operation. (Mongo's
-        // `$unset` via updateOne also stamped updatedAt through Mongoose timestamps.)
-        await getDb()
-          .update(articles)
-          .set({ heroImage: null, updatedAt: new Date() })
-          .where(eq(articles.id, current.articleId));
+        await articleService.removeHeroImage(current.articleId, actor);
       }
     }
     const changes: Partial<Pick<TakedownRequestRow, 'status' | 'resolution'>> = {};

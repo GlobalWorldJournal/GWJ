@@ -43,7 +43,9 @@ async function runJob(job: ChannelJobRow, channel: PublishChannel): Promise<void
     if (ref) await recordChannelPost(job.articleId, job.channel, ref);
     return;
   }
-  if (post && channel.update) await channel.update(article, post.ref);
+  if (!post || !channel.update) return;
+  const replaced = await channel.update(article, post.ref);
+  if (replaced) await recordChannelPost(job.articleId, job.channel, replaced);
 }
 
 /**

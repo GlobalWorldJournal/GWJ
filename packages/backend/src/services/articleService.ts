@@ -360,6 +360,12 @@ export interface ArticleService {
    * (a restore leaves them in place); the change is recorded in the history.
    */
   addCorrection(id: string, text: string, actor?: string): Promise<Article>;
+  /**
+   * Remove the hero image (a takedown of the image alone). A partial patch
+   * cannot express "unset", so this is its own operation; on a live story the
+   * distributed posts are updated to drop the image too.
+   */
+  removeHeroImage(id: string, actor?: string): Promise<Article>;
   /** Publish every draft whose schedule has come; returns the ids it published. */
   publishDue(now?: Date): Promise<string[]>;
 }
@@ -540,6 +546,11 @@ export const articleService: ArticleService = {
     const { after } = await mutateArticle(id, actor, async (current) => ({
       corrections: [...current.corrections, { at: new Date().toISOString(), text }],
     }));
+    return withTranslations(after, false);
+  },
+
+  async removeHeroImage(id, actor = SYSTEM_ACTOR) {
+    const { after } = await mutateArticle(id, actor, async () => ({ heroImage: null }));
     return withTranslations(after, false);
   },
 

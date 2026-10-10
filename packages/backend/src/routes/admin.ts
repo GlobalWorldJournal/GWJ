@@ -234,6 +234,7 @@ export function createAdminRouter(
       const record = await takedownService.action(
         requireParam(req, 'id'),
         req.body as TakedownAction,
+        actorOf(req),
       );
       res.json(record);
     },
