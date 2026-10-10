@@ -1,8 +1,8 @@
-import type { Correction } from '@gwj/shared-types';
+import { MENTION_HANDLE, type Correction } from '@gwj/shared-types';
 import { useLang } from '../lib/i18n';
 import { LocaleLink } from '../lib/locale';
 import { formatDateTime } from '../lib/format';
-import { EmailIcon, LinkedInIcon, ShareIcon, TelegramIcon, XIcon } from './SocialIcons';
+import { EmailIcon, LinkedInIcon, MentionIcon, ShareIcon, TelegramIcon, XIcon } from './SocialIcons';
 
 /** Public corrections, dated, below the story (newspaper practice). */
 export function CorrectionsNote({ corrections }: { corrections: readonly Correction[] }) {
@@ -71,8 +71,13 @@ const SHARE_TARGETS = [
     href: (u: string, t: string) => `https://t.me/share/url?url=${u}&text=${t}`,
     Icon: TelegramIcon,
   },
-  // Mention: pending its own share-intent URL format (not yet confirmed) —
-  // add here, same shape, once known. Don't guess a URL that might not work.
+  {
+    // Confirmed against Mention's own docs (packages/frontend/docs/INTENT_URL.md
+    // in the Mention repo): mention.earth/compose?text=&url=&via=.
+    name: 'Mention',
+    href: (u: string, t: string) => `https://mention.earth/compose?text=${t}&url=${u}&via=${MENTION_HANDLE.slice(1)}`,
+    Icon: MentionIcon,
+  },
 ] as const;
 
 /**
