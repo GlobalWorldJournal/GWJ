@@ -127,32 +127,122 @@ describe('worker locale parsing', () => {
     expect(res.headers.get('location')).toBe(`${SITE}/world`);
   });
 
-  it('sitemap: lists each edition root + categories and articles under their own language', async () => {
+  it('sitemap.xml is an index of the pages, news and one article sitemap per API page', async () => {
     const env = makeEnv();
-    const articles = apiPage([
-      apiArticle({ slug: 'hola', title: 'Hola', language: 'es' }),
-      apiArticle({
-        id: 'b'.repeat(24),
-        slug: 'hello',
-        title: 'Hello',
-        author: 'Joe',
-        category: 'Tech',
-      }),
-    ]);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(new Response(JSON.stringify(articles), { status: 200 })),
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [],
+          pagination: { page: 1, limit: 50, total: 120, totalPages: 3 },
+        }),
+      ),
     );
+    vi.stubGlobal('fetch', fetchSpy);
 
     const xml = await (await get('/sitemap.xml', env)).text();
-    expect(xml).toContain(`<loc>${SITE}/</loc>`);
-    expect(xml).toContain(`<loc>${SITE}/es</loc>`);
-    expect(xml).toContain(`<loc>${SITE}/fr</loc>`);
-    expect(xml).toContain(`<loc>${SITE}/es/world</loc>`);
-    // Articles live under their own language prefix.
+    expect(xml).toContain('<sitemapindex');
+    expect(xml).toContain(`<loc>${SITE}/sitemap-pages.xml</loc>`);
+    expect(xml).toContain(`<loc>${SITE}/sitemap-news.xml</loc>`);
+    expect(xml).toContain(`<loc>${SITE}/sitemap-articles-3.xml</loc>`);
+    expect(xml).not.toContain('sitemap-articles-4.xml');
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain('sort=latest');
+  });
+
+  it('an article sitemap lists that page of articles under their own edition', async () => {
+    const env = makeEnv();
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify(
+            apiPage([
+              apiArticle({ slug: 'hola', title: 'Hola', language: 'es' }),
+              apiArticle({ id: 'b'.repeat(24), slug: 'hello', title: 'Hello' }),
+            ]),
+          ),
+        ),
+      );
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const xml = await (await get('/sitemap-articles-2.xml', env)).text();
     expect(xml).toContain(`<loc>${SITE}/es/article/hola</loc>`);
     expect(xml).toContain(`<loc>${SITE}/article/hello</loc>`);
-    // Google-News tag carries the article language.
+    expect(xml).not.toContain('<news:');
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toContain('page=2');
+  });
+
+  it('the pages sitemap lists every edition home, section and roster writer', async () => {
+    const xml = await (await get('/sitemap-pages.xml')).text();
+    expect(xml).toContain(`<loc>${SITE}/es/world</loc>`);
+    expect(xml).toContain(`<loc>${SITE}/fr/author/eleanor-vance</loc>`);
+  });
+
+  it('the news sitemap holds only the last 48 hours, with each story\u2019s language', async () => {
+    const env = makeEnv();
+    const now = Date.now();
+    const iso = (hoursAgo: number) => new Date(now - hoursAgo * 3_600_000).toISOString();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify(
+            apiPage([
+              apiArticle({ slug: 'fresh', title: 'Fresh', language: 'es', publishedAt: iso(2) }),
+              apiArticle({
+                id: 'b'.repeat(24),
+                slug: 'stale',
+                title: 'Stale',
+                publishedAt: iso(72),
+              }),
+            ]),
+          ),
+        ),
+      ),
+    );
+
+    const xml = await (await get('/sitemap-news.xml', env)).text();
+    expect(xml).toContain(`<loc>${SITE}/es/article/fresh</loc>`);
     expect(xml).toContain('<news:language>es</news:language>');
+    expect(xml).not.toContain('stale');
+  });
+
+  it('feeds are per edition: language, self link, newest first from that edition only', async () => {
+    const env = makeEnv();
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify(apiPage([apiArticle({ slug: 'hola', title: 'Hola', language: 'es' })])),
+        ),
+      );
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const xml = await (await get('/es/feed.xml', env)).text();
+    expect(xml).toContain('<language>es</language>');
+    expect(xml).toContain(`<atom:link href="${SITE}/es/feed.xml" rel="self"`);
+    expect(xml).toContain(`<link>${SITE}/es/article/hola</link>`);
+    const requested = String(fetchSpy.mock.calls[0]?.[0]);
+    expect(requested).toContain('language=es');
+    expect(requested).toContain('sort=latest');
+
+    const english = await (await get('/rss.xml', env)).text();
+    expect(english).toContain('<language>en</language>');
+  });
+
+  it('an unknown article is a real 404 (noindex), not a soft 404', async () => {
+    const env = makeEnv();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 404 })));
+    const res = await get('/article/no-such-story', env);
+    expect(res.status).toBe(404);
+    expect(await res.text()).toContain('<meta name="robots" content="noindex" />');
+  });
+
+  it('pages allow large image previews; search results are never indexed', async () => {
+    expect(await (await get('/')).text()).toContain(
+      '<meta name="robots" content="max-image-preview:large" />',
+    );
+    expect(await (await get('/search')).text()).toContain(
+      '<meta name="robots" content="noindex, follow" />',
+    );
   });
 });

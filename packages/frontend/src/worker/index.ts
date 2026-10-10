@@ -22,7 +22,9 @@ import {
   PublicArticleSchema,
   SUPPORTED_LANGUAGES,
   TELEGRAM_CHANNEL_URL,
+  WRITERS,
   type Language,
+  type PaginatedPublicArticles,
   type PublicArticle,
 } from '@gwj/shared-types';
 import { escapeHtml, firstParagraphText, markdownToHtml } from './markdown';
@@ -34,8 +36,14 @@ const TWITTER_HANDLE = '@globalworldjrnl';
 const NEWS_HEADLINE_MAX = 110;
 /** A meta description built from the body is cut to this many characters. */
 const DESCRIPTION_MAX = 200;
-/** How many recent articles the sitemap and the feed list. */
-const RECENT_ARTICLES = 50;
+/** The API's page size limit: one article sitemap file per API page. */
+const API_PAGE_SIZE = 50;
+/** Google News only wants articles published in the last two days... */
+const NEWS_WINDOW_MS = 48 * 60 * 60 * 1000;
+/** ...and at most 1,000 of them per news sitemap. */
+const NEWS_MAX_PAGES = 1000 / API_PAGE_SIZE;
+/** Every page may show large image previews in search and Discover. */
+const DEFAULT_ROBOTS = 'max-image-preview:large';
 
 const CATEGORY_SLUGS: readonly string[] = CATEGORIES.map(categorySlug);
 const PREFIXED_LANGUAGES: readonly Language[] = SUPPORTED_LANGUAGES.filter(
@@ -145,14 +153,27 @@ async function fetchArticle(config: Config, slug: string, signal: AbortSignal) {
   return parsed.success ? parsed.data : null;
 }
 
-async function fetchRecentArticles(config: Config, signal: AbortSignal): Promise<PublicArticle[]> {
-  if (!config.apiBaseUrl) return [];
-  const payload = await fetchJson(
-    `${config.apiBaseUrl}/api/articles?limit=${RECENT_ARTICLES}&page=1`,
-    signal,
-  );
+interface ArticlePageQuery {
+  page: number;
+  language?: Language;
+}
+
+/** One page of published articles, newest first; null if the API is unavailable. */
+async function fetchLatestPage(
+  config: Config,
+  signal: AbortSignal,
+  { page, language }: ArticlePageQuery,
+): Promise<PaginatedPublicArticles | null> {
+  if (!config.apiBaseUrl) return null;
+  const params = new URLSearchParams({
+    sort: 'latest',
+    limit: String(API_PAGE_SIZE),
+    page: String(page),
+  });
+  if (language) params.set('language', language);
+  const payload = await fetchJson(`${config.apiBaseUrl}/api/articles?${params.toString()}`, signal);
   const parsed = PaginatedPublicArticlesSchema.safeParse(payload);
-  return parsed.success ? parsed.data.data : [];
+  return parsed.success ? parsed.data : null;
 }
 
 function articleDescription(article: PublicArticle): string {
@@ -178,6 +199,8 @@ interface MetaTagOptions {
   lang: Language;
   hreflang: string;
   preloadImage?: string;
+  /** `<meta name="robots">`; every page allows large image previews by default. */
+  robots?: string;
 }
 
 function buildMetaTags(options: MetaTagOptions): string {
@@ -190,6 +213,7 @@ function buildMetaTags(options: MetaTagOptions): string {
   }
   tags.push(
     `<meta name="description" content="${escapeHtml(description)}" />`,
+    `<meta name="robots" content="${escapeHtml(options.robots ?? DEFAULT_ROBOTS)}" />`,
     `<link rel="canonical" href="${escapeHtml(url)}" />`,
     hreflang,
     `<meta property="og:type" content="${escapeHtml(type)}" />`,
@@ -328,14 +352,14 @@ async function getShell(env: Env, request: Request): Promise<Response> {
   return env.ASSETS.fetch(new Request(`${origin}/`, request));
 }
 
-function withHtmlBody(shellResponse: Response, html: string): Response {
+function withHtmlBody(shellResponse: Response, html: string, status = 200): Response {
   const headers = new Headers(shellResponse.headers);
   headers.set('content-type', 'text/html; charset=utf-8');
   // Drop headers that no longer match the rewritten body.
   headers.delete('content-length');
   headers.delete('content-encoding');
   headers.delete('location');
-  return new Response(html, { status: 200, headers });
+  return new Response(html, { status, headers });
 }
 
 /** A 301 permanent redirect to an absolute URL (for legacy/wrong-locale URLs). */
@@ -389,7 +413,8 @@ async function handleArticle(
   const article = await fetchArticle(config, slug, request.signal);
 
   if (!article) {
-    // Article unknown to the edge — serve the shell so the SPA can 404 client-side.
+    // No such (published) article: a real 404 for crawlers — not a soft-404
+    // page with a 200 — still carrying the shell so readers see the SPA's page.
     const url = editionUrl(config.siteUrl, reqLang, `/article/${slug}`);
     const metaTags = buildMetaTags({
       title: SITE_NAME,
@@ -400,8 +425,9 @@ async function handleArticle(
       jsonLd: websiteJsonLd(config.siteUrl),
       lang: reqLang,
       hreflang: articleHreflangLinks(url, reqLang),
+      robots: 'noindex',
     });
-    return withHtmlBody(shell, injectHead(html, metaTags, reqLang));
+    return withHtmlBody(shell, injectHead(html, metaTags, reqLang), 404);
   }
 
   const lang = article.language;
@@ -487,6 +513,8 @@ function handleSearch(env: Env, request: Request, config: Config, lang: Language
       url: editionUrl(config.siteUrl, lang, '/search'),
       jsonLd: websiteJsonLd(config.siteUrl),
       lang,
+      // Result pages are endless query permutations: crawl through, never index.
+      robots: 'noindex, follow',
     },
     config,
     '/search',
@@ -499,42 +527,15 @@ interface SitemapUrl {
   news?: string;
 }
 
-async function handleSitemap(request: Request, config: Config): Promise<Response> {
-  const articles = await fetchRecentArticles(config, request.signal);
+function xmlResponse(body: string, contentType: string): Response {
+  return new Response(body, {
+    status: 200,
+    headers: { 'content-type': `${contentType}; charset=utf-8` },
+  });
+}
 
-  // Index pages exist per edition: home + each category under '', '/es', '/fr'.
-  const indexUrls: SitemapUrl[] = [];
-  for (const lang of SUPPORTED_LANGUAGES) {
-    indexUrls.push({ loc: editionUrl(config.siteUrl, lang, '/') });
-    for (const slug of CATEGORY_SLUGS) {
-      indexUrls.push({ loc: editionUrl(config.siteUrl, lang, `/${slug}`) });
-    }
-  }
-
-  // Author pages: an author's body of work spans editions, so list each author
-  // under every edition prefix.
-  const authorSlugs = [...new Set(articles.map((a) => authorSlug(a.author)).filter(Boolean))];
-  const authorUrls: SitemapUrl[] = [];
-  for (const lang of SUPPORTED_LANGUAGES) {
-    for (const slug of authorSlugs) {
-      authorUrls.push({ loc: editionUrl(config.siteUrl, lang, `/author/${slug}`) });
-    }
-  }
-
-  // Articles: each is a single-language document, listed once under its own
-  // edition prefix. Google-News tags carry the article's own language.
-  const articleUrls: SitemapUrl[] = articles.map((a) => ({
-    loc: editionUrl(config.siteUrl, a.language, `/article/${a.slug}`),
-    lastmod: a.updatedAt,
-    news: a.publishedAt
-      ? `<news:news><news:publication><news:name>${escapeXml(SITE_NAME)}</news:name>` +
-        `<news:language>${escapeXml(a.language)}</news:language></news:publication>` +
-        `<news:publication_date>${escapeXml(a.publishedAt)}</news:publication_date>` +
-        `<news:title>${escapeXml(a.title)}</news:title></news:news>`
-      : undefined,
-  }));
-
-  const urls = [...indexUrls, ...authorUrls, ...articleUrls]
+function urlset(urls: SitemapUrl[], withNews = false): Response {
+  const entries = urls
     .map((u) => {
       const parts = [`<loc>${escapeXml(u.loc)}</loc>`];
       if (u.lastmod) parts.push(`<lastmod>${escapeXml(u.lastmod)}</lastmod>`);
@@ -542,24 +543,100 @@ async function handleSitemap(request: Request, config: Config): Promise<Response
       return `  <url>${parts.join('')}</url>`;
     })
     .join('\n');
-  const body =
+  const newsNs = withNews ? ' xmlns:news="http://www.google.com/schemas/sitemap-news/0.9"' : '';
+  return xmlResponse(
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" ` +
-    `xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n${urls}\n</urlset>`;
-  return new Response(body, {
-    status: 200,
-    headers: { 'content-type': 'application/xml; charset=utf-8' },
-  });
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"${newsNs}>\n${entries}\n</urlset>`,
+    'application/xml',
+  );
 }
 
-async function handleFeed(request: Request, config: Config): Promise<Response> {
-  // The RSS feed is the English edition (canonical). Each article links to its
-  // own canonical (language-prefixed) URL.
-  const articles = await fetchRecentArticles(config, request.signal);
-  const items = articles
+function articleUrl(config: Config, article: PublicArticle): string {
+  return editionUrl(config.siteUrl, article.language, `/article/${article.slug}`);
+}
+
+/**
+ * /sitemap.xml — the index: the static pages, the Google News sitemap, and one
+ * sitemap per page of articles, so EVERY article is listed (not just the latest).
+ */
+async function handleSitemapIndex(request: Request, config: Config): Promise<Response> {
+  const first = await fetchLatestPage(config, request.signal, { page: 1 });
+  const pages = Math.max(1, first?.pagination.totalPages ?? 1);
+  const locs = [
+    `${config.siteUrl}/sitemap-pages.xml`,
+    `${config.siteUrl}/sitemap-news.xml`,
+    ...Array.from({ length: pages }, (_, i) => `${config.siteUrl}/sitemap-articles-${i + 1}.xml`),
+  ];
+  const entries = locs.map((loc) => `  <sitemap><loc>${escapeXml(loc)}</loc></sitemap>`).join('\n');
+  return xmlResponse(
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</sitemapindex>`,
+    'application/xml',
+  );
+}
+
+/** Every edition's home, sections and writer pages. */
+function handleSitemapPages(config: Config): Response {
+  const urls: SitemapUrl[] = [];
+  for (const lang of SUPPORTED_LANGUAGES) {
+    urls.push({ loc: editionUrl(config.siteUrl, lang, '/') });
+    for (const slug of CATEGORY_SLUGS)
+      urls.push({ loc: editionUrl(config.siteUrl, lang, `/${slug}`) });
+    for (const writer of WRITERS) {
+      urls.push({ loc: editionUrl(config.siteUrl, lang, `/author/${authorSlug(writer.name)}`) });
+    }
+  }
+  return urlset(urls);
+}
+
+/** One page of articles (newest first), each under its own edition. */
+async function handleSitemapArticles(
+  request: Request,
+  config: Config,
+  page: number,
+): Promise<Response> {
+  const result = await fetchLatestPage(config, request.signal, { page });
+  return urlset(
+    (result?.data ?? []).map((article) => ({
+      loc: articleUrl(config, article),
+      lastmod: article.updatedAt,
+    })),
+  );
+}
+
+/** Google News: only stories published in the last 48 hours, newest first. */
+async function handleSitemapNews(request: Request, config: Config): Promise<Response> {
+  const cutoff = Date.now() - NEWS_WINDOW_MS;
+  const recent: PublicArticle[] = [];
+  for (let page = 1; page <= NEWS_MAX_PAGES; page += 1) {
+    const result = await fetchLatestPage(config, request.signal, { page });
+    if (!result) break;
+    const fresh = result.data.filter((a) => a.publishedAt && Date.parse(a.publishedAt) >= cutoff);
+    recent.push(...fresh);
+    // Newest first: once a page holds an older story, every later page is older.
+    if (fresh.length < result.data.length || page >= result.pagination.totalPages) break;
+  }
+  return urlset(
+    recent.map((a) => ({
+      loc: articleUrl(config, a),
+      news:
+        `<news:news><news:publication><news:name>${escapeXml(SITE_NAME)}</news:name>` +
+        `<news:language>${escapeXml(a.language)}</news:language></news:publication>` +
+        `<news:publication_date>${escapeXml(a.publishedAt ?? '')}</news:publication_date>` +
+        `<news:title>${escapeXml(a.title)}</news:title></news:news>`,
+    })),
+    true,
+  );
+}
+
+/** RSS 2.0 for ONE edition, newest first, with the hero image as Media RSS. */
+async function handleFeed(request: Request, config: Config, lang: Language): Promise<Response> {
+  const result = await fetchLatestPage(config, request.signal, { page: 1, language: lang });
+  const selfUrl = editionUrl(config.siteUrl, lang, '/feed.xml');
+  const items = (result?.data ?? [])
     .map((a) => {
-      const link = editionUrl(config.siteUrl, a.language, `/article/${a.slug}`);
-      const date = a.publishedAt ? new Date(a.publishedAt).toUTCString() : '';
+      const link = articleUrl(config, a);
+      const image = articleImage(a);
       return (
         `    <item>\n` +
         `      <title>${escapeXml(a.title)}</title>\n` +
@@ -567,24 +644,27 @@ async function handleFeed(request: Request, config: Config): Promise<Response> {
         `      <guid isPermaLink="true">${escapeXml(link)}</guid>\n` +
         `      <dc:creator>${escapeXml(a.author)}</dc:creator>\n` +
         `      <category>${escapeXml(a.category)}</category>\n` +
-        (date ? `      <pubDate>${escapeXml(date)}</pubDate>\n` : '') +
+        (a.publishedAt
+          ? `      <pubDate>${escapeXml(new Date(a.publishedAt).toUTCString())}</pubDate>\n`
+          : '') +
         `      <description>${escapeXml(articleDescription(a))}</description>\n` +
+        (image ? `      <media:content url="${escapeXml(image)}" medium="image" />\n` : '') +
         `    </item>`
       );
     })
     .join('\n');
-  const body =
+  return xmlResponse(
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">\n` +
-    `  <channel>\n` +
-    `    <title>${escapeXml(SITE_NAME)}</title>\n` +
-    `    <link>${escapeXml(config.siteUrl)}/</link>\n` +
-    `    <description>Breaking news and in-depth reporting from ${escapeXml(SITE_NAME)}.</description>\n` +
-    `    <language>en</language>\n${items}\n  </channel>\n</rss>`;
-  return new Response(body, {
-    status: 200,
-    headers: { 'content-type': 'application/rss+xml; charset=utf-8' },
-  });
+      `<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" ` +
+      `xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">\n` +
+      `  <channel>\n` +
+      `    <title>${escapeXml(SITE_NAME)}</title>\n` +
+      `    <link>${escapeXml(editionUrl(config.siteUrl, lang, '/'))}</link>\n` +
+      `    <atom:link href="${escapeXml(selfUrl)}" rel="self" type="application/rss+xml" />\n` +
+      `    <description>Breaking news and in-depth reporting from ${escapeXml(SITE_NAME)}.</description>\n` +
+      `    <language>${lang}</language>\n${items}\n  </channel>\n</rss>`,
+    'application/rss+xml',
+  );
 }
 
 /**
@@ -664,12 +744,17 @@ export default {
       return redirect(legacyTarget);
     }
 
-    if (pathname === '/sitemap.xml') {
-      return handleSitemap(request, config);
-    }
+    if (pathname === '/sitemap.xml') return handleSitemapIndex(request, config);
+    if (pathname === '/sitemap-pages.xml') return handleSitemapPages(config);
+    if (pathname === '/sitemap-news.xml') return handleSitemapNews(request, config);
+    const articleSitemap = /^\/sitemap-articles-(\d+)\.xml$/.exec(pathname)?.[1];
+    if (articleSitemap) return handleSitemapArticles(request, config, Number(articleSitemap));
 
-    if (pathname === '/feed.xml' || pathname === '/rss.xml') {
-      return handleFeed(request, config);
+    // Feeds are per edition: /feed.xml (and the legacy /rss.xml) is English.
+    const feed = /^(?:\/([a-z]{2}))?\/(?:feed|rss)\.xml$/.exec(pathname);
+    if (feed) {
+      const feedLang = feed[1] ?? DEFAULT_LANGUAGE;
+      if (isLanguage(feedLang)) return handleFeed(request, config, feedLang);
     }
 
     // Resolve the edition from the leading path segment, then match the route on
