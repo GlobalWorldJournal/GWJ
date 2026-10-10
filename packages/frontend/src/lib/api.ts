@@ -6,6 +6,8 @@ import {
   LoginResponseSchema,
   UploadResponseSchema,
   ApiErrorSchema,
+  TakedownRequestSchema,
+  PaginatedTakedownRequestsSchema,
   type Article,
   type PaginatedArticles,
   type CategoryDoc,
@@ -16,6 +18,11 @@ import {
   type Category,
   type ArticleStatus,
   type Language,
+  type TakedownRequestInput,
+  type TakedownRequestRecord,
+  type PaginatedTakedownRequests,
+  type TakedownAction,
+  type TakedownStatus,
 } from '@gwj/shared-types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -237,4 +244,42 @@ export async function uploadImage(token: string, file: File): Promise<UploadResp
     throw new ApiContractError('/api/admin/upload', parsed.error.issues)
   }
   return parsed.data
+}
+
+/** Public submission; the server deliberately echoes back only `{ id, status }`, never the full record. */
+export function submitTakedownRequest(input: TakedownRequestInput): Promise<{ id: string; status: TakedownStatus }> {
+  return request('/api/takedown-requests', z.object({ id: z.string(), status: z.custom<TakedownStatus>() }), {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export interface AdminTakedownRequestsQuery {
+  status?: TakedownStatus
+  page?: number
+  limit?: number
+}
+
+export function getAdminTakedownRequests(
+  token: string,
+  query: AdminTakedownRequestsQuery = {},
+  signal?: AbortSignal,
+): Promise<PaginatedTakedownRequests> {
+  return request('/api/admin/takedown-requests', PaginatedTakedownRequestsSchema, {
+    token,
+    params: { status: query.status, page: query.page, limit: query.limit },
+    signal,
+  })
+}
+
+export function actionTakedownRequest(
+  token: string,
+  id: string,
+  action: TakedownAction,
+): Promise<TakedownRequestRecord> {
+  return request(`/api/admin/takedown-requests/${encodeURIComponent(id)}/action`, TakedownRequestSchema, {
+    method: 'POST',
+    body: action,
+    token,
+  })
 }

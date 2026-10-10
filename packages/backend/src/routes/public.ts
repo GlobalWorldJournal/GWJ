@@ -3,9 +3,12 @@ import {
   ArticleListQuerySchema,
   CATEGORIES,
   categorySlug,
+  TakedownRequestInputSchema,
   type ArticleListQuery,
+  type TakedownRequestInput,
 } from '@gwj/shared-types'
 import { articleService } from '../services/articleService'
+import { takedownService } from '../services/takedownService'
 import { validate } from '../middleware/validate'
 import { requireParam } from '../middleware/params'
 import { BadRequestError } from '../errors'
@@ -44,6 +47,17 @@ export function createPublicRouter(): Router {
     const result = await articleService.search(q, query)
     res.json(result)
   })
+
+  router.post(
+    '/takedown-requests',
+    validate(TakedownRequestInputSchema),
+    async (req: Request, res: Response) => {
+      const record = await takedownService.create(req.body as TakedownRequestInput)
+      // Never hand the requester our internal article match or anything beyond
+      // confirmation — that resolution is for admin review, not a public response.
+      res.status(201).json({ id: record.id, status: record.status })
+    },
+  )
 
   return router
 }

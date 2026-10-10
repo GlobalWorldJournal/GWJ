@@ -4,12 +4,17 @@ import {
   ArticleInputSchema,
   ArticleListQuerySchema,
   ArticleUpdateSchema,
+  TakedownActionSchema,
+  TakedownListQuerySchema,
   type ArticleInput,
   type ArticleListQuery,
   type ArticleUpdate,
+  type TakedownAction,
+  type TakedownListQuery,
 } from '@gwj/shared-types'
 import { validateImageBuffer } from '@gwj/shared-types/image-validation'
 import { articleService } from '../services/articleService'
+import { takedownService } from '../services/takedownService'
 import { type UploadService } from '../services/uploadService'
 import { requireAuth } from '../middleware/auth'
 import { validate } from '../middleware/validate'
@@ -97,6 +102,30 @@ export function createAdminRouter(jwtSecret: string, uploadService: UploadServic
     const result = await uploadService.uploadImage(file.buffer, file.originalname, file.mimetype)
     res.status(201).json(result)
   })
+
+  router.get(
+    '/takedown-requests',
+    validate(TakedownListQuerySchema, 'query'),
+    async (req: Request, res: Response) => {
+      const query = req.validatedQuery as TakedownListQuery
+      const result = await takedownService.list(query)
+      res.json(result)
+    },
+  )
+
+  router.get('/takedown-requests/:id', async (req: Request, res: Response) => {
+    const record = await takedownService.getById(requireParam(req, 'id'))
+    res.json(record)
+  })
+
+  router.post(
+    '/takedown-requests/:id/action',
+    validate(TakedownActionSchema),
+    async (req: Request, res: Response) => {
+      const record = await takedownService.action(requireParam(req, 'id'), req.body as TakedownAction)
+      res.json(record)
+    },
+  )
 
   return router
 }
