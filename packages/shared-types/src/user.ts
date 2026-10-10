@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-export const UserRoleSchema = z.enum(['admin']);
+/**
+ * A newsroom member's role. `admin` runs the newsroom (people, agent tokens,
+ * deleting stories); `editor` writes, edits and publishes.
+ */
+export const UserRoleSchema = z.enum(['admin', 'editor']);
 export type UserRole = z.infer<typeof UserRoleSchema>;
 
 /** Public-safe user shape (never includes passwordHash). */
@@ -9,8 +13,37 @@ export const UserSchema = z.object({
   username: z.string().min(1),
   role: UserRoleSchema,
   createdAt: z.string().datetime(),
+  /** Set when the account was deactivated: it can no longer sign in. */
+  disabledAt: z.string().datetime().nullable(),
 });
 export type User = z.infer<typeof UserSchema>;
+
+/** Passwords: long enough to resist guessing; bcrypt reads at most 72 bytes. */
+const PasswordSchema = z.string().min(12, 'at least 12 characters').max(72);
+
+export const CreateUserInputSchema = z.object({
+  username: z
+    .string()
+    .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/, 'lowercase letters, digits, and . _ - between them')
+    .max(40),
+  password: PasswordSchema,
+  role: UserRoleSchema,
+});
+export type CreateUserInput = z.infer<typeof CreateUserInputSchema>;
+
+/** An admin changing someone's role, or (de)activating them. */
+export const UpdateUserInputSchema = z
+  .object({ role: UserRoleSchema.optional(), disabled: z.boolean().optional() })
+  .refine((input) => input.role !== undefined || input.disabled !== undefined, {
+    message: 'Nothing to change',
+  });
+export type UpdateUserInput = z.infer<typeof UpdateUserInputSchema>;
+
+export const ChangePasswordInputSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: PasswordSchema,
+});
+export type ChangePasswordInput = z.infer<typeof ChangePasswordInputSchema>;
 
 /**
  * What an API token (an agent's credential) may do. Reading is always allowed;
@@ -25,6 +58,12 @@ export const API_SCOPES = [
 ] as const;
 export const ApiScopeSchema = z.enum(API_SCOPES);
 export type ApiScope = z.infer<typeof ApiScopeSchema>;
+
+/** What each newsroom role may do (people; an agent has its token's scopes). */
+export const ROLE_SCOPES: Record<UserRole, readonly ApiScope[]> = {
+  admin: API_SCOPES,
+  editor: ['articles:write', 'articles:publish', 'media:upload', 'takedowns'],
+};
 
 /** An API token as listed to admins (never the secret itself). */
 export const ApiTokenSchema = z.object({

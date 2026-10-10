@@ -1,8 +1,8 @@
 import jwt, { type SignOptions } from 'jsonwebtoken';
-import { type LoginResponse } from '@gwj/shared-types';
-import { eq } from 'drizzle-orm';
+import { UserRoleSchema, type LoginResponse, type UserRole } from '@gwj/shared-types';
+import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../db/client';
-import { users } from '../db/schema/users';
+import { users, type UserRow } from '../db/schema/users';
 import { UnauthorizedError } from '../errors';
 import { verifyPassword } from './password';
 
@@ -18,25 +18,35 @@ const UNKNOWN_USER_HASH = '$2a$12$pp2OQReNU8JWMiY9FpCD5uS.Flsq/xYbfFgYEKGA8N1h3k
 export interface AuthTokenPayload {
   sub: string;
   username: string;
-  role: 'admin';
+  role: UserRole;
 }
 
 export interface AuthService {
   login(username: string, password: string, jwtSecret: string): Promise<LoginResponse>;
   verify(token: string, jwtSecret: string): AuthTokenPayload;
+  /**
+   * The ACTIVE account a verified token belongs to, read fresh: a role change or
+   * a deactivation takes effect on the next request, not when the token expires.
+   */
+  activeUser(userId: string): Promise<UserRow | null>;
 }
 
 function isPayload(value: unknown): value is AuthTokenPayload {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
-  return typeof v.sub === 'string' && typeof v.username === 'string' && v.role === 'admin';
+  return (
+    typeof v.sub === 'string' &&
+    typeof v.username === 'string' &&
+    UserRoleSchema.safeParse(v.role).success
+  );
 }
 
 export const authService: AuthService = {
   async login(username, password, jwtSecret) {
     const [user] = await getDb().select().from(users).where(eq(users.username, username)).limit(1);
     const ok = await verifyPassword(password, user?.passwordHash ?? UNKNOWN_USER_HASH);
-    if (!user || !ok) throw new UnauthorizedError('Invalid credentials');
+    // A deactivated account answers like a wrong password (after the same work).
+    if (!user || !ok || user.disabledAt) throw new UnauthorizedError('Invalid credentials');
 
     const payload: AuthTokenPayload = {
       sub: user.id,
@@ -44,7 +54,16 @@ export const authService: AuthService = {
       role: user.role,
     };
     const token = jwt.sign(payload, jwtSecret, { expiresIn: TOKEN_TTL });
-    return { token, user: { username: user.username, role: 'admin' } };
+    return { token, user: { username: user.username, role: user.role } };
+  },
+
+  async activeUser(userId) {
+    const [user] = await getDb()
+      .select()
+      .from(users)
+      .where(and(eq(users.id, userId), isNull(users.disabledAt)))
+      .limit(1);
+    return user ?? null;
   },
 
   verify(token, jwtSecret) {
