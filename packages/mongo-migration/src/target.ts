@@ -8,9 +8,10 @@ import { articles } from '@gwj/backend/src/db/schema/articles'
 import { users } from '@gwj/backend/src/db/schema/users'
 import { actorKeys } from '@gwj/backend/src/db/schema/actorKeys'
 import { followers } from '@gwj/backend/src/db/schema/followers'
+import { takedownRequests } from '@gwj/backend/src/db/schema/takedownRequests'
 import { canonicalJson } from './canonical'
 import { naturalKey, type LogicalDocument, type SourceCollection } from './normalize'
-import { actorKeyRow, articleRow, followerRow, userRow } from './rows'
+import { actorKeyRow, articleRow, followerRow, takedownRequestRow, userRow } from './rows'
 import { PORTED_COLLECTIONS, type SourceSnapshot } from './source'
 
 type Executor = Pick<Database, 'select' | 'insert' | 'update' | 'execute'>
@@ -21,6 +22,7 @@ export async function readTarget(db: Executor): Promise<Record<SourceCollection,
   const userRows = await db.select().from(users).orderBy(users.id)
   const keyRows = await db.select().from(actorKeys).orderBy(actorKeys.username)
   const followerRows = await db.select().from(followers).orderBy(followers.id)
+  const takedownRows = await db.select().from(takedownRequests).orderBy(takedownRequests.id)
   return {
     // The generated search vector is derived, not data.
     articles: articleRows.map(({ searchVector: _derived, ...row }) => row),
@@ -28,6 +30,7 @@ export async function readTarget(db: Executor): Promise<Record<SourceCollection,
     actorkeys: keyRows.map((row) => ({ ...row })),
     // The identity id never existed in Mongo; the natural key identifies a follower.
     followers: followerRows.map(({ id: _identity, ...row }) => row),
+    takedownrequests: takedownRows.map((row) => ({ ...row })),
   }
 }
 
@@ -52,6 +55,7 @@ const HAS_UPDATED_AT: Record<SourceCollection, boolean> = {
   users: false,
   actorkeys: true,
   followers: true,
+  takedownrequests: true,
 }
 
 function updatedAtOf(doc: LogicalDocument): number {
@@ -101,11 +105,12 @@ export async function copyToTarget(db: Database, source: SourceSnapshot): Promis
     users: source.docs.users.map(userRow),
     actorkeys: source.docs.actorkeys.map(actorKeyRow),
     followers: source.docs.followers.map(followerRow),
+    takedownrequests: source.docs.takedownrequests.map(takedownRequestRow),
   }
 
   return db.transaction(async (tx) => {
     await tx.execute(sql`set local lock_timeout = '10s'`)
-    await tx.execute(sql`lock table articles, users, actor_keys, followers in share row exclusive mode`)
+    await tx.execute(sql`lock table articles, users, actor_keys, followers, takedown_requests in share row exclusive mode`)
     const target = await readTarget(tx)
     const problems: string[] = []
     const plans = {} as Record<SourceCollection, Plan>
@@ -142,6 +147,12 @@ export async function copyToTarget(db: Database, source: SourceSnapshot): Promis
         .update(followers)
         .set(row)
         .where(and(eq(followers.actorUsername, row.actorUsername), eq(followers.actorId, row.actorId)))
+    }
+
+    const t = plans.takedownrequests
+    for (const row of pick('takedownrequests', t.inserts, rows.takedownrequests)) await tx.insert(takedownRequests).values(row)
+    for (const row of pick('takedownrequests', t.updates, rows.takedownrequests)) {
+      await tx.update(takedownRequests).set(row).where(eq(takedownRequests.id, row.id))
     }
 
     const report = {} as Record<SourceCollection, TableCopyReport>

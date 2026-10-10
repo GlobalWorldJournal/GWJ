@@ -6,7 +6,7 @@ import type { MongoClient } from 'mongodb'
 import { CATEGORIES, categorySlug } from '@gwj/shared-types'
 import { toLogical, type LogicalDocument, type SourceCollection } from './normalize'
 
-export const PORTED_COLLECTIONS: readonly SourceCollection[] = ['articles', 'users', 'actorkeys', 'followers']
+export const PORTED_COLLECTIONS: readonly SourceCollection[] = ['articles', 'users', 'actorkeys', 'followers', 'takedownrequests']
 
 /**
  * `categories` is deliberately NOT ported: nothing ever read it (the public

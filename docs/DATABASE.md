@@ -76,6 +76,7 @@ TEST_POSTGRES_URL=postgres://gwj:gwj@127.0.0.1:5432/postgres bun run test
 | `users` | `users` | `id` text, 24-hex | id is the JWT `sub`; bcrypt hash copied verbatim |
 | `actorkeys` | `actor_keys` | `username` | RSA keypairs copied verbatim; generated lazily with `ON CONFLICT DO NOTHING` |
 | `followers` | `followers` | identity `id`; unique `(actor_username, actor_id)` | `id` is the newest-first tie-break `_id` used to be |
+| `takedownrequests` | `takedown_requests` | `id` text, 24-hex | `articleId` (an ObjectId ref) becomes its hex string; no FK, as before (a request keeps naming a deleted article) |
 | `categories` | — | — | not ported: never read; the closed `CATEGORIES` tuple serves `/api/categories` and backs `articles_category_check` |
 
 Constraints made structural (each enforced by every writer before, and with zero
@@ -85,7 +86,8 @@ violating rows in production): slug unique; status/category/language/role sets;
 Indexes, ported one-for-one: `(status, published_at DESC NULLS LAST)`,
 `(language, status, published_at DESC NULLS LAST)`,
 `(category, published_at DESC NULLS LAST)`, GIN on `search_vector`; followers
-`(actor_username, followed_at DESC, id DESC)`.
+`(actor_username, followed_at DESC, id DESC)`; takedown_requests
+`(status, created_at DESC)`.
 
 ## Behaviour carried over from Mongo on purpose
 

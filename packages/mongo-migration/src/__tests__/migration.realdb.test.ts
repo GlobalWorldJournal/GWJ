@@ -13,6 +13,7 @@ import { followers } from '@gwj/backend/src/db/schema/followers'
 import { createEmptyDatabase, dropDatabase } from '@gwj/backend/src/test/postgres'
 import { articleService } from '@gwj/backend/src/services/articleService'
 import { resolveActorKeyPair } from '@gwj/backend/src/activitypub/keyService'
+import { takedownService } from '@gwj/backend/src/services/takedownService'
 import { runMigration, type MigrationOptions, type MigrationResult } from '../run'
 
 let mongod: MongoMemoryServer
@@ -43,6 +44,7 @@ function pem(): { privateKeyPem: string; publicKeyPem: string } {
 const ARTICLE_FULL = new ObjectId('6a3a6dfba818982848e4c6c5')
 const ARTICLE_DRAFT = new ObjectId('6a3a6dfba818982848e4c6c6')
 const ARTICLE_ES = new ObjectId('6a3a6dfba818982848e4c6c7')
+const TAKEDOWN_MATCHED = new ObjectId('6a3a6dfba818982848e4c6d0')
 const NEWS_KEY = pem()
 
 /** A source shaped like the production census of 2026-10-10, plus its edge cases. */
@@ -84,6 +86,18 @@ async function seedSource(dbName: string): Promise<void> {
     { _id: new ObjectId(), actorUsername: 'eleanorvance', actorId: 'https://m.example/users/a', inbox: 'https://m.example/users/a/inbox', sharedInbox: 'https://m.example/inbox', followedAt: t0, createdAt: t0, updatedAt: t0 },
     // Legacy single-actor shape: no actorUsername, no sharedInbox.
     { _id: new ObjectId(), actorId: 'https://m.example/users/b', inbox: 'https://m.example/users/b/inbox', followedAt: t0, createdAt: t0, updatedAt: t0 },
+  ])
+  await db.collection('takedownrequests').insertMany([
+    {
+      _id: TAKEDOWN_MATCHED, __v: 0, requesterName: 'Jamie', requesterEmail: 'jamie@example.com',
+      imageUrl: 'https://wire.example/a.jpg', claimType: 'copyright', explanation: 'My photo.', goodFaithAssertion: true,
+      status: 'actioned', articleId: ARTICLE_FULL, resolution: 'Hero image removed', createdAt: t0, updatedAt: t0,
+    },
+    {
+      // Unmatched: no URLs, no resolution, articleId null.
+      _id: new ObjectId(), __v: 0, requesterName: 'Kai', requesterEmail: 'kai@example.com', claimType: 'other',
+      explanation: 'Please review.', goodFaithAssertion: true, status: 'pending', articleId: null, createdAt: t0, updatedAt: t0,
+    },
   ])
   await db.collection('categories').insertMany(
     CATEGORIES.map((name, order) => ({ _id: new ObjectId(), __v: 0, name, slug: categorySlug(name), order })),
@@ -138,6 +152,7 @@ describe('copy → verify', () => {
       users: { inserted: 1, updated: 0, unchanged: 0 },
       actorkeys: { inserted: 2, updated: 0, unchanged: 0 },
       followers: { inserted: 2, updated: 0, unchanged: 0 },
+      takedownrequests: { inserted: 2, updated: 0, unchanged: 0 },
     })
     for (const v of first.verification) {
       expect(v.source.count).toBeGreaterThan(0)
@@ -182,6 +197,10 @@ describe('copy → verify', () => {
       // stemmed as Spanish — Mongo behaved the same; a numeral is a lexeme in both.
       const found = await articleService.search('2026', { page: 1, limit: 10 })
       expect(found.data.map((a) => a.id)).toEqual([ARTICLE_ES.toHexString()])
+      // The ObjectId ref became the same hex string the DTO always exposed.
+      const takedown = await takedownService.getById(TAKEDOWN_MATCHED.toHexString())
+      expect(takedown.articleId).toBe(ARTICLE_FULL.toHexString())
+      expect(takedown.resolution).toBe('Hero image removed')
       // A migrated actor key is used VERBATIM, never regenerated.
       expect(await resolveActorKeyPair('news')).toEqual(NEWS_KEY)
     } finally {

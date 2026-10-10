@@ -39,6 +39,7 @@ histograms — no write).
 | `actorkeys` | 20 | `actor_keys` | RSA keypairs, copied **verbatim**; 21 actors exist, `actualites` has never been fetched so has no key yet |
 | `users` | 1 (`nate`) | `users` | id kept (it is the JWT `sub`); bcrypt hash verbatim |
 | `followers` | 0 | `followers` | |
+| `takedownrequests` | — (did not exist at the census; the takedown feature merged afterwards) | `takedown_requests` | ids kept; `articleId` ref → hex string. Re-count at the window (3.3 prints it) |
 | `categories` | 7 | — **not ported** | never read by any code; equals the `CATEGORIES` tuple exactly (the copy refuses otherwise) |
 
 Target: `oxy-postgres` (PostgreSQL 17.9, `db.m8g.large`, Multi-AZ, deletion
@@ -308,9 +309,9 @@ gh run view "$RUN" -R GlobalWorldJournal/GWJ --log | grep -E 'applied migrations
 The backend leg must show, in order:
 
 - `applied migrations … ["0000_init"]`
-- `MIGRATION {"event":"source-count","collection":"articles","documents":126}` (and users 1, actorkeys 20–21, followers ≥0)
+- `MIGRATION {"event":"source-count","collection":"articles","documents":126}` (and users 1, actorkeys 20–21, followers ≥0, takedownrequests ≥0)
 - `MIGRATION {"event":"copied","table":"articles","inserted":126,…}` …
-- four `MIGRATION {"event":"verify",…,"match":true}` lines whose source and target `checksum`s are equal
+- five `MIGRATION {"event":"verify",…,"match":true}` lines whose source and target `checksum`s are equal
 - `MIGRATION_VERDICT=PASS`, `exitCode=0`
 - `no migrations to apply` (post phase)
 
@@ -435,7 +436,7 @@ aws ssm get-command-invocation --command-id "$CMD" --instance-id i-022ae8e0eff51
 ```
 
 Required in the output: `restore-count-match`, the counts JSON (articles/users/
-actorkeys/followers/categories matching §0 or the 3.3 log), and `OK` for all three
+actorkeys/followers/takedownrequests/categories matching the 3.3 log), and `OK` for all three
 files from `sha256sum -c`. Optionally also copy the S3 prefix to the offline vault.
 
 ### 5.2 Final EBS snapshot of the data volume

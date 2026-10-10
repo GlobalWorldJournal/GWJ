@@ -13,16 +13,22 @@
  *   - `_id` of `actorkeys` and `followers` (never left the database; the natural
  *     keys `username` and `(actorUsername, actorId)` identify them).
  *
- * Renamed: `_id` → `id` (24-hex string) for `articles` and `users` — preserved
- *   because it is embedded in federated Note ids, admin URLs and JWT `sub`.
+ * Renamed: `_id` → `id` (24-hex string) for `articles`, `users` and
+ *   `takedownrequests` — preserved because it is embedded in federated Note ids,
+ *   admin URLs and JWT `sub`.
+ *
+ * Converted: `takedownrequests.articleId` ObjectId ref → its hex string (exactly
+ *   what the DTO already exposed); absent/null stays null.
  *
  * Mongoose schema defaults (applied on hydration, so the app already saw them):
  *   - articles: language 'en', status 'draft', featured 0, tags [], seo {},
  *     heroImage.alt '' (when heroImage exists), publishedAt null.
  *   - users: role 'admin'.
+ *   - takedownrequests: status 'pending'.
  *
  * Absent optional value ⇔ null (the DTO maps both to an omitted field):
- *   - articles: deck, kicker, heroImage, source; followers: sharedInbox.
+ *   - articles: deck, kicker, heroImage, source; followers: sharedInbox;
+ *     takedownrequests: articleUrl, imageUrl, resolution.
  *   - inside heroImage/seo/source a null member is dropped (Zod: optional).
  *
  * Non-deterministic Mongoose defaults (`default: () => new Date()` evaluated at
@@ -39,7 +45,7 @@
 import type { Document, ObjectId } from 'mongodb'
 import { DEFAULT_EDITION_USERNAMES, DEFAULT_LANGUAGE } from '@gwj/shared-types'
 
-export type SourceCollection = 'articles' | 'users' | 'actorkeys' | 'followers'
+export type SourceCollection = 'articles' | 'users' | 'actorkeys' | 'followers' | 'takedownrequests'
 export type LogicalDocument = Record<string, unknown>
 
 const LEGACY_FOLLOWER_EDITION = DEFAULT_EDITION_USERNAMES[DEFAULT_LANGUAGE]
@@ -101,6 +107,19 @@ export function toLogical(collection: SourceCollection, raw: Document): LogicalD
       if (isAbsent(doc.updatedAt)) doc.updatedAt = doc.createdAt
       return doc
     }
+    case 'takedownrequests': {
+      doc.id = oid.toHexString()
+      const ref: unknown = doc.articleId
+      if (isAbsent(ref)) doc.articleId = null
+      else if (typeof ref === 'object' && ref !== null && typeof Reflect.get(ref, 'toHexString') === 'function') {
+        doc.articleId = (ref as ObjectId).toHexString()
+      }
+      for (const key of ['articleUrl', 'imageUrl', 'resolution'] as const) if (isAbsent(doc[key])) doc[key] = null
+      if (isAbsent(doc.status)) doc.status = 'pending'
+      if (isAbsent(doc.createdAt)) doc.createdAt = created
+      if (isAbsent(doc.updatedAt)) doc.updatedAt = doc.createdAt
+      return doc
+    }
     case 'followers': {
       if (isAbsent(doc.actorUsername)) doc.actorUsername = LEGACY_FOLLOWER_EDITION
       if (isAbsent(doc.sharedInbox)) doc.sharedInbox = null
@@ -117,6 +136,7 @@ export function naturalKey(collection: SourceCollection, doc: LogicalDocument): 
   switch (collection) {
     case 'articles':
     case 'users':
+    case 'takedownrequests':
       return String(doc.id)
     case 'actorkeys':
       return String(doc.username)

@@ -6,11 +6,20 @@
  * checked against the column's type and constraint so a bad document fails here,
  * with its id, rather than as an anonymous CHECK violation mid-transaction.
  */
-import { CATEGORIES, SUPPORTED_LANGUAGES, type HeroImage, type Seo, type Source } from '@gwj/shared-types'
+import {
+  CATEGORIES,
+  SUPPORTED_LANGUAGES,
+  TakedownClaimTypeSchema,
+  TakedownStatusSchema,
+  type HeroImage,
+  type Seo,
+  type Source,
+} from '@gwj/shared-types'
 import type { NewArticleRow } from '@gwj/backend/src/db/schema/articles'
 import type { UserRow } from '@gwj/backend/src/db/schema/users'
 import type { ActorKeyRow } from '@gwj/backend/src/db/schema/actorKeys'
 import type { FollowerRow } from '@gwj/backend/src/db/schema/followers'
+import type { TakedownRequestRow } from '@gwj/backend/src/db/schema/takedownRequests'
 import type { LogicalDocument, SourceCollection } from './normalize'
 
 export class InvalidDocumentError extends Error {
@@ -179,5 +188,31 @@ export function followerRow(doc: LogicalDocument): FollowerInsert {
     updatedAt: c.date('updatedAt') ?? new Date(0),
   }
   c.done('followers', `${String(doc.actorUsername)} ${String(doc.actorId)}`)
+  return row
+}
+
+export function takedownRequestRow(doc: LogicalDocument): TakedownRequestRow {
+  const c = new Checker(doc)
+  c.only([
+    'id', 'requesterName', 'requesterEmail', 'articleUrl', 'imageUrl', 'claimType', 'explanation',
+    'goodFaithAssertion', 'status', 'articleId', 'resolution', 'createdAt', 'updatedAt',
+  ])
+  if (doc.goodFaithAssertion !== true) c.problems.push('goodFaithAssertion is not true (takedown_requests_good_faith_check)')
+  const row: TakedownRequestRow = {
+    id: c.string('id', { pattern: HEX24 }) ?? '',
+    requesterName: c.string('requesterName', { nonEmpty: true }) ?? '',
+    requesterEmail: c.string('requesterEmail', { nonEmpty: true }) ?? '',
+    articleUrl: c.string('articleUrl', { nullable: true }),
+    imageUrl: c.string('imageUrl', { nullable: true }),
+    claimType: c.oneOf('claimType', TakedownClaimTypeSchema.options) ?? 'other',
+    explanation: c.string('explanation', { nonEmpty: true }) ?? '',
+    goodFaithAssertion: true,
+    status: c.oneOf('status', TakedownStatusSchema.options) ?? 'pending',
+    articleId: c.string('articleId', { nullable: true, pattern: HEX24 }),
+    resolution: c.string('resolution', { nullable: true }),
+    createdAt: c.date('createdAt') ?? new Date(0),
+    updatedAt: c.date('updatedAt') ?? new Date(0),
+  }
+  c.done('takedownrequests', String(doc.id))
   return row
 }
