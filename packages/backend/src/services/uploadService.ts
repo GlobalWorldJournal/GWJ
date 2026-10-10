@@ -1,11 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { PutObjectCommand, S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
-import type { UploadResponse } from '@gwj/shared-types';
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+  type S3ClientConfig,
+} from '@aws-sdk/client-s3';
+import type { ImageVariant, UploadResponse } from '@gwj/shared-types';
 import { validateImageBuffer } from '@gwj/shared-types/image-validation';
 import type { Env } from '../env';
 import { UnprocessableEntityError } from '../errors';
 import { logger } from '../logger';
-import { WEBP_MIME, optimizeWithVariants } from './imageOptimizer';
+import { WEBP_MIME, optimizeWithVariants, readImageMetadata } from './imageOptimizer';
 
 /**
  * Cache headers for uploaded images. Each object key is unique (UUID-prefixed)
@@ -29,6 +34,15 @@ function safeFilename(filename: string): string {
 function withExtension(filename: string, extension: string): string {
   const withoutExt = filename.replace(/\.[a-z0-9]+$/i, '');
   return `${withoutExt}.${extension}`;
+}
+
+/** An image already on the CDN, as {@link UploadService.addRenditions} found it. */
+export interface StoredImage {
+  /** The stored bytes (to fingerprint them). */
+  bytes: Buffer;
+  width: number;
+  height: number;
+  variants: ImageVariant[];
 }
 
 /** Per-call overrides of the image-validation floor (the article-image defaults otherwise). */
@@ -58,6 +72,12 @@ export interface UploadService {
     contentType: string,
     keyPrefix: string,
   ): Promise<UploadResponse>;
+  /**
+   * For an image uploaded before renditions existed: read it from the bucket and
+   * store its srcset renditions beside it (`<key>.w400.webp`, …). The image
+   * itself is not touched. Null when `url` is not one of our CDN objects.
+   */
+  addRenditions(url: string): Promise<StoredImage | null>;
 }
 
 /**
@@ -91,7 +111,36 @@ export function createUploadService(env: Env): UploadService {
     return { url: `${cdnBase}/${key}`, variants: [] };
   }
 
+  /** The bucket key behind one of our CDN URLs, or null for any other URL. */
+  function keyOf(url: string): string | null {
+    const prefix = `${cdnBase}/`;
+    return url.startsWith(prefix) ? decodeURIComponent(url.slice(prefix.length)) : null;
+  }
+
   return {
+    async addRenditions(url) {
+      const key = keyOf(url);
+      if (!key) return null;
+      const object = await client.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key }));
+      if (!object.Body) throw new Error(`empty object ${key}`);
+      const bytes = Buffer.from(await object.Body.transformToByteArray());
+      const meta = await readImageMetadata(bytes);
+      // An animated GIF keeps its frames: no WebP renditions for it.
+      if (meta.format === 'gif')
+        return { bytes, width: meta.width, height: meta.height, variants: [] };
+      const { variants } = await optimizeWithVariants(bytes);
+      const stored = await Promise.all(
+        variants.map(async (variant) => {
+          const variantKey = withExtension(key, `w${variant.width}.webp`);
+          return {
+            width: variant.width,
+            url: (await put(variantKey, variant.buffer, WEBP_MIME)).url,
+          };
+        }),
+      );
+      return { bytes, width: meta.width, height: meta.height, variants: stored };
+    },
+
     async uploadImage(buffer, filename, contentType, options = {}) {
       // Authoritative server-side validation: never store an image that is not a
       // complete, decodable file of an allowed type at a usable size. This is the

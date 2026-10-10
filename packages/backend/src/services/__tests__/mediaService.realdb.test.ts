@@ -24,6 +24,7 @@ function fakeUploads(): UploadService & { uploadImage: ReturnType<typeof vi.fn> 
   return {
     uploadImage: vi.fn(async () => stored),
     storeImage: vi.fn(async () => ({ url: stored.url, variants: [] })),
+    addRenditions: vi.fn(async () => null),
   };
 }
 
