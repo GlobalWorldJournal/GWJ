@@ -91,8 +91,9 @@ resource "aws_ecs_service" "backend" {
   name            = "${var.prefix}-backend"
   cluster         = data.aws_ecs_cluster.oxy.arn
   task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  # Initial count only: autoscaling (below) owns it from then on.
+  desired_count = var.backend_min_tasks
+  launch_type   = "FARGATE"
 
   deployment_circuit_breaker {
     enable   = true
@@ -112,13 +113,42 @@ resource "aws_ecs_service" "backend" {
   }
 
   # The deploy owns which revision runs (scripts/ecs-register-release.sh pins
-  # each release's image by digest). Terraform owns the family's configuration:
-  # a change here registers a new revision that the NEXT deploy builds on.
+  # each release's image by digest), and autoscaling owns the task count.
+  # Terraform owns the family's configuration: a change here registers a new
+  # revision that the NEXT deploy builds on.
   lifecycle {
-    ignore_changes = [task_definition]
+    ignore_changes = [task_definition, desired_count]
   }
 
   depends_on = [aws_lb_listener_rule.backend]
+}
+
+# Backend autoscaling: hold average CPU near 60% between the configured bounds.
+# Every backend replica is stateless (sessions are JWTs, keys and data live in
+# PostgreSQL); only the in-memory rate limits are per task.
+resource "aws_appautoscaling_target" "backend" {
+  service_namespace  = "ecs"
+  resource_id        = "service/${data.aws_ecs_cluster.oxy.cluster_name}/${aws_ecs_service.backend.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  min_capacity       = var.backend_min_tasks
+  max_capacity       = var.backend_max_tasks
+}
+
+resource "aws_appautoscaling_policy" "backend_cpu" {
+  name               = "${var.prefix}-backend-cpu"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.backend.service_namespace
+  resource_id        = aws_appautoscaling_target.backend.resource_id
+  scalable_dimension = aws_appautoscaling_target.backend.scalable_dimension
+
+  target_tracking_scaling_policy_configuration {
+    target_value       = 60
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+  }
 }
 
 # === mcp ===

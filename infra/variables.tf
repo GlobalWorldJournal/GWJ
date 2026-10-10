@@ -57,3 +57,23 @@ variable "rule_priority_mcp" {
   type    = number
   default = 401
 }
+
+# Email addresses subscribed to the gwj-alerts SNS topic (monitoring.tf). Each
+# receives a confirmation link from AWS that must be clicked once. Empty → the
+# alarms still fire and are visible in CloudWatch, but notify nobody.
+variable "alert_emails" {
+  type    = list(string)
+  default = []
+}
+
+# Backend task count bounds for target-tracking autoscaling (ecs.tf). Two at the
+# floor, so one task failing (or a deploy draining one) never takes the API down.
+variable "backend_min_tasks" {
+  type    = number
+  default = 2
+}
+
+variable "backend_max_tasks" {
+  type    = number
+  default = 4
+}

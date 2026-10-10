@@ -299,3 +299,32 @@ describe('GET /healthz', () => {
     }
   });
 });
+
+describe('MCP request log', () => {
+  it('logs the request path but never the query string (which may carry ?token=)', async () => {
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const { loadEnv } = await import('../env.js');
+    const env = loadEnv({
+      MCP_TOKEN: 'secret',
+      API_BASE_URL: 'https://api.example.com',
+      ADMIN_USERNAME: 'nate',
+      ADMIN_PASSWORD: 'pw',
+    });
+    const server = createApp(env, mockClient()).listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/mcp?token=wrong-token-value`, {
+        method: 'POST',
+      });
+      expect(res.status).toBe(401);
+      await new Promise((resolve) => setImmediate(resolve));
+      const logged = stdout.mock.calls.map(([chunk]) => String(chunk)).join('');
+      expect(logged).toContain('"path":"/mcp"');
+      expect(logged).toContain('"status":401');
+      expect(logged).not.toContain('wrong-token-value');
+    } finally {
+      server.close();
+      stdout.mockRestore();
+    }
+  });
+});

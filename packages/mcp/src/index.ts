@@ -4,9 +4,11 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { Health } from '@gwj/shared-types';
 import { createGwjClient, type GwjClient } from './client.js';
 import { loadEnv, type Env } from './env.js';
+import { errorFields, logger } from './logger.js';
 import { createMcpServer } from './tools.js';
 
 const MCP_PATH = '/mcp';
+const NANOSECONDS_PER_MILLISECOND = 1_000_000n;
 const JSON_RPC_VERSION = '2.0';
 
 /** Constant-time string comparison that never leaks length via timing-sensitive paths. */
@@ -53,8 +55,34 @@ function requireBearer(expected: string) {
  * Build the express app: unauthenticated `/healthz`, bearer-gated stateless MCP at `/mcp`.
  * A fresh `McpServer` + transport is created per request (stateless Streamable HTTP).
  */
+/**
+ * One log line per MCP request. The path is logged WITHOUT its query string: a
+ * client that cannot send headers authenticates with `?token=`, which must never
+ * reach the logs. The ALB's health polls are skipped.
+ */
+function requestLog() {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const started = process.hrtime.bigint();
+    // Captured now: by `finish` a mounted router has rewritten req.url/req.path.
+    const path = req.path;
+    res.on('finish', () => {
+      if (path === '/healthz' && res.statusCode < 500) return;
+      const fields = {
+        method: req.method,
+        path,
+        status: res.statusCode,
+        durationMs: Number((process.hrtime.bigint() - started) / NANOSECONDS_PER_MILLISECOND),
+      };
+      if (res.statusCode >= 500) logger.error('request', fields);
+      else logger.info('request', fields);
+    });
+    next();
+  };
+}
+
 export function createApp(env: Env, client: GwjClient): express.Express {
   const app = express();
+  app.use(requestLog());
   app.use(express.json({ limit: '25mb' }));
 
   const health: Health = { ok: true, release: env.GWJ_RELEASE ?? null };
@@ -76,11 +104,15 @@ export function createApp(env: Env, client: GwjClient): express.Express {
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Internal server error';
+      // Details go to the log; the client gets a generic JSON-RPC error. (Tool
+      // failures are not this path: `guard` returns those to the agent as results.)
+      logger.error('mcp request failed', errorFields(error));
       if (!res.headersSent) {
-        res
-          .status(500)
-          .json({ jsonrpc: JSON_RPC_VERSION, error: { code: -32603, message }, id: null });
+        res.status(500).json({
+          jsonrpc: JSON_RPC_VERSION,
+          error: { code: -32603, message: 'Internal server error' },
+          id: null,
+        });
       }
       void transport?.close();
     }
@@ -109,7 +141,7 @@ function main(): void {
   });
   const app = createApp(env, client);
   app.listen(env.MCP_PORT, () => {
-    process.stdout.write(`@gwj/mcp listening on :${env.MCP_PORT}\n`);
+    logger.info('gwj mcp listening', { port: env.MCP_PORT });
   });
 }
 

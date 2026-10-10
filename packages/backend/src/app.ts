@@ -9,7 +9,11 @@ import { createAuthRouter } from './routes/auth';
 import { createAdminRouter } from './routes/admin';
 import { createUploadService, type UploadService } from './services/uploadService';
 import { type RemoteImageOptions } from './services/remoteImageService';
+import { sql } from 'drizzle-orm';
 import { createErrorHandler, notFoundHandler } from './middleware/error';
+import { requestLog } from './middleware/requestLog';
+import { getDb } from './db/client';
+import { errorFields, logger } from './logger';
 import { createActivityPub, type ActivityPubModule, type ActivityPubOptions } from './activitypub';
 import { startChannels } from './channels';
 
@@ -59,6 +63,7 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   // so the rate limiters key on the real client rather than the load balancer.
   app.set('trust proxy', env.TRUST_PROXY_HOPS);
 
+  app.use(requestLog());
   app.use(helmet());
 
   const allowlist = parseCorsOrigins(env.CORS_ORIGINS);
@@ -102,8 +107,21 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   });
 
   const health: Health = { ok: true, release: env.GWJ_RELEASE ?? null };
+  // Liveness for the ALB: the process serves HTTP. Deliberately NOT tied to the
+  // database, so a database blip does not make the ALB cycle every task.
   app.get('/healthz', (_req: Request, res: Response) => {
     res.json(health);
+  });
+
+  // Readiness: the process can reach PostgreSQL. For deploy checks and alarms.
+  app.get('/readyz', async (_req: Request, res: Response) => {
+    try {
+      await getDb().execute(sql`select 1`);
+      res.json(health);
+    } catch (err) {
+      logger.error('readiness check failed', errorFields(err));
+      res.status(503).json({ ok: false, release: health.release });
+    }
   });
 
   // ActivityPub is mounted BEFORE the global JSON body parser: its inbox routes

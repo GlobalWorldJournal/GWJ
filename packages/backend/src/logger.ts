@@ -11,6 +11,15 @@ function emit(level: 'info' | 'warn' | 'error', message: string, fields?: LogFie
   else process.stdout.write(`${line}\n`);
 }
 
+/**
+ * The fields to log for a caught error: its message, class and — for real
+ * `Error`s — the stack, which is what makes a production 500 diagnosable.
+ */
+export function errorFields(err: unknown): LogFields {
+  if (err instanceof Error) return { error: err.message, errorName: err.name, stack: err.stack };
+  return { error: String(err) };
+}
+
 export const logger = {
   info: (message: string, fields?: LogFields) => emit('info', message, fields),
   warn: (message: string, fields?: LogFields) => emit('warn', message, fields),
