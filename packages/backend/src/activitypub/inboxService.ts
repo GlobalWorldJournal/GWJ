@@ -160,7 +160,7 @@ async function dispatch(
     case 'Undo':
       return handleUndo(activity, targetActor, deps)
     case 'Delete':
-      return handleDelete(activity, deps)
+      return handleDelete(activity)
     default:
       // Unknown/unsupported activities are accepted and ignored (per AP guidance).
       logger.info('activitypub inbox: ignoring activity', { type: activity.type })
@@ -262,7 +262,7 @@ async function handleUndo(
   return { status: 202, reason: 'Undo processed' }
 }
 
-async function handleDelete(activity: InboundActivity, deps: InboxServiceDeps): Promise<InboxResult> {
+async function handleDelete(activity: InboundActivity): Promise<InboxResult> {
   // A server deleting an actor sends Delete with object === that actor's id. If it
   // followed ANY local actor, drop those rows. Other Deletes are accepted/ignored.
   const deletedId = objectId(activity.object)

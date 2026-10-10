@@ -155,5 +155,5 @@ for (const demo of DEMO) {
   created += 1
 }
 
-console.log(`demo seed complete: ${created} created, ${skipped} already existed`)
+process.stdout.write(`demo seed complete: ${created} created, ${skipped} already existed\n`)
 await disconnectDb()

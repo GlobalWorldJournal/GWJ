@@ -10,7 +10,7 @@ const API = (process.env.API_BASE_URL ?? '').replace(/\/$/, '')
 const USER = process.env.ADMIN_USERNAME ?? ''
 const PASS = process.env.ADMIN_PASSWORD ?? ''
 if (!API || !USER || !PASS) {
-  console.error('Missing API_BASE_URL / ADMIN_USERNAME / ADMIN_PASSWORD')
+  process.stderr.write('Missing API_BASE_URL / ADMIN_USERNAME / ADMIN_PASSWORD\n')
   process.exit(1)
 }
 
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
     body: JSON.stringify({ username: USER, password: PASS }),
   })
   if (!login.ok) {
-    console.error(`login failed: ${login.status}`)
+    process.stderr.write(`login failed: ${login.status}\n`)
     process.exit(1)
   }
   const { token } = (await login.json()) as { token: string }
@@ -75,12 +75,12 @@ async function main(): Promise<void> {
     })
     if (res.ok) {
       cleaned += 1
-      console.log(`cleaned${patch.source ? ' (+source)' : ''}: ${a.title.slice(0, 55)}`)
+      process.stdout.write(`cleaned${patch.source ? ' (+source)' : ''}: ${a.title.slice(0, 55)}\n`)
     } else {
-      console.error(`patch failed ${a.id}: ${res.status} ${await res.text()}`)
+      process.stderr.write(`patch failed ${a.id}: ${res.status} ${await res.text()}\n`)
     }
   }
-  console.log(`\ndone: ${cleaned} article(s) cleaned`)
+  process.stdout.write(`\ndone: ${cleaned} article(s) cleaned\n`)
 }
 
 await main()

@@ -7,7 +7,7 @@ import { constraintNameOf, isUniqueViolation } from '../db/pgErrors'
 const INTERNAL_ERROR = 'Internal server error'
 
 /** 404 handler for unmatched routes. */
-export const notFoundHandler = (req: Request, res: Response): void => {
+export const notFoundHandler = (_req: Request, res: Response): void => {
   res.status(404).json({ error: 'Not found' })
 }
 
