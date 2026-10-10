@@ -1,9 +1,9 @@
-import Markdown, { type Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import Markdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ArticleBodyProps {
   /** Article body as GitHub-flavored Markdown. */
-  markdown: string
+  markdown: string;
 }
 
 /**
@@ -21,19 +21,13 @@ export function ArticleBody({ markdown }: ArticleBodyProps) {
         {markdown}
       </Markdown>
     </div>
-  )
+  );
 }
 
 const MARKDOWN_COMPONENTS: Components = {
-  h1: ({ children }) => (
-    <h2 className="headline mt-10 mb-3 text-3xl text-ink">{children}</h2>
-  ),
-  h2: ({ children }) => (
-    <h2 className="headline mt-10 mb-3 text-2xl text-ink">{children}</h2>
-  ),
-  h3: ({ children }) => (
-    <h3 className="headline mt-8 mb-2 text-xl text-ink">{children}</h3>
-  ),
+  h1: ({ children }) => <h2 className="headline mt-10 mb-3 text-3xl text-ink">{children}</h2>,
+  h2: ({ children }) => <h2 className="headline mt-10 mb-3 text-2xl text-ink">{children}</h2>,
+  h3: ({ children }) => <h3 className="headline mt-8 mb-2 text-xl text-ink">{children}</h3>,
   p: ({ children }) => <p>{children}</p>,
   a: ({ href, children }) => (
     <a
@@ -52,12 +46,8 @@ const MARKDOWN_COMPONENTS: Components = {
       {children}
     </blockquote>
   ),
-  ul: ({ children }) => (
-    <ul className="my-4 ml-5 list-disc space-y-1">{children}</ul>
-  ),
-  ol: ({ children }) => (
-    <ol className="my-4 ml-5 list-decimal space-y-1">{children}</ol>
-  ),
+  ul: ({ children }) => <ul className="my-4 ml-5 list-disc space-y-1">{children}</ul>,
+  ol: ({ children }) => <ol className="my-4 ml-5 list-decimal space-y-1">{children}</ol>,
   li: ({ children }) => <li className="pl-1">{children}</li>,
   hr: () => <hr className="my-10 border-0 border-t border-rule" />,
   code: ({ children }) => (
@@ -86,4 +76,4 @@ const MARKDOWN_COMPONENTS: Components = {
       ) : null}
     </figure>
   ),
-}
+};

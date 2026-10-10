@@ -1,7 +1,7 @@
-import { Outlet } from 'react-router-dom'
-import { Masthead } from './Masthead'
-import { SectionNav } from './SectionNav'
-import { Footer } from './Footer'
+import { Outlet } from 'react-router-dom';
+import { Masthead } from './Masthead';
+import { SectionNav } from './SectionNav';
+import { Footer } from './Footer';
 
 /** Public reader shell: masthead + section nav + routed page + footer. */
 export function SiteLayout() {
@@ -14,5 +14,5 @@ export function SiteLayout() {
       </main>
       <Footer />
     </div>
-  )
+  );
 }

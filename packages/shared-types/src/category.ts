@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod';
 
 export const CATEGORIES = [
   'World',
@@ -8,18 +8,18 @@ export const CATEGORIES = [
   'Politics',
   'Opinion',
   'Arts',
-] as const
+] as const;
 
-export const CategorySchema = z.enum(CATEGORIES)
-export type Category = z.infer<typeof CategorySchema>
+export const CategorySchema = z.enum(CATEGORIES);
+export type Category = z.infer<typeof CategorySchema>;
 
 export const CategoryDocSchema = z.object({
   slug: z.string(),
   name: CategorySchema,
   order: z.number().int().min(0),
-})
-export type CategoryDoc = z.infer<typeof CategoryDocSchema>
+});
+export type CategoryDoc = z.infer<typeof CategoryDocSchema>;
 
 export function categorySlug(name: Category): string {
-  return name.toLowerCase()
+  return name.toLowerCase();
 }

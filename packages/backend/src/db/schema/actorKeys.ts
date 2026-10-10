@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
  * One RSA keypair per local ActivityPub actor (edition or writer), keyed by its
@@ -12,6 +12,6 @@ export const actorKeys = pgTable('actor_keys', {
   publicKeyPem: text().notNull(),
   createdAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
-})
+});
 
-export type ActorKeyRow = typeof actorKeys.$inferSelect
+export type ActorKeyRow = typeof actorKeys.$inferSelect;

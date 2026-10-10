@@ -1,4 +1,4 @@
-import { defineConfig } from 'drizzle-kit'
+import { defineConfig } from 'drizzle-kit';
 
 /**
  * drizzle-kit is used ONLY to GENERATE migrations (`bun run db:generate`), never
@@ -20,4 +20,4 @@ export default defineConfig({
   casing: 'snake_case',
   strict: true,
   verbose: true,
-})
+});

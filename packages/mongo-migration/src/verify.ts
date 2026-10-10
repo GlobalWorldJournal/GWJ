@@ -1,22 +1,22 @@
-import { canonicalJson, diffDigests, digest, type TableDigest } from './canonical'
-import { naturalKey, type LogicalDocument, type SourceCollection } from './normalize'
-import { PORTED_COLLECTIONS } from './source'
+import { canonicalJson, diffDigests, digest, type TableDigest } from './canonical';
+import { naturalKey, type LogicalDocument, type SourceCollection } from './normalize';
+import { PORTED_COLLECTIONS } from './source';
 
 export interface TableVerification {
-  table: SourceCollection
-  source: { count: number; checksum: string }
-  target: { count: number; checksum: string }
-  match: boolean
+  table: SourceCollection;
+  source: { count: number; checksum: string };
+  target: { count: number; checksum: string };
+  match: boolean;
   /** Up to {@link MAX_NAMED} keys per kind of difference. */
-  changed: string[]
-  onlyInSource: string[]
-  onlyInTarget: string[]
+  changed: string[];
+  onlyInSource: string[];
+  onlyInTarget: string[];
 }
 
-const MAX_NAMED = 20
+const MAX_NAMED = 20;
 
 function digestOf(collection: SourceCollection, docs: LogicalDocument[]): TableDigest {
-  return digest(docs.map((d) => ({ key: naturalKey(collection, d), json: canonicalJson(d) })))
+  return digest(docs.map((d) => ({ key: naturalKey(collection, d), json: canonicalJson(d) })));
 }
 
 /**
@@ -29,9 +29,9 @@ export function verifyTables(
   target: Record<SourceCollection, LogicalDocument[]>,
 ): TableVerification[] {
   return PORTED_COLLECTIONS.map((table) => {
-    const s = digestOf(table, source[table])
-    const t = digestOf(table, target[table])
-    const diff = diffDigests(s, t)
+    const s = digestOf(table, source[table]);
+    const t = digestOf(table, target[table]);
+    const diff = diffDigests(s, t);
     return {
       table,
       source: { count: s.count, checksum: s.checksum },
@@ -40,6 +40,6 @@ export function verifyTables(
       changed: diff.changed.slice(0, MAX_NAMED),
       onlyInSource: diff.onlyInSource.slice(0, MAX_NAMED),
       onlyInTarget: diff.onlyInTarget.slice(0, MAX_NAMED),
-    }
-  })
+    };
+  });
 }

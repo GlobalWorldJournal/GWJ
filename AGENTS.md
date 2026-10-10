@@ -53,6 +53,7 @@ Fonts: Playfair Display (headlines) · Libre Franklin (labels/kickers/bylines) �
 - `linker = "hoisted"` in root `bunfig.toml`.
 - TypeScript strict. BANNED: `as any`, `@ts-ignore`/`@ts-expect-error`, `!` non-null assertions, silent `catch {}`, committed `console.log`, `var`, hardcoded secrets/URLs/magic numbers, TODO/FIXME/HACK comments.
 - The bans are enforced, not advisory: `bun run lint` (Biome + `scripts/check-banned.ts`) and tsc `noUnusedLocals`/`noUnusedParameters` gate CI. Scripts print with `process.stdout/stderr.write`.
+- Formatting and lint are Biome (`biome.json`, single quotes, semicolons, width 100): `bun run format` / `bun run lint:fix`; CI runs `biome ci .`, so unformatted code fails. No ESLint/Prettier.
 - Avoid `useEffect` for data — use React Query / derived state / event handlers.
 - No re-export barrel hacks (a package's own `index.ts` public surface is fine).
 - Secrets via env only; never commit values; guard placeholder `-`/empty before use.

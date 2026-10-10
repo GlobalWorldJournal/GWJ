@@ -1,14 +1,14 @@
-import { useState } from 'react'
-import { CATEGORIES, categorySlug, type Category } from '@gwj/shared-types'
-import { useLang } from '../lib/i18n'
-import { LocaleLink, LocaleNavLink } from '../lib/locale'
-import { categoryLabel } from '../lib/dictionary'
-import { LanguageSwitcher } from './LanguageSwitcher'
+import { useState } from 'react';
+import { CATEGORIES, categorySlug, type Category } from '@gwj/shared-types';
+import { useLang } from '../lib/i18n';
+import { LocaleLink, LocaleNavLink } from '../lib/locale';
+import { categoryLabel } from '../lib/dictionary';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
-const NAV_LINK_BASE = 'label text-[0.75rem] tracking-[0.06em] transition-colors hover:text-accent'
+const NAV_LINK_BASE = 'label text-[0.75rem] tracking-[0.06em] transition-colors hover:text-accent';
 
 function activeClass(isActive: boolean): string {
-  return isActive ? 'text-accent' : 'text-ink'
+  return isActive ? 'text-accent' : 'text-ink';
 }
 
 // Sub-topics shown in each section's hover mega-menu (link to a search query).
@@ -20,13 +20,13 @@ const SUBTOPICS: Record<Category, string[]> = {
   Politics: ['Elections', 'Policy', 'National Security', 'Courts', 'Economy'],
   Opinion: ['Editorials', 'Commentary', 'Columnists', 'Letters'],
   Arts: ['Books', 'Film', 'Music', 'Television', 'Theater', 'Design'],
-}
+};
 
 /** Section navigation: 7 categories + Search. Desktop hover mega-menu; mobile drawer. */
 export function SectionNav() {
-  const { lang, t } = useLang()
-  const [open, setOpen] = useState(false)
-  const [hovered, setHovered] = useState<Category | null>(null)
+  const { lang, t } = useLang();
+  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState<Category | null>(null);
 
   return (
     <nav
@@ -135,5 +135,5 @@ export function SectionNav() {
         </div>
       ) : null}
     </nav>
-  )
+  );
 }

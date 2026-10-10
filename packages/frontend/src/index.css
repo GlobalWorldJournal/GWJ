@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @theme {
   /* Self-hosted via @fontsource (bundled & fingerprinted by Vite into
@@ -6,9 +6,9 @@
      names; the @font-face declarations are imported in main.tsx before this
      file. font-display: swap is baked into the @fontsource @font-face rules,
      so text paints immediately in the fallback and swaps in without blocking. */
-  --font-headline: 'Playfair Display Variable', Georgia, 'Times New Roman', serif;
-  --font-label: 'Libre Franklin Variable', 'Helvetica Neue', Arial, sans-serif;
-  --font-body: 'PT Serif', Georgia, 'Times New Roman', serif;
+  --font-headline: "Playfair Display Variable", Georgia, "Times New Roman", serif;
+  --font-label: "Libre Franklin Variable", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "PT Serif", Georgia, "Times New Roman", serif;
 
   --color-ink: #111111;
   --color-ink-soft: #333333;

@@ -1,5 +1,5 @@
-import type { Category } from './category'
-import { slugify } from './article'
+import type { Category } from './category';
+import { slugify } from './article';
 
 /**
  * The Global World Journal masthead — a roster of (fictional) staff writers,
@@ -8,11 +8,11 @@ import { slugify } from './article'
  * agent picks a writer whose beats include the story's section.
  */
 export interface Writer {
-  name: string
+  name: string;
   /** Sections this writer covers (one or more). */
-  beats: readonly Category[]
+  beats: readonly Category[];
   /** Short title shown on author pages / bylines. */
-  title: string
+  title: string;
 }
 
 /** The byline roster. Typed non-empty, so a fallback writer always exists. */
@@ -31,25 +31,37 @@ export const WRITERS: readonly [Writer, ...Writer[]] = [
   { name: 'Margaret Holloway', beats: ['Opinion', 'World'], title: 'Editorial Board' },
   { name: 'Camille Dubois', beats: ['Arts', 'Opinion'], title: 'Culture Critic' },
   { name: 'Oliver Bennett', beats: ['Arts', 'World'], title: 'Books & Film Reporter' },
-  { name: 'Nathan Cole', beats: ['World', 'Business', 'Politics'], title: 'Senior Writer at Large' },
-  { name: 'Yuki Tanaka', beats: ['Tech', 'Markets', 'World'], title: 'Global Technology Correspondent' },
+  {
+    name: 'Nathan Cole',
+    beats: ['World', 'Business', 'Politics'],
+    title: 'Senior Writer at Large',
+  },
+  {
+    name: 'Yuki Tanaka',
+    beats: ['Tech', 'Markets', 'World'],
+    title: 'Global Technology Correspondent',
+  },
   { name: 'Amara Diallo', beats: ['World', 'Arts'], title: 'Features Correspondent' },
-  { name: 'Robert Hale', beats: ['Markets', 'Business', 'Politics'], title: 'Economics Correspondent' },
-] as const
+  {
+    name: 'Robert Hale',
+    beats: ['Markets', 'Business', 'Politics'],
+    title: 'Economics Correspondent',
+  },
+] as const;
 
 /** Stable, dependency-free string hash (FNV-1a) for deterministic picks. */
 function hash(value: string): number {
-  let h = 0x811c9dc5
+  let h = 0x811c9dc5;
   for (let i = 0; i < value.length; i += 1) {
-    h ^= value.charCodeAt(i)
-    h = Math.imul(h, 0x01000193)
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
   }
-  return h >>> 0
+  return h >>> 0;
 }
 
 /** Writers whose beats include a section. */
 export function writersForCategory(category: Category): Writer[] {
-  return WRITERS.filter((w) => w.beats.includes(category))
+  return WRITERS.filter((w) => w.beats.includes(category));
 }
 
 /**
@@ -58,25 +70,25 @@ export function writersForCategory(category: Category): Writer[] {
  * writers covering that beat. Falls back to the full roster if none match.
  */
 export function pickWriter(category: Category, seed = ''): Writer {
-  const onBeat = writersForCategory(category)
-  const pool = onBeat.length > 0 ? onBeat : WRITERS
-  const index = hash(`${category}:${seed}`) % pool.length
-  return pool[index] ?? WRITERS[0]
+  const onBeat = writersForCategory(category);
+  const pool = onBeat.length > 0 ? onBeat : WRITERS;
+  const index = hash(`${category}:${seed}`) % pool.length;
+  return pool[index] ?? WRITERS[0];
 }
 
 /** URL slug for an author byline, e.g. "Eleanor Vance" -> "eleanor-vance". */
 export function authorSlug(name: string): string {
-  return slugify(name)
+  return slugify(name);
 }
 
 /** Resolve an author-page slug back to a roster writer, if it is one. */
 export function findWriterBySlug(slug: string): Writer | undefined {
-  return WRITERS.find((w) => authorSlug(w.name) === slug)
+  return WRITERS.find((w) => authorSlug(w.name) === slug);
 }
 
 /** Resolve a roster writer by exact display name (the article `author` field). */
 export function findWriterByName(name: string): Writer | undefined {
-  return WRITERS.find((w) => w.name === name)
+  return WRITERS.find((w) => w.name === name);
 }
 
 /**
@@ -94,12 +106,12 @@ export function fediUsername(name: string): string {
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]/g, '')
+    .replace(/[^a-z0-9]/g, '');
 }
 
 /** Resolve a roster writer by their fediverse username, if it is one. */
 export function findWriterByFediUsername(username: string): Writer | undefined {
-  return WRITERS.find((w) => fediUsername(w.name) === username)
+  return WRITERS.find((w) => fediUsername(w.name) === username);
 }
 
 /**
@@ -108,5 +120,5 @@ export function findWriterByFediUsername(username: string): Writer | undefined {
  * path key is the writer's `fediUsername`, e.g. `writers/eleanorvance.png`.
  */
 export function writerAvatarPath(name: string): string {
-  return `writers/${fediUsername(name)}.png`
+  return `writers/${fediUsername(name)}.png`;
 }

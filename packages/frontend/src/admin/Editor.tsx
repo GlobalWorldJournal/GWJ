@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CATEGORIES,
   SUPPORTED_LANGUAGES,
@@ -12,7 +12,7 @@ import {
   type Category,
   type HeroImage,
   type Language,
-} from '@gwj/shared-types'
+} from '@gwj/shared-types';
 import {
   createArticle,
   updateArticle,
@@ -21,28 +21,28 @@ import {
   uploadImage,
   getAdminArticle,
   ApiRequestError,
-} from '../lib/api'
-import { useAuth } from './useAuth'
-import { StatusMessage } from '../components/StatusMessage'
+} from '../lib/api';
+import { useAuth } from './useAuth';
+import { StatusMessage } from '../components/StatusMessage';
 
 interface EditorForm {
-  title: string
-  deck: string
-  kicker: string
-  category: Category
+  title: string;
+  deck: string;
+  kicker: string;
+  category: Category;
   /** Edition this article belongs to. */
-  language: Language
-  author: string
-  tags: string
-  featured: number
-  heroImage: HeroImage | null
+  language: Language;
+  author: string;
+  tags: string;
+  featured: number;
+  heroImage: HeroImage | null;
   /** Article body as GitHub-flavored Markdown. */
-  body: string
+  body: string;
   /** URL slug; blank on a new article means "derive it from the title". */
-  slug: string
-  metaTitle: string
-  metaDescription: string
-  ogImage: string
+  slug: string;
+  metaTitle: string;
+  metaDescription: string;
+  ogImage: string;
 }
 
 function emptyForm(): EditorForm {
@@ -61,7 +61,7 @@ function emptyForm(): EditorForm {
     metaTitle: '',
     metaDescription: '',
     ogImage: '',
-  }
+  };
 }
 
 function formFromArticle(article: Article): EditorForm {
@@ -80,7 +80,7 @@ function formFromArticle(article: Article): EditorForm {
     metaTitle: article.seo.metaTitle ?? '',
     metaDescription: article.seo.metaDescription ?? '',
     ogImage: article.seo.ogImage ?? '',
-  }
+  };
 }
 
 /**
@@ -109,147 +109,147 @@ function formContent(form: EditorForm): Omit<ArticleInput, 'status' | 'slug'> {
       metaDescription: form.metaDescription.trim(),
       ogImage: form.ogImage.trim(),
     },
-  }
+  };
 }
 
 /** A new article always starts as a draft; a blank slug is derived from the title. */
 function toArticleInput(form: EditorForm): ArticleInput {
-  return { ...formContent(form), status: 'draft', slug: form.slug.trim() || undefined }
+  return { ...formContent(form), status: 'draft', slug: form.slug.trim() || undefined };
 }
 
 /** Only send a slug the editor actually changed; otherwise the server keeps it. */
 function toArticleUpdate(form: EditorForm, savedSlug: string): ArticleUpdate {
-  const slug = form.slug.trim()
-  return { ...formContent(form), slug: slug && slug !== savedSlug ? slug : undefined }
+  const slug = form.slug.trim();
+  return { ...formContent(form), slug: slug && slug !== savedSlug ? slug : undefined };
 }
 
 export function Editor() {
-  const { id } = useParams<{ id: string }>()
-  const isNew = !id || id === 'new'
+  const { id } = useParams<{ id: string }>();
+  const isNew = !id || id === 'new';
 
   if (isNew) {
-    return <EditorForm initial={emptyForm()} article={null} />
+    return <EditorForm initial={emptyForm()} article={null} />;
   }
 
-  return <ExistingEditor id={id} />
+  return <ExistingEditor id={id} />;
 }
 
 function ExistingEditor({ id }: { id: string }) {
-  const { token } = useAuth()
+  const { token } = useAuth();
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['admin', 'article', id],
     queryFn: ({ signal }) => {
-      if (!token) throw new Error('Not authenticated')
-      return getAdminArticle(token, id, signal)
+      if (!token) throw new Error('Not authenticated');
+      return getAdminArticle(token, id, signal);
     },
     enabled: Boolean(token),
-  })
+  });
 
   if (isPending) {
-    return <StatusMessage title="Loading editor&hellip;" />
+    return <StatusMessage title="Loading editor&hellip;" />;
   }
   if (isError) {
     if (error instanceof ApiRequestError && error.status === 404) {
-      return <StatusMessage title="Article not found." />
+      return <StatusMessage title="Article not found." />;
     }
     return (
       <StatusMessage
         title="Could not load the article."
         detail={error instanceof Error ? error.message : undefined}
       />
-    )
+    );
   }
 
-  return <EditorForm initial={formFromArticle(data)} article={data} />
+  return <EditorForm initial={formFromArticle(data)} article={data} />;
 }
 
 interface EditorFormProps {
-  initial: EditorForm
+  initial: EditorForm;
   /** The stored article being edited, or null for a new one. */
-  article: Article | null
+  article: Article | null;
 }
 
 function EditorForm({ initial, article }: EditorFormProps) {
-  const { token } = useAuth()
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const [form, setForm] = useState<EditorForm>(initial)
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<EditorForm>(initial);
   // The server's view of the article after the latest save/publish/unpublish.
-  const [saved, setSaved] = useState<Article | null>(article)
+  const [saved, setSaved] = useState<Article | null>(article);
 
   function update<K extends keyof EditorForm>(key: K, value: EditorForm[K]) {
-    setForm((current) => ({ ...current, [key]: value }))
+    setForm((current) => ({ ...current, [key]: value }));
   }
 
   function invalidate() {
-    return queryClient.invalidateQueries({ queryKey: ['admin'] })
+    return queryClient.invalidateQueries({ queryKey: ['admin'] });
   }
 
   /** Persist the form without changing whether the story is live. */
   async function persist(authToken: string): Promise<Article> {
-    if (saved) return updateArticle(authToken, saved.id, toArticleUpdate(form, saved.slug))
-    return createArticle(authToken, toArticleInput(form))
+    if (saved) return updateArticle(authToken, saved.id, toArticleUpdate(form, saved.slug));
+    return createArticle(authToken, toArticleInput(form));
   }
 
   function onSaved(next: Article) {
-    setSaved(next)
+    setSaved(next);
     // Reflect server-side normalisation (a derived slug, cleared SEO keys).
-    setForm((current) => ({ ...current, slug: next.slug }))
+    setForm((current) => ({ ...current, slug: next.slug }));
   }
 
   const save = useMutation({
     mutationFn: async (): Promise<Article> => {
-      if (!token) throw new Error('Not authenticated')
-      return persist(token)
+      if (!token) throw new Error('Not authenticated');
+      return persist(token);
     },
     onSuccess: async (next) => {
-      onSaved(next)
-      await invalidate()
+      onSaved(next);
+      await invalidate();
     },
-  })
+  });
 
   const publish = useMutation({
     mutationFn: async (): Promise<Article> => {
-      if (!token) throw new Error('Not authenticated')
-      const stored = await persist(token)
-      onSaved(stored)
-      return publishArticle(token, stored.id)
+      if (!token) throw new Error('Not authenticated');
+      const stored = await persist(token);
+      onSaved(stored);
+      return publishArticle(token, stored.id);
     },
     onSuccess: async () => {
-      await invalidate()
-      navigate('/admin', { replace: true })
+      await invalidate();
+      navigate('/admin', { replace: true });
     },
-  })
+  });
 
   const unpublish = useMutation({
     mutationFn: async (): Promise<Article> => {
-      if (!token || !saved) throw new Error('Not authenticated')
-      return unpublishArticle(token, saved.id)
+      if (!token || !saved) throw new Error('Not authenticated');
+      return unpublishArticle(token, saved.id);
     },
     onSuccess: async (next) => {
-      setSaved(next)
-      await invalidate()
+      setSaved(next);
+      await invalidate();
     },
-  })
+  });
 
   const heroUpload = useMutation({
     mutationFn: (file: File) => {
-      if (!token) throw new Error('Not authenticated')
-      return uploadImage(token, file)
+      if (!token) throw new Error('Not authenticated');
+      return uploadImage(token, file);
     },
     onSuccess: (response) => {
       setForm((current) => ({
         ...current,
         heroImage: { url: response.url, alt: current.heroImage?.alt ?? '' },
-      }))
+      }));
     },
-  })
+  });
 
-  const isLive = saved?.status === 'published'
+  const isLive = saved?.status === 'published';
   // Once a story has been public its URL is frozen; changing it is deliberate.
-  const slugFrozen = Boolean(saved?.firstPublishedAt) || isLive
-  const busy = save.isPending || publish.isPending || unpublish.isPending
-  const mutationError = save.error ?? publish.error ?? unpublish.error ?? heroUpload.error
+  const slugFrozen = Boolean(saved?.firstPublishedAt) || isLive;
+  const busy = save.isPending || publish.isPending || unpublish.isPending;
+  const mutationError = save.error ?? publish.error ?? unpublish.error ?? heroUpload.error;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -408,7 +408,10 @@ function EditorForm({ initial, article }: EditorFormProps) {
               <TextInput value={form.metaTitle} onChange={(value) => update('metaTitle', value)} />
             </Field>
             <Field label={`Meta description (${form.metaDescription.length}/155)`}>
-              <TextInput value={form.metaDescription} onChange={(value) => update('metaDescription', value)} />
+              <TextInput
+                value={form.metaDescription}
+                onChange={(value) => update('metaDescription', value)}
+              />
             </Field>
             <Field label="Social image URL (defaults to the hero image)">
               <TextInput value={form.ogImage} onChange={(value) => update('ogImage', value)} />
@@ -419,7 +422,7 @@ function EditorForm({ initial, article }: EditorFormProps) {
         {saved?.source ? <ProvenancePanel source={saved.source} /> : null}
       </div>
     </div>
-  )
+  );
 }
 
 /* ---------- provenance (read-only, never shown to readers) ---------- */
@@ -439,7 +442,12 @@ function ProvenancePanel({ source }: { source: NonNullable<Article['source']> })
           <>
             <dt className="label text-[0.625rem]">Article</dt>
             <dd className="break-all">
-              <a href={source.articleUrl} target="_blank" rel="noreferrer noopener" className="underline">
+              <a
+                href={source.articleUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline"
+              >
                 {source.articleUrl}
               </a>
             </dd>
@@ -453,7 +461,7 @@ function ProvenancePanel({ source }: { source: NonNullable<Article['source']> })
         ) : null}
       </dl>
     </fieldset>
-  )
+  );
 }
 
 /* ---------- field primitives ---------- */
@@ -464,7 +472,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="label text-[0.625rem] text-ink-soft">{label}</span>
       {children}
     </label>
-  )
+  );
 }
 
 function TextInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
@@ -475,19 +483,19 @@ function TextInput({ value, onChange }: { value: string; onChange: (value: strin
       onChange={(event) => onChange(event.target.value)}
       className="border border-ink bg-paper px-3 py-2 font-body text-ink outline-none focus:border-accent"
     />
-  )
+  );
 }
 
 /* ---------- hero image ---------- */
 
 interface HeroImageFieldProps {
-  heroImage: HeroImage | null
-  uploading: boolean
-  onUpload: (file: File) => void
-  onAltChange: (alt: string) => void
-  onCaptionChange: (caption: string) => void
-  onCreditChange: (credit: string) => void
-  onRemove: () => void
+  heroImage: HeroImage | null;
+  uploading: boolean;
+  onUpload: (file: File) => void;
+  onAltChange: (alt: string) => void;
+  onCaptionChange: (caption: string) => void;
+  onCreditChange: (credit: string) => void;
+  onRemove: () => void;
 }
 
 function HeroImageField({
@@ -533,16 +541,16 @@ function HeroImageField({
             className="hidden"
             disabled={uploading}
             onChange={(event) => {
-              const file = event.target.files?.[0]
+              const file = event.target.files?.[0];
               if (file) {
-                onUpload(file)
+                onUpload(file);
               }
             }}
           />
         </label>
       )}
     </fieldset>
-  )
+  );
 }
 
 /* ---------- body (markdown) ---------- */
@@ -563,5 +571,5 @@ function BodyField({ value, onChange }: { value: string; onChange: (value: strin
         className="w-full resize-y border border-ink bg-paper px-3 py-2 font-body text-[1rem] leading-relaxed text-ink outline-none focus:border-accent"
       />
     </section>
-  )
+  );
 }

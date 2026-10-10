@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod';
 
 /**
  * ActivityPub / ActivityStreams 2.0 contracts for the Global World Journal
@@ -15,22 +15,22 @@ import { z } from 'zod'
 export const AS2_CONTEXT = [
   'https://www.w3.org/ns/activitystreams',
   'https://w3id.org/security/v1',
-] as const
+] as const;
 
 /** Public addressing collection used in `to`/`cc`. */
-export const AS2_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'
+export const AS2_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
 /** Content types a client may use to request ActivityPub JSON. */
-export const ACTIVITY_JSON_TYPE = 'application/activity+json'
-export const LD_JSON_TYPE = 'application/ld+json'
+export const ACTIVITY_JSON_TYPE = 'application/activity+json';
+export const LD_JSON_TYPE = 'application/ld+json';
 
 /** RSA public key embedded in an actor (HTTP Signatures key discovery). */
 export const PublicKeySchema = z.object({
   id: z.string(),
   owner: z.string(),
   publicKeyPem: z.string(),
-})
-export type PublicKey = z.infer<typeof PublicKeySchema>
+});
+export type PublicKey = z.infer<typeof PublicKeySchema>;
 
 /** An image object (`icon`/`image`) or a Note `attachment` Document. */
 export const ActivityImageSchema = z.object({
@@ -38,14 +38,14 @@ export const ActivityImageSchema = z.object({
   mediaType: z.string().optional(),
   url: z.string().url(),
   name: z.string().optional(),
-})
-export type ActivityImage = z.infer<typeof ActivityImageSchema>
+});
+export type ActivityImage = z.infer<typeof ActivityImageSchema>;
 
 /** Endpoints block; we expose only the shared inbox. */
 export const ActorEndpointsSchema = z.object({
   sharedInbox: z.string().url(),
-})
-export type ActorEndpoints = z.infer<typeof ActorEndpointsSchema>
+});
+export type ActorEndpoints = z.infer<typeof ActorEndpointsSchema>;
 
 /** The AS2 Actor document (an Organization/Service running the newspaper). */
 export const ActorSchema = z.object({
@@ -66,8 +66,8 @@ export const ActorSchema = z.object({
   icon: ActivityImageSchema.optional(),
   image: ActivityImageSchema.optional(),
   publicKey: PublicKeySchema,
-})
-export type Actor = z.infer<typeof ActorSchema>
+});
+export type Actor = z.infer<typeof ActorSchema>;
 
 /** A published article rendered as an AS2 Note. */
 export const NoteSchema = z.object({
@@ -80,8 +80,8 @@ export const NoteSchema = z.object({
   to: z.array(z.string()),
   cc: z.array(z.string()),
   attachment: z.array(ActivityImageSchema).optional(),
-})
-export type Note = z.infer<typeof NoteSchema>
+});
+export type Note = z.infer<typeof NoteSchema>;
 
 /** A Create activity wrapping a Note (outbox item / delivered activity). */
 export const CreateActivitySchema = z.object({
@@ -93,8 +93,8 @@ export const CreateActivitySchema = z.object({
   to: z.array(z.string()),
   cc: z.array(z.string()),
   object: NoteSchema,
-})
-export type CreateActivity = z.infer<typeof CreateActivitySchema>
+});
+export type CreateActivity = z.infer<typeof CreateActivitySchema>;
 
 /**
  * An Announce activity (a "boost"). An edition actor announces a Note already
@@ -110,8 +110,8 @@ export const AnnounceActivitySchema = z.object({
   to: z.array(z.string()),
   cc: z.array(z.string()),
   object: z.string().url(),
-})
-export type AnnounceActivity = z.infer<typeof AnnounceActivitySchema>
+});
+export type AnnounceActivity = z.infer<typeof AnnounceActivitySchema>;
 
 /** An OrderedCollection (the head document, links to its first page). */
 export const OrderedCollectionSchema = z.object({
@@ -121,8 +121,8 @@ export const OrderedCollectionSchema = z.object({
   totalItems: z.number().int().min(0),
   first: z.string().url().optional(),
   last: z.string().url().optional(),
-})
-export type OrderedCollection = z.infer<typeof OrderedCollectionSchema>
+});
+export type OrderedCollection = z.infer<typeof OrderedCollectionSchema>;
 
 /** A page of an OrderedCollection. `orderedItems` may be activities or ids. */
 export const OrderedCollectionPageSchema = z.object({
@@ -134,8 +134,8 @@ export const OrderedCollectionPageSchema = z.object({
   next: z.string().url().optional(),
   prev: z.string().url().optional(),
   orderedItems: z.array(z.union([CreateActivitySchema, z.string()])),
-})
-export type OrderedCollectionPage = z.infer<typeof OrderedCollectionPageSchema>
+});
+export type OrderedCollectionPage = z.infer<typeof OrderedCollectionPageSchema>;
 
 /** A generic inbound activity envelope we parse before dispatching by `type`. */
 export const InboundActivitySchema = z.object({
@@ -144,8 +144,8 @@ export const InboundActivitySchema = z.object({
   type: z.string(),
   actor: z.string().optional(),
   object: z.unknown().optional(),
-})
-export type InboundActivity = z.infer<typeof InboundActivitySchema>
+});
+export type InboundActivity = z.infer<typeof InboundActivitySchema>;
 
 /** A WebFinger JRD link. */
 export const WebFingerLinkSchema = z.object({
@@ -153,16 +153,16 @@ export const WebFingerLinkSchema = z.object({
   type: z.string().optional(),
   href: z.string().optional(),
   template: z.string().optional(),
-})
-export type WebFingerLink = z.infer<typeof WebFingerLinkSchema>
+});
+export type WebFingerLink = z.infer<typeof WebFingerLinkSchema>;
 
 /** A WebFinger JRD response (RFC 7033). */
 export const WebFingerSchema = z.object({
   subject: z.string(),
   aliases: z.array(z.string()).optional(),
   links: z.array(WebFingerLinkSchema),
-})
-export type WebFinger = z.infer<typeof WebFingerSchema>
+});
+export type WebFinger = z.infer<typeof WebFingerSchema>;
 
 /**
  * A persisted fediverse follower of one local actor. `actorUsername` is the LOCAL
@@ -176,5 +176,5 @@ export const FollowerSchema = z.object({
   inbox: z.string().url(),
   sharedInbox: z.string().url().optional(),
   followedAt: z.string().datetime(),
-})
-export type Follower = z.infer<typeof FollowerSchema>
+});
+export type Follower = z.infer<typeof FollowerSchema>;

@@ -3,7 +3,9 @@ export function Advertise() {
     <div className="mx-auto max-w-3xl">
       <header className="mb-8 border-b-3 border-ink pb-4">
         <h1 className="headline text-4xl text-ink">Advertise</h1>
-        <p className="label mt-2 text-[0.6875rem] tracking-[0.12em] text-muted">The Global World Journal</p>
+        <p className="label mt-2 text-[0.6875rem] tracking-[0.12em] text-muted">
+          The Global World Journal
+        </p>
       </header>
       <div className="prose-static flex flex-col gap-4 font-body text-[1.05rem] leading-relaxed text-ink">
         <p>
@@ -27,12 +29,15 @@ export function Advertise() {
         <h2 className="headline text-2xl text-ink mt-4">Get in touch</h2>
         <p>
           To discuss advertising and partnership opportunities, contact our commercial team at{' '}
-          <a className="text-accent hover:underline" href="mailto:advertising@globalworldjournal.com">
+          <a
+            className="text-accent hover:underline"
+            href="mailto:advertising@globalworldjournal.com"
+          >
             advertising@globalworldjournal.com
           </a>
           . Tell us about your goals and we will put together a proposal that fits.
         </p>
       </div>
     </div>
-  )
+  );
 }

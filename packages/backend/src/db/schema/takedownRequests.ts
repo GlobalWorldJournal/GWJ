@@ -1,13 +1,13 @@
-import { sql } from 'drizzle-orm'
-import { boolean, check, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm';
+import { boolean, check, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import {
   TakedownClaimTypeSchema,
   TakedownStatusSchema,
   type TakedownClaimType,
   type TakedownStatus,
-} from '@gwj/shared-types'
-import { RECORD_ID_SQL_PATTERN } from '../ids'
-import { sqlInList } from '../sqlLiterals'
+} from '@gwj/shared-types';
+import { RECORD_ID_SQL_PATTERN } from '../ids';
+import { sqlInList } from '../sqlLiterals';
 
 /**
  * Notice-and-takedown requests (public submission, admin review).
@@ -36,13 +36,19 @@ export const takedownRequests = pgTable(
   },
   (t) => [
     check('takedown_requests_id_format', sql`${t.id} ~ ${sql.raw(`'${RECORD_ID_SQL_PATTERN}'`)}`),
-    check('takedown_requests_claim_type_check', sql`${t.claimType} IN ${sqlInList(TakedownClaimTypeSchema.options)}`),
-    check('takedown_requests_status_check', sql`${t.status} IN ${sqlInList(TakedownStatusSchema.options)}`),
+    check(
+      'takedown_requests_claim_type_check',
+      sql`${t.claimType} IN ${sqlInList(TakedownClaimTypeSchema.options)}`,
+    ),
+    check(
+      'takedown_requests_status_check',
+      sql`${t.status} IN ${sqlInList(TakedownStatusSchema.options)}`,
+    ),
     // The only writer accepts `goodFaithAssertion: z.literal(true)`.
     check('takedown_requests_good_faith_check', sql`${t.goodFaithAssertion}`),
     // The Mongo index { status: 1, createdAt: -1 }.
     index('takedown_requests_status_created_at_idx').on(t.status, t.createdAt.desc()),
   ],
-)
+);
 
-export type TakedownRequestRow = typeof takedownRequests.$inferSelect
+export type TakedownRequestRow = typeof takedownRequests.$inferSelect;

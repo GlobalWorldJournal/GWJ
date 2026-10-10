@@ -7,15 +7,15 @@ import {
   WRITERS,
   authorSlug,
   pickWriter,
-} from '@gwj/shared-types'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { z } from 'zod'
-import { BackendError, type GwjClient } from './client.js'
+} from '@gwj/shared-types';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
+import { BackendError, type GwjClient } from './client.js';
 
 /** Wrap any serializable value as a single JSON text content block. */
 function jsonResult(value: unknown): CallToolResult {
-  return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] }
+  return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] };
 }
 
 /** Turn a thrown error into an MCP error result instead of propagating it. */
@@ -33,27 +33,27 @@ function errorResult(error: unknown): CallToolResult {
           ),
         },
       ],
-    }
+    };
   }
-  const message = error instanceof Error ? error.message : String(error)
-  return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: message }) }] }
+  const message = error instanceof Error ? error.message : String(error);
+  return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: message }) }] };
 }
 
 /** Run a tool handler, converting any thrown error into an MCP error result. */
 async function guard(run: () => Promise<CallToolResult>): Promise<CallToolResult> {
   try {
-    return await run()
+    return await run();
   } catch (error) {
-    return errorResult(error)
+    return errorResult(error);
   }
 }
 
 const ArticleRefShape = {
   id: z.string().min(1).optional().describe('Article id'),
   slug: z.string().min(1).optional().describe('Article slug'),
-}
+};
 
-const ArticleIdShape = { id: z.string().min(1).describe('Article id') }
+const ArticleIdShape = { id: z.string().min(1).describe('Article id') };
 
 /**
  * Create-article input: `author` is optional because the agent normally should
@@ -73,12 +73,12 @@ const CreateArticleShape = {
     .boolean()
     .optional()
     .describe('Hold as a draft instead of publishing. Default: false (publish immediately).'),
-}
+};
 
 const UpdateArticleShape = {
   id: z.string().min(1).describe('Article id to update'),
   ...ArticleUpdateSchema.shape,
-}
+};
 
 const UploadImageShape = {
   filename: z.string().min(1).describe('Target filename, e.g. "hero.jpg"'),
@@ -87,8 +87,10 @@ const UploadImageShape = {
     .string()
     .url()
     .optional()
-    .describe('Remote https image URL; the server downloads it, validates it and copies it to our CDN'),
-}
+    .describe(
+      'Remote https image URL; the server downloads it, validates it and copies it to our CDN',
+    ),
+};
 
 /**
  * Register every GWJ content-management tool on the given MCP server.
@@ -103,7 +105,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
       inputSchema: ArticleListQuerySchema.shape,
     },
     (args) => guard(async () => jsonResult(await client.listArticles(args))),
-  )
+  );
 
   server.registerTool(
     'get_article',
@@ -112,7 +114,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
       inputSchema: ArticleRefShape,
     },
     (args) => guard(async () => jsonResult(await client.getArticle(args))),
-  )
+  );
 
   server.registerTool(
     'create_article',
@@ -122,15 +124,17 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
       inputSchema: CreateArticleShape,
     },
     (args) => {
-      const { draft, ...rest } = args
-      const author = rest.author ?? pickWriter(rest.category, rest.title).name
+      const { draft, ...rest } = args;
+      const author = rest.author ?? pickWriter(rest.category, rest.title).name;
       // One request creates the article directly in its final state: a failure
       // can never leave an orphan draft that a retry would then duplicate.
       return guard(async () =>
-        jsonResult(await client.createArticle({ ...rest, author, status: draft ? 'draft' : 'published' })),
-      )
+        jsonResult(
+          await client.createArticle({ ...rest, author, status: draft ? 'draft' : 'published' }),
+        ),
+      );
     },
-  )
+  );
 
   server.registerTool(
     'update_article',
@@ -139,10 +143,10 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
       inputSchema: UpdateArticleShape,
     },
     (args) => {
-      const { id, ...patch } = args
-      return guard(async () => jsonResult(await client.updateArticle(id, patch)))
+      const { id, ...patch } = args;
+      return guard(async () => jsonResult(await client.updateArticle(id, patch)));
     },
-  )
+  );
 
   server.registerTool(
     'publish_article',
@@ -151,7 +155,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
       inputSchema: ArticleIdShape,
     },
     ({ id }) => guard(async () => jsonResult(await client.publishArticle(id))),
-  )
+  );
 
   server.registerTool(
     'unpublish_article',
@@ -160,7 +164,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
       inputSchema: ArticleIdShape,
     },
     ({ id }) => guard(async () => jsonResult(await client.unpublishArticle(id))),
-  )
+  );
 
   server.registerTool(
     'delete_article',
@@ -169,7 +173,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
       inputSchema: ArticleIdShape,
     },
     ({ id }) => guard(async () => jsonResult(await client.deleteArticle(id))),
-  )
+  );
 
   server.registerTool(
     'upload_image',
@@ -179,13 +183,13 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
       inputSchema: UploadImageShape,
     },
     (args) => guard(async () => jsonResult(await client.uploadImage(args))),
-  )
+  );
 
   server.registerTool(
     'list_categories',
     { description: 'List the fixed set of newspaper categories.' },
     () => guard(async () => jsonResult(await client.listCategories())),
-  )
+  );
 
   server.registerTool(
     'list_languages',
@@ -197,7 +201,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
       guard(async () =>
         jsonResult(SUPPORTED_LANGUAGES.map((code) => ({ code, name: LANGUAGE_NAMES[code] }))),
       ),
-  )
+  );
 
   server.registerTool(
     'list_writers',
@@ -216,17 +220,17 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
           })),
         ),
       ),
-  )
+  );
 
-  return server
+  return server;
 }
 
 /** Construct the GWJ MCP server with all tools registered against the given client. */
 export async function createMcpServer(client: GwjClient): Promise<McpServer> {
-  const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js')
+  const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
   const server = new McpServer(
     { name: 'gwj-mcp', version: '0.1.0' },
     { capabilities: { logging: {} } },
-  )
-  return registerTools(server, client)
+  );
+  return registerTools(server, client);
 }

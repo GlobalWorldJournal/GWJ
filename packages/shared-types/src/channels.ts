@@ -5,5 +5,5 @@
  * Single source of truth for the public handles/URLs used by the frontend CTAs
  * and the backend channel publishers.
  */
-export const TELEGRAM_CHANNEL_HANDLE = '@GWJOfficial'
-export const TELEGRAM_CHANNEL_URL = 'https://t.me/GWJOfficial'
+export const TELEGRAM_CHANNEL_HANDLE = '@GWJOfficial';
+export const TELEGRAM_CHANNEL_URL = 'https://t.me/GWJOfficial';

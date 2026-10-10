@@ -1,4 +1,4 @@
-import type { Category, Language } from '@gwj/shared-types'
+import type { Category, Language } from '@gwj/shared-types';
 
 /**
  * Chrome (UI) strings per edition. `en` is the canonical set: every key MUST
@@ -141,7 +141,7 @@ export const DICT: Record<Language, Record<string, string>> = {
     terms: 'Conditions d’utilisation',
     accessibility: 'Accessibilité',
   },
-}
+};
 
 /**
  * Localized section names. English IS the canonical `Category` value, so the
@@ -166,12 +166,12 @@ const CATEGORY_LABELS: Record<Exclude<Language, 'en'>, Record<Category, string>>
     Opinion: 'Opinion',
     Arts: 'Arts',
   },
-}
+};
 
 /** The localized label for a section. English returns the category value itself. */
 export function categoryLabel(category: Category, lang: Language): string {
   if (lang === 'en') {
-    return category
+    return category;
   }
-  return CATEGORY_LABELS[lang][category]
+  return CATEGORY_LABELS[lang][category];
 }

@@ -4,7 +4,7 @@
  */
 
 function Bar({ className = '' }: { className?: string }) {
-  return <div className={`rounded-sm bg-ink/10 ${className}`} />
+  return <div className={`rounded-sm bg-ink/10 ${className}`} />;
 }
 
 function HeadlineLines({ lines = 3, className = '' }: { lines?: number; className?: string }) {
@@ -14,7 +14,7 @@ function HeadlineLines({ lines = 3, className = '' }: { lines?: number; classNam
         <Bar key={i} className={`h-4 ${i === lines - 1 ? 'w-2/3' : 'w-full'}`} />
       ))}
     </div>
-  )
+  );
 }
 
 function StoryStub({ withImage = false }: { withImage?: boolean }) {
@@ -24,7 +24,7 @@ function StoryStub({ withImage = false }: { withImage?: boolean }) {
       <Bar className="h-2.5 w-16" />
       <HeadlineLines lines={2} />
     </div>
-  )
+  );
 }
 
 /** Front-page skeleton: the WSJ 3-column grid in grey. */
@@ -66,7 +66,7 @@ export function HomeSkeleton() {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 /** A vertical list of story stubs (category / author / search pages). */
@@ -80,7 +80,7 @@ export function ListSkeleton({ rows = 6 }: { rows?: number }) {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 /** Single-article reading-column skeleton. */
@@ -98,5 +98,5 @@ export function ArticleSkeleton() {
         ))}
       </div>
     </div>
-  )
+  );
 }

@@ -1,57 +1,52 @@
-import { Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Article } from '@gwj/shared-types'
-import {
-  getAdminArticles,
-  publishArticle,
-  unpublishArticle,
-  deleteArticle,
-} from '../lib/api'
-import { useAuth } from './useAuth'
-import { StatusMessage } from '../components/StatusMessage'
+import { Link } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Article } from '@gwj/shared-types';
+import { getAdminArticles, publishArticle, unpublishArticle, deleteArticle } from '../lib/api';
+import { useAuth } from './useAuth';
+import { StatusMessage } from '../components/StatusMessage';
 
 export function Dashboard() {
-  const { token, user, signOut } = useAuth()
-  const queryClient = useQueryClient()
+  const { token, user, signOut } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['admin', 'articles'],
     queryFn: ({ signal }) => {
       if (!token) {
-        throw new Error('Not authenticated')
+        throw new Error('Not authenticated');
       }
-      return getAdminArticles(token, { limit: 50 }, signal)
+      return getAdminArticles(token, { limit: 50 }, signal);
     },
     enabled: Boolean(token),
-  })
+  });
 
   function invalidate() {
-    return queryClient.invalidateQueries({ queryKey: ['admin', 'articles'] })
+    return queryClient.invalidateQueries({ queryKey: ['admin', 'articles'] });
   }
 
   const publish = useMutation({
     mutationFn: (id: string) => {
-      if (!token) throw new Error('Not authenticated')
-      return publishArticle(token, id)
+      if (!token) throw new Error('Not authenticated');
+      return publishArticle(token, id);
     },
     onSuccess: invalidate,
-  })
+  });
 
   const unpublish = useMutation({
     mutationFn: (id: string) => {
-      if (!token) throw new Error('Not authenticated')
-      return unpublishArticle(token, id)
+      if (!token) throw new Error('Not authenticated');
+      return unpublishArticle(token, id);
     },
     onSuccess: invalidate,
-  })
+  });
 
   const remove = useMutation({
     mutationFn: (id: string) => {
-      if (!token) throw new Error('Not authenticated')
-      return deleteArticle(token, id)
+      if (!token) throw new Error('Not authenticated');
+      return deleteArticle(token, id);
     },
     onSuccess: invalidate,
-  })
+  });
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -103,7 +98,7 @@ export function Dashboard() {
               onUnpublish={() => unpublish.mutate(article.id)}
               onDelete={() => {
                 if (window.confirm(`Delete “${article.title}”? This cannot be undone.`)) {
-                  remove.mutate(article.id)
+                  remove.mutate(article.id);
                 }
               }}
               busy={publish.isPending || unpublish.isPending || remove.isPending}
@@ -112,26 +107,24 @@ export function Dashboard() {
         </ul>
       )}
     </div>
-  )
+  );
 }
 
 interface ArticleRowProps {
-  article: Article
-  onPublish: () => void
-  onUnpublish: () => void
-  onDelete: () => void
-  busy: boolean
+  article: Article;
+  onPublish: () => void;
+  onUnpublish: () => void;
+  onDelete: () => void;
+  busy: boolean;
 }
 
 function ArticleRow({ article, onPublish, onUnpublish, onDelete, busy }: ArticleRowProps) {
-  const isPublished = article.status === 'published'
+  const isPublished = article.status === 'published';
   return (
     <li className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span
-            className={`label text-[0.625rem] ${isPublished ? 'text-accent' : 'text-muted'}`}
-          >
+          <span className={`label text-[0.625rem] ${isPublished ? 'text-accent' : 'text-muted'}`}>
             {article.status}
           </span>
           <span className="label text-[0.625rem] text-muted">{article.category}</span>
@@ -175,5 +168,5 @@ function ArticleRow({ article, onPublish, onUnpublish, onDelete, busy }: Article
         </button>
       </div>
     </li>
-  )
+  );
 }

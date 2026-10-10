@@ -5,20 +5,20 @@
  *
  * Run: bun run scripts/seed-demo.ts   (requires DATABASE_URL of a migrated database)
  */
-import { slugify, type ArticleInput } from '@gwj/shared-types'
-import { loadEnv } from '../packages/backend/src/env'
-import { connectDb, disconnectDb } from '../packages/backend/src/db/client'
-import { runSeed } from '../packages/backend/src/seed'
-import { articleService } from '../packages/backend/src/services/articleService'
-import { findArticleBySlug } from '../packages/backend/src/db/repositories/articleRepository'
+import { slugify, type ArticleInput } from '@gwj/shared-types';
+import { loadEnv } from '../packages/backend/src/env';
+import { connectDb, disconnectDb } from '../packages/backend/src/db/client';
+import { runSeed } from '../packages/backend/src/seed';
+import { articleService } from '../packages/backend/src/services/articleService';
+import { findArticleBySlug } from '../packages/backend/src/db/repositories/articleRepository';
 
-type DemoArticle = Omit<ArticleInput, 'status' | 'seo'> & { seo?: ArticleInput['seo'] }
+type DemoArticle = Omit<ArticleInput, 'status' | 'seo'> & { seo?: ArticleInput['seo'] };
 
 const hero = (seed: string) => ({
   url: `https://picsum.photos/seed/${seed}/1200/675`,
   alt: '',
   credit: 'Photo: Demo',
-})
+});
 
 const DEMO: DemoArticle[] = [
   {
@@ -31,10 +31,19 @@ const DEMO: DemoArticle[] = [
     tags: ['rates', 'equities'],
     heroImage: hero('markets'),
     body: [
-      { type: 'paragraph', text: 'Stocks rose across major markets Tuesday as policymakers hinted that the long campaign of interest-rate increases may soon be over, sending a wave of optimism through trading floors.' },
-      { type: 'paragraph', text: 'The shift marks a turning point for portfolios battered by a year of volatility, analysts said, though caution remains over stubborn inflation.' },
+      {
+        type: 'paragraph',
+        text: 'Stocks rose across major markets Tuesday as policymakers hinted that the long campaign of interest-rate increases may soon be over, sending a wave of optimism through trading floors.',
+      },
+      {
+        type: 'paragraph',
+        text: 'The shift marks a turning point for portfolios battered by a year of volatility, analysts said, though caution remains over stubborn inflation.',
+      },
       { type: 'heading', text: 'A fragile consensus' },
-      { type: 'paragraph', text: 'Not everyone is convinced the rally can last. Several strategists warned that a single hot inflation print could reverse the mood overnight.' },
+      {
+        type: 'paragraph',
+        text: 'Not everyone is convinced the rally can last. Several strategists warned that a single hot inflation print could reverse the mood overnight.',
+      },
     ],
   },
   {
@@ -47,8 +56,14 @@ const DEMO: DemoArticle[] = [
     tags: ['ai', 'semiconductors'],
     heroImage: hero('chips'),
     body: [
-      { type: 'paragraph', text: 'Demand for specialized processors has turned a once-sleepy corner of the chip industry into its hottest battleground.' },
-      { type: 'paragraph', text: 'Foundries are booking capacity years in advance as buyers compete for every available wafer.' },
+      {
+        type: 'paragraph',
+        text: 'Demand for specialized processors has turned a once-sleepy corner of the chip industry into its hottest battleground.',
+      },
+      {
+        type: 'paragraph',
+        text: 'Foundries are booking capacity years in advance as buyers compete for every available wafer.',
+      },
     ],
   },
   {
@@ -61,8 +76,15 @@ const DEMO: DemoArticle[] = [
     tags: ['diplomacy'],
     heroImage: hero('world'),
     body: [
-      { type: 'paragraph', text: 'After three days of closed-door negotiations, envoys emerged with the outline of a deal that observers had thought unlikely a week ago.' },
-      { type: 'quote', text: 'This is a beginning, not an end.', attribution: 'A senior negotiator' },
+      {
+        type: 'paragraph',
+        text: 'After three days of closed-door negotiations, envoys emerged with the outline of a deal that observers had thought unlikely a week ago.',
+      },
+      {
+        type: 'quote',
+        text: 'This is a beginning, not an end.',
+        attribution: 'A senior negotiator',
+      },
       { type: 'paragraph', text: 'Implementation will be the true test, analysts cautioned.' },
     ],
   },
@@ -76,8 +98,19 @@ const DEMO: DemoArticle[] = [
     tags: ['governance'],
     heroImage: hero('business'),
     body: [
-      { type: 'paragraph', text: 'Boardrooms long known for their predictability are becoming arenas of genuine debate.' },
-      { type: 'list', ordered: false, items: ['Tighter oversight of executive pay', 'More scrutiny of long-term strategy', 'Faster responses to activist investors'] },
+      {
+        type: 'paragraph',
+        text: 'Boardrooms long known for their predictability are becoming arenas of genuine debate.',
+      },
+      {
+        type: 'list',
+        ordered: false,
+        items: [
+          'Tighter oversight of executive pay',
+          'More scrutiny of long-term strategy',
+          'Faster responses to activist investors',
+        ],
+      },
     ],
   },
   {
@@ -90,8 +123,14 @@ const DEMO: DemoArticle[] = [
     tags: ['elections'],
     heroImage: hero('politics'),
     body: [
-      { type: 'paragraph', text: 'Turnout is expected to break records as both sides frame the contest as decisive.' },
-      { type: 'paragraph', text: 'Late polling suggests a margin narrow enough to keep results uncertain into the night.' },
+      {
+        type: 'paragraph',
+        text: 'Turnout is expected to break records as both sides frame the contest as decisive.',
+      },
+      {
+        type: 'paragraph',
+        text: 'Late polling suggests a margin narrow enough to keep results uncertain into the night.',
+      },
     ],
   },
   {
@@ -104,8 +143,14 @@ const DEMO: DemoArticle[] = [
     tags: ['commentary'],
     heroImage: hero('opinion'),
     body: [
-      { type: 'paragraph', text: 'Every cycle produces a chorus insisting that this time is different. It rarely is.' },
-      { type: 'paragraph', text: 'The discipline to wait, unglamorous as it sounds, remains the surest edge an investor has.' },
+      {
+        type: 'paragraph',
+        text: 'Every cycle produces a chorus insisting that this time is different. It rarely is.',
+      },
+      {
+        type: 'paragraph',
+        text: 'The discipline to wait, unglamorous as it sounds, remains the surest edge an investor has.',
+      },
     ],
   },
   {
@@ -118,7 +163,10 @@ const DEMO: DemoArticle[] = [
     tags: ['art'],
     heroImage: hero('arts'),
     body: [
-      { type: 'paragraph', text: 'Hung in roughly chronological order, the show reveals a restless experimenter behind the icon.' },
+      {
+        type: 'paragraph',
+        text: 'Hung in roughly chronological order, the show reveals a restless experimenter behind the icon.',
+      },
       { type: 'paragraph', text: 'It is, above all, an argument for looking slowly.' },
     ],
   },
@@ -132,28 +180,31 @@ const DEMO: DemoArticle[] = [
     tags: ['energy'],
     heroImage: hero('energy'),
     body: [
-      { type: 'paragraph', text: 'Traders are positioning for turbulence as forecasts diverge on the season ahead.' },
+      {
+        type: 'paragraph',
+        text: 'Traders are positioning for turbulence as forecasts diverge on the season ahead.',
+      },
       { type: 'paragraph', text: 'Storage levels offer a cushion, but little room for shocks.' },
     ],
   },
-]
+];
 
-const env = loadEnv()
-await connectDb(env.DATABASE_URL)
-await runSeed(env)
+const env = loadEnv();
+await connectDb(env.DATABASE_URL);
+await runSeed(env);
 
-let created = 0
-let skipped = 0
+let created = 0;
+let skipped = 0;
 for (const demo of DEMO) {
-  const slug = slugify(demo.title)
+  const slug = slugify(demo.title);
   if (await findArticleBySlug(slug, false)) {
-    skipped += 1
-    continue
+    skipped += 1;
+    continue;
   }
-  const article = await articleService.create({ ...demo, status: 'draft', seo: demo.seo ?? {} })
-  await articleService.publish(article.id)
-  created += 1
+  const article = await articleService.create({ ...demo, status: 'draft', seo: demo.seo ?? {} });
+  await articleService.publish(article.id);
+  created += 1;
 }
 
-process.stdout.write(`demo seed complete: ${created} created, ${skipped} already existed\n`)
-await disconnectDb()
+process.stdout.write(`demo seed complete: ${created} created, ${skipped} already existed\n`);
+await disconnectDb();

@@ -8,22 +8,18 @@ import type {
   OrderedCollection,
   OrderedCollectionPage,
   WebFinger,
-} from '@gwj/shared-types'
-import {
-  ACTIVITY_JSON_TYPE,
-  AS2_CONTEXT,
-  AS2_PUBLIC,
-} from '@gwj/shared-types'
+} from '@gwj/shared-types';
+import { ACTIVITY_JSON_TYPE, AS2_CONTEXT, AS2_PUBLIC } from '@gwj/shared-types';
 import {
   announceActivityId,
   articleUrl,
   createActivityId,
   noteId,
   type ActorIdentity,
-} from './identity'
+} from './identity';
 
 /** Length budget for the auto-generated story summary in a Note. */
-const SUMMARY_MAX_CHARS = 280
+const SUMMARY_MAX_CHARS = 280;
 
 /** Escape a string for safe interpolation into HTML payloads (AS2 Note content, Telegram captions). */
 export function escapeHtml(value: string): string {
@@ -32,7 +28,7 @@ export function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
@@ -41,9 +37,9 @@ export function escapeHtml(value: string): string {
  * formatting stripped. Always returns a single trimmed line.
  */
 function deriveSummary(article: Article): string {
-  if (article.deck && article.deck.trim().length > 0) return article.deck.trim()
+  if (article.deck && article.deck.trim().length > 0) return article.deck.trim();
   if (article.seo.metaDescription && article.seo.metaDescription.trim().length > 0) {
-    return article.seo.metaDescription.trim()
+    return article.seo.metaDescription.trim();
   }
   const plain = article.body
     .replace(/```[\s\S]*?```/g, ' ') // fenced code
@@ -51,15 +47,15 @@ function deriveSummary(article: Article): string {
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links → text
     .replace(/[#>*_`~-]/g, ' ') // markdown punctuation
     .replace(/\s+/g, ' ')
-    .trim()
-  if (plain.length <= SUMMARY_MAX_CHARS) return plain
-  return `${plain.slice(0, SUMMARY_MAX_CHARS - 1).trimEnd()}…`
+    .trim();
+  if (plain.length <= SUMMARY_MAX_CHARS) return plain;
+  return `${plain.slice(0, SUMMARY_MAX_CHARS - 1).trimEnd()}…`;
 }
 
 /** Build the hero image as an AS2 attachment Document, if the article has one. */
 function heroAttachment(article: Article): ActivityImage | null {
-  if (!article.heroImage) return null
-  const ext = article.heroImage.url.split('?')[0]?.split('.').pop()?.toLowerCase()
+  if (!article.heroImage) return null;
+  const ext = article.heroImage.url.split('?')[0]?.split('.').pop()?.toLowerCase();
   const mediaType =
     ext === 'png'
       ? 'image/png'
@@ -69,13 +65,16 @@ function heroAttachment(article: Article): ActivityImage | null {
           ? 'image/avif'
           : ext === 'gif'
             ? 'image/gif'
-            : 'image/jpeg'
+            : 'image/jpeg';
   return {
     type: 'Document',
     mediaType,
     url: article.heroImage.url,
-    name: article.heroImage.alt && article.heroImage.alt.length > 0 ? article.heroImage.alt : article.title,
-  }
+    name:
+      article.heroImage.alt && article.heroImage.alt.length > 0
+        ? article.heroImage.alt
+        : article.title,
+  };
 }
 
 /** Build the AS2 Actor document for any actor (edition `Service` or writer `Person`). */
@@ -109,7 +108,7 @@ export function buildActor(identity: ActorIdentity, publicKeyPem: string): Actor
       owner: identity.actorId,
       publicKeyPem,
     },
-  }
+  };
 }
 
 /**
@@ -118,12 +117,12 @@ export function buildActor(identity: ActorIdentity, publicKeyPem: string): Actor
  * to the author's followers.
  */
 export function buildNote(author: ActorIdentity, article: Article): Note {
-  const url = articleUrl(author.origin, article.slug)
-  const summary = deriveSummary(article)
-  const headline = escapeHtml(article.title)
-  const summaryHtml = summary.length > 0 ? `<p>${escapeHtml(summary)}</p>` : ''
-  const content = `<p><strong>${headline}</strong></p>${summaryHtml}<p><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`
-  const attachment = heroAttachment(article)
+  const url = articleUrl(author.origin, article.slug);
+  const summary = deriveSummary(article);
+  const headline = escapeHtml(article.title);
+  const summaryHtml = summary.length > 0 ? `<p>${escapeHtml(summary)}</p>` : '';
+  const content = `<p><strong>${headline}</strong></p>${summaryHtml}<p><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`;
+  const attachment = heroAttachment(article);
   return {
     id: noteId(author, article.id),
     type: 'Note',
@@ -134,7 +133,7 @@ export function buildNote(author: ActorIdentity, article: Article): Note {
     to: [AS2_PUBLIC],
     cc: [author.followers],
     ...(attachment ? { attachment: [attachment] } : {}),
-  }
+  };
 }
 
 /** Wrap a Note in a Create activity by its author. `withContext` adds top-level `@context`. */
@@ -143,7 +142,7 @@ export function buildCreateActivity(
   article: Article,
   options: { withContext?: boolean } = {},
 ): CreateActivity {
-  const note = buildNote(author, article)
+  const note = buildNote(author, article);
   return {
     ...(options.withContext ? { '@context': [...AS2_CONTEXT] } : {}),
     id: createActivityId(author, article.id),
@@ -153,7 +152,7 @@ export function buildCreateActivity(
     to: note.to,
     cc: note.cc,
     object: note,
-  }
+  };
 }
 
 /**
@@ -176,7 +175,7 @@ export function buildAnnounceActivity(
     to: [AS2_PUBLIC],
     cc: [announcer.followers],
     object: noteId(noteAuthor, article.id),
-  }
+  };
 }
 
 /** Build an Accept activity acknowledging a Follow of `identity`. */
@@ -195,14 +194,17 @@ export function buildAcceptActivity(
       actor: followActivity.actor,
       object: identity.actorId,
     },
-  }
+  };
 }
 
 /** Items-per-page for the outbox collection. */
-export const OUTBOX_PAGE_SIZE = 20
+export const OUTBOX_PAGE_SIZE = 20;
 
 /** The head OrderedCollection for an actor's outbox, pointing at its first page. */
-export function buildOutboxCollection(identity: ActorIdentity, totalItems: number): OrderedCollection {
+export function buildOutboxCollection(
+  identity: ActorIdentity,
+  totalItems: number,
+): OrderedCollection {
   return {
     '@context': AS2_CONTEXT[0],
     id: identity.outbox,
@@ -210,7 +212,7 @@ export function buildOutboxCollection(identity: ActorIdentity, totalItems: numbe
     totalItems,
     first: `${identity.outbox}?page=1`,
     last: `${identity.outbox}?page=${Math.max(1, Math.ceil(totalItems / OUTBOX_PAGE_SIZE))}`,
-  }
+  };
 }
 
 /** A page of an actor's outbox: Create activities (it authors them), newest first. */
@@ -220,7 +222,7 @@ export function buildOutboxPage(
   page: number,
   totalItems: number,
 ): OrderedCollectionPage {
-  const totalPages = Math.max(1, Math.ceil(totalItems / OUTBOX_PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(totalItems / OUTBOX_PAGE_SIZE));
   return {
     '@context': AS2_CONTEXT[0],
     id: `${identity.outbox}?page=${page}`,
@@ -230,11 +232,11 @@ export function buildOutboxPage(
     ...(page < totalPages ? { next: `${identity.outbox}?page=${page + 1}` } : {}),
     ...(page > 1 ? { prev: `${identity.outbox}?page=${page - 1}` } : {}),
     orderedItems: articles.map((a) => buildCreateActivity(identity, a)),
-  }
+  };
 }
 
 /** Items-per-page for the followers collection. */
-export const FOLLOWERS_PAGE_SIZE = 20
+export const FOLLOWERS_PAGE_SIZE = 20;
 
 /** The head OrderedCollection for an actor's followers. */
 export function buildFollowersCollection(
@@ -247,7 +249,7 @@ export function buildFollowersCollection(
     type: 'OrderedCollection',
     totalItems,
     first: `${identity.followers}?page=1`,
-  }
+  };
 }
 
 /** A page of an actor's followers: actor ids. */
@@ -257,7 +259,7 @@ export function buildFollowersPage(
   page: number,
   totalItems: number,
 ): OrderedCollectionPage {
-  const totalPages = Math.max(1, Math.ceil(totalItems / FOLLOWERS_PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(totalItems / FOLLOWERS_PAGE_SIZE));
   return {
     '@context': AS2_CONTEXT[0],
     id: `${identity.followers}?page=${page}`,
@@ -267,7 +269,7 @@ export function buildFollowersPage(
     ...(page < totalPages ? { next: `${identity.followers}?page=${page + 1}` } : {}),
     ...(page > 1 ? { prev: `${identity.followers}?page=${page - 1}` } : {}),
     orderedItems: actorIds,
-  }
+  };
 }
 
 /** The empty `following` OrderedCollection (actors follow nobody). */
@@ -277,7 +279,7 @@ export function buildFollowingCollection(identity: ActorIdentity): OrderedCollec
     id: identity.following,
     type: 'OrderedCollection',
     totalItems: 0,
-  }
+  };
 }
 
 /** Build the WebFinger JRD for a resolved actor handle. */
@@ -297,5 +299,5 @@ export function buildWebFinger(identity: ActorIdentity): WebFinger {
         href: identity.url,
       },
     ],
-  }
+  };
 }

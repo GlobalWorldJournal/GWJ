@@ -18,27 +18,27 @@
  * The caller is responsible for validating the bytes (structure + dimensions +
  * type) BEFORE optimizing — this module only transforms bytes it is given.
  */
-import sharp from 'sharp'
+import sharp from 'sharp';
 
 /** Longest edge (px) an optimized image may have. Matches the audit's display sizes. */
-export const MAX_LONGEST_EDGE = 1600
+export const MAX_LONGEST_EDGE = 1600;
 
 /** WebP encode quality (0–100). 80 is the standard quality/size sweet spot. */
-export const WEBP_QUALITY = 80
+export const WEBP_QUALITY = 80;
 
 /** Canonical MIME type for the WebP output this module produces. */
-export const WEBP_MIME = 'image/webp'
+export const WEBP_MIME = 'image/webp';
 
 /** Decoded properties of an image buffer, as read by sharp. */
 export interface ImageMetadata {
   /** sharp's format string (e.g. `'webp'`, `'jpeg'`, `'png'`, `'gif'`). */
-  format: string
+  format: string;
   /** Width in pixels (0 if sharp could not determine it). */
-  width: number
+  width: number;
   /** Height in pixels (0 if sharp could not determine it). */
-  height: number
+  height: number;
   /** Longest edge in pixels — `max(width, height)`. */
-  longestEdge: number
+  longestEdge: number;
 }
 
 /**
@@ -50,25 +50,25 @@ export interface ImageMetadata {
  * decode the bytes.
  */
 export async function readImageMetadata(input: Buffer): Promise<ImageMetadata> {
-  const meta = await sharp(input).metadata()
-  const width = meta.width ?? 0
-  const height = meta.height ?? 0
+  const meta = await sharp(input).metadata();
+  const width = meta.width ?? 0;
+  const height = meta.height ?? 0;
   return {
     format: meta.format ?? '',
     width,
     height,
     longestEdge: Math.max(width, height),
-  }
+  };
 }
 
 /** Outcome of optimizing an image buffer. */
 export interface OptimizedImage {
   /** The optimized WebP bytes. */
-  buffer: Buffer
+  buffer: Buffer;
   /** Output width in pixels (after any downscale). */
-  width: number
+  width: number;
   /** Output height in pixels. */
-  height: number
+  height: number;
 }
 
 /**
@@ -90,9 +90,9 @@ export async function optimizeToWebp(input: Buffer): Promise<OptimizedImage> {
     height: MAX_LONGEST_EDGE,
     fit: 'inside',
     withoutEnlargement: true,
-  })
+  });
   const { data, info } = await pipeline
     .webp({ quality: WEBP_QUALITY })
-    .toBuffer({ resolveWithObject: true })
-  return { buffer: data, width: info.width, height: info.height }
+    .toBuffer({ resolveWithObject: true });
+  return { buffer: data, width: info.width, height: info.height };
 }

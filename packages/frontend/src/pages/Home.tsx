@@ -1,27 +1,27 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   CATEGORIES,
   categorySlug,
   type Article,
   type Category,
   type Language,
-} from '@gwj/shared-types'
-import { getArticles } from '../lib/api'
-import { useLang } from '../lib/i18n'
-import { LocaleLink } from '../lib/locale'
-import { categoryLabel } from '../lib/dictionary'
-import { ArticleCard } from '../components/ArticleCard'
-import { AdSlot } from '../components/AdSlot'
-import { MostPopular } from '../components/MostPopular'
-import { StatusMessage } from '../components/StatusMessage'
-import { HomeSkeleton } from '../components/Skeletons'
+} from '@gwj/shared-types';
+import { getArticles } from '../lib/api';
+import { useLang } from '../lib/i18n';
+import { LocaleLink } from '../lib/locale';
+import { categoryLabel } from '../lib/dictionary';
+import { ArticleCard } from '../components/ArticleCard';
+import { AdSlot } from '../components/AdSlot';
+import { MostPopular } from '../components/MostPopular';
+import { StatusMessage } from '../components/StatusMessage';
+import { HomeSkeleton } from '../components/Skeletons';
 
 function useHomeArticles(lang: Language) {
   return useQuery({
     queryKey: ['articles', 'home', lang],
     queryFn: ({ signal }) => getArticles({ language: lang, limit: 50 }, signal),
-  })
+  });
 }
 
 /**
@@ -31,17 +31,18 @@ function useHomeArticles(lang: Language) {
  */
 export function sortForHome(articles: Article[]): Article[] {
   return [...articles].sort((a, b) => {
-    const dateDiff = Date.parse(b.publishedAt ?? b.createdAt) - Date.parse(a.publishedAt ?? a.createdAt)
-    return dateDiff !== 0 ? dateDiff : b.featured - a.featured
-  })
+    const dateDiff =
+      Date.parse(b.publishedAt ?? b.createdAt) - Date.parse(a.publishedAt ?? a.createdAt);
+    return dateDiff !== 0 ? dateDiff : b.featured - a.featured;
+  });
 }
 
 export function Home() {
-  const { lang, t } = useLang()
-  const { data, isPending, isError, error } = useHomeArticles(lang)
+  const { lang, t } = useLang();
+  const { data, isPending, isError, error } = useHomeArticles(lang);
 
   if (isPending) {
-    return <HomeSkeleton />
+    return <HomeSkeleton />;
   }
   if (isError) {
     return (
@@ -49,27 +50,27 @@ export function Home() {
         title={t('loadingError')}
         detail={error instanceof Error ? error.message : undefined}
       />
-    )
+    );
   }
 
-  const all = sortForHome(data.data)
+  const all = sortForHome(data.data);
   if (all.length === 0) {
-    return <StatusMessage title={t('noStories')} />
+    return <StatusMessage title={t('noStories')} />;
   }
 
-  const opinion = all.filter((a) => a.category === 'Opinion')
-  const news = all.filter((a) => a.category !== 'Opinion')
+  const opinion = all.filter((a) => a.category === 'Opinion');
+  const news = all.filter((a) => a.category !== 'Opinion');
 
-  const lead = news[0] ?? all[0]
+  const lead = news[0] ?? all[0];
   if (!lead) {
-    return <StatusMessage title={t('noStories')} />
+    return <StatusMessage title={t('noStories')} />;
   }
-  const rest = news.filter((a) => a.id !== lead.id)
-  const leftStack = rest.slice(0, 3)
-  const leftList = rest.slice(3, 6)
-  const leadBullets = rest.slice(6, 10)
-  const centerMore = rest.slice(10, 14) // fills the center column below the lead
-  const mostPopular = all.slice(0, 6) // "Most Popular" module fills the rail
+  const rest = news.filter((a) => a.id !== lead.id);
+  const leftStack = rest.slice(0, 3);
+  const leftList = rest.slice(3, 6);
+  const leadBullets = rest.slice(6, 10);
+  const centerMore = rest.slice(10, 14); // fills the center column below the lead
+  const mostPopular = all.slice(0, 6); // "Most Popular" module fills the rail
 
   return (
     <div>
@@ -151,10 +152,10 @@ export function Home() {
       {/* SECTION BANDS — load more on scroll, like WSJ's front page */}
       <SectionBands articles={all} lang={lang} t={t} />
     </div>
-  )
+  );
 }
 
-type Translate = (key: string, vars?: Record<string, string>) => string
+type Translate = (key: string, vars?: Record<string, string>) => string;
 
 /** Section bands that reveal progressively as the reader scrolls (infinite-scroll feel). */
 function SectionBands({
@@ -162,36 +163,36 @@ function SectionBands({
   lang,
   t,
 }: {
-  articles: Article[]
-  lang: Language
-  t: Translate
+  articles: Article[];
+  lang: Language;
+  t: Translate;
 }) {
   const sections = CATEGORIES.filter((c) => c !== 'Opinion').filter((c) =>
     articles.some((a) => a.category === c),
-  )
-  const STEP = 2
-  const [visible, setVisible] = useState(STEP)
-  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  );
+  const STEP = 2;
+  const [visible, setVisible] = useState(STEP);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const node = sentinelRef.current
-    if (!node || visible >= sections.length) return
+    const node = sentinelRef.current;
+    if (!node || visible >= sections.length) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
-          setVisible((v) => Math.min(v + STEP, sections.length))
+          setVisible((v) => Math.min(v + STEP, sections.length));
         }
       },
       { rootMargin: '600px 0px' },
-    )
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [visible, sections.length])
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [visible, sections.length]);
 
   return (
     <div className="mt-12 flex flex-col gap-10">
       {sections.slice(0, visible).map((category, idx) => {
-        const inCategory = articles.filter((a) => a.category === category).slice(0, 5)
+        const inCategory = articles.filter((a) => a.category === category).slice(0, 5);
         return (
           <Fragment key={category}>
             <CategorySection name={category} articles={inCategory} lang={lang} t={t} />
@@ -204,15 +205,15 @@ function SectionBands({
               </div>
             ) : null}
           </Fragment>
-        )
+        );
       })}
       {visible < sections.length ? <div ref={sentinelRef} aria-hidden className="h-px" /> : null}
     </div>
-  )
+  );
 }
 
 function OpinionRail({ articles, title }: { articles: Article[]; title: string }) {
-  if (articles.length === 0) return null
+  if (articles.length === 0) return null;
   return (
     <section>
       <div className="mb-3 border-t-3 border-ink pt-2">
@@ -239,7 +240,7 @@ function OpinionRail({ articles, title }: { articles: Article[]; title: string }
         ))}
       </ul>
     </section>
-  )
+  );
 }
 
 function CategorySection({
@@ -248,17 +249,17 @@ function CategorySection({
   lang,
   t,
 }: {
-  name: Category
-  articles: Article[]
-  lang: Language
-  t: Translate
+  name: Category;
+  articles: Article[];
+  lang: Language;
+  t: Translate;
 }) {
   // Varied card types per band, like WSJ: a photo-led lead, a text story with a
   // dek, and a thumbnail list of the rest.
-  const label = categoryLabel(name, lang)
-  const featured = articles[0]
-  const secondary = articles[1]
-  const listed = articles.slice(2)
+  const label = categoryLabel(name, lang);
+  const featured = articles[0];
+  const secondary = articles[1];
+  const listed = articles.slice(2);
 
   return (
     <section>
@@ -304,5 +305,5 @@ function CategorySection({
         ) : null}
       </div>
     </section>
-  )
+  );
 }

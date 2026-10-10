@@ -1,9 +1,9 @@
-import type { Article } from '@gwj/shared-types'
-import { LocaleLink } from '../lib/locale'
+import type { Article } from '@gwj/shared-types';
+import { LocaleLink } from '../lib/locale';
 
 interface MostPopularProps {
-  articles: Article[]
-  title: string
+  articles: Article[];
+  title: string;
 }
 
 /**
@@ -13,7 +13,7 @@ interface MostPopularProps {
  */
 export function MostPopular({ articles, title }: MostPopularProps) {
   if (articles.length === 0) {
-    return null
+    return null;
   }
   return (
     <section>
@@ -35,5 +35,5 @@ export function MostPopular({ articles, title }: MostPopularProps) {
         ))}
       </ol>
     </section>
-  )
+  );
 }

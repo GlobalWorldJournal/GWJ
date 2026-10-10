@@ -1,23 +1,23 @@
-import type { Article } from '@gwj/shared-types'
-import { LocaleLink } from '../lib/locale'
-import { Kicker } from './Kicker'
-import { Byline } from './Byline'
+import type { Article } from '@gwj/shared-types';
+import { LocaleLink } from '../lib/locale';
+import { Kicker } from './Kicker';
+import { Byline } from './Byline';
 
-type CardVariant = 'lead' | 'feature' | 'standard' | 'compact' | 'list'
+type CardVariant = 'lead' | 'feature' | 'standard' | 'compact' | 'list';
 
 interface ArticleCardProps {
-  article: Article
-  variant?: CardVariant
-  showImage?: boolean
-  showDeck?: boolean
-  showByline?: boolean
-  className?: string
+  article: Article;
+  variant?: CardVariant;
+  showImage?: boolean;
+  showDeck?: boolean;
+  showByline?: boolean;
+  className?: string;
   /**
    * When true, the hero image loads eagerly with high fetch priority — set this
    * only on the single above-the-fold LCP image (the home lead story). Every
    * other card image lazy-loads.
    */
-  priority?: boolean
+  priority?: boolean;
 }
 
 // Sizes mirror WSJ's Escrow scale (lead 40 / feature 28 / standard 22 / compact 18).
@@ -27,7 +27,7 @@ const HEADLINE_SIZE: Record<CardVariant, string> = {
   standard: 'text-[1.375rem] leading-[1.12]',
   compact: 'text-[1.05rem] leading-[1.15]',
   list: 'text-[1.05rem] leading-[1.2]',
-}
+};
 
 /**
  * A single story teaser. The `list` variant is a horizontal row with a small
@@ -43,7 +43,7 @@ export function ArticleCard({
   className,
   priority = false,
 }: ArticleCardProps) {
-  const href = `/article/${article.slug}`
+  const href = `/article/${article.slug}`;
 
   if (variant === 'list') {
     return (
@@ -51,7 +51,9 @@ export function ArticleCard({
         <div className="min-w-0 flex-1">
           {article.kicker ? <Kicker>{article.kicker}</Kicker> : null}
           <LocaleLink to={href}>
-            <h3 className={`headline mt-0.5 text-ink transition-colors group-hover:text-accent ${HEADLINE_SIZE.list}`}>
+            <h3
+              className={`headline mt-0.5 text-ink transition-colors group-hover:text-accent ${HEADLINE_SIZE.list}`}
+            >
               {article.title}
             </h3>
           </LocaleLink>
@@ -73,7 +75,7 @@ export function ArticleCard({
           </LocaleLink>
         ) : null}
       </article>
-    )
+    );
   }
 
   return (
@@ -115,8 +117,12 @@ export function ArticleCard({
       ) : null}
 
       {showByline ? (
-        <Byline author={article.author} category={article.category} publishedAt={article.publishedAt} />
+        <Byline
+          author={article.author}
+          category={article.category}
+          publishedAt={article.publishedAt}
+        />
       ) : null}
     </article>
-  )
+  );
 }

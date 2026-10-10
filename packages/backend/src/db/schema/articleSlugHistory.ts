@@ -1,5 +1,5 @@
-import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
-import { articles } from './articles'
+import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { articles } from './articles';
 
 /**
  * Slugs an article USED to have. When a slug changes, the old one is recorded
@@ -17,6 +17,6 @@ export const articleSlugHistory = pgTable(
     createdAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [index('article_slug_history_article_id_idx').on(t.articleId)],
-)
+);
 
-export type ArticleSlugHistoryRow = typeof articleSlugHistory.$inferSelect
+export type ArticleSlugHistoryRow = typeof articleSlugHistory.$inferSelect;

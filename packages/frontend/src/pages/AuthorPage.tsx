@@ -1,25 +1,25 @@
-import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { authorSlug, findWriterBySlug } from '@gwj/shared-types'
-import { getArticles } from '../lib/api'
-import { useLang } from '../lib/i18n'
-import { ArticleCard } from '../components/ArticleCard'
-import { AdSlot } from '../components/AdSlot'
-import { StatusMessage } from '../components/StatusMessage'
-import { ListSkeleton } from '../components/Skeletons'
+import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { authorSlug, findWriterBySlug } from '@gwj/shared-types';
+import { getArticles } from '../lib/api';
+import { useLang } from '../lib/i18n';
+import { ArticleCard } from '../components/ArticleCard';
+import { AdSlot } from '../components/AdSlot';
+import { StatusMessage } from '../components/StatusMessage';
+import { ListSkeleton } from '../components/Skeletons';
 
 export function AuthorPage() {
-  const { slug = '' } = useParams()
-  const { lang, t } = useLang()
-  const writer = findWriterBySlug(slug)
+  const { slug = '' } = useParams();
+  const { lang, t } = useLang();
+  const writer = findWriterBySlug(slug);
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['articles', 'author', slug, lang],
     queryFn: ({ signal }) => getArticles({ language: lang, limit: 50 }, signal),
-  })
+  });
 
   if (isPending) {
-    return <ListSkeleton />
+    return <ListSkeleton />;
   }
   if (isError) {
     return (
@@ -27,14 +27,14 @@ export function AuthorPage() {
         title={t('loadingError')}
         detail={error instanceof Error ? error.message : undefined}
       />
-    )
+    );
   }
 
-  const articles = data.data.filter((a) => authorSlug(a.author) === slug)
-  const name = writer?.name ?? articles[0]?.author
+  const articles = data.data.filter((a) => authorSlug(a.author) === slug);
+  const name = writer?.name ?? articles[0]?.author;
 
   if (!name) {
-    return <StatusMessage title="Author not found." detail="No writer matches this page." />
+    return <StatusMessage title="Author not found." detail="No writer matches this page." />;
   }
 
   return (
@@ -78,5 +78,5 @@ export function AuthorPage() {
 
       <AdSlot variant="leaderboard" className="mt-10 border-t border-rule pt-8" />
     </div>
-  )
+  );
 }

@@ -1,31 +1,31 @@
-import { Navigate, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { Navigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   categorySlug,
   TELEGRAM_CHANNEL_URL,
   type Category,
   type Language,
-} from '@gwj/shared-types'
-import { getArticle, getArticles, ApiRequestError } from '../lib/api'
-import { useLang } from '../lib/i18n'
-import { LocaleLink, localizePath } from '../lib/locale'
-import { categoryLabel } from '../lib/dictionary'
-import { Kicker } from '../components/Kicker'
-import { Byline } from '../components/Byline'
-import { ArticleBody } from '../components/ArticleBody'
-import { ArticleCard } from '../components/ArticleCard'
-import { AdSlot } from '../components/AdSlot'
-import { MostPopular } from '../components/MostPopular'
-import { StatusMessage } from '../components/StatusMessage'
-import { ArticleSkeleton } from '../components/Skeletons'
-import { NotFound } from './NotFound'
+} from '@gwj/shared-types';
+import { getArticle, getArticles, ApiRequestError } from '../lib/api';
+import { useLang } from '../lib/i18n';
+import { LocaleLink, localizePath } from '../lib/locale';
+import { categoryLabel } from '../lib/dictionary';
+import { Kicker } from '../components/Kicker';
+import { Byline } from '../components/Byline';
+import { ArticleBody } from '../components/ArticleBody';
+import { ArticleCard } from '../components/ArticleCard';
+import { AdSlot } from '../components/AdSlot';
+import { MostPopular } from '../components/MostPopular';
+import { StatusMessage } from '../components/StatusMessage';
+import { ArticleSkeleton } from '../components/Skeletons';
+import { NotFound } from './NotFound';
 
 // How many cross-link cards each section renders. The "More in {category}" grid
 // targets a 4-up row; "More from {author}" stays a short list.
-const RELATED_LIMIT = 6
-const POPULAR_LIMIT = 6
-const AUTHOR_LIMIT = 4
-const RAIL_POOL_LIMIT = 50
+const RELATED_LIMIT = 6;
+const POPULAR_LIMIT = 6;
+const AUTHOR_LIMIT = 4;
+const RAIL_POOL_LIMIT = 50;
 
 /**
  * Edition-aware pool of recent articles used to fill the rail (Most Popular) and
@@ -38,7 +38,7 @@ function useEditionArticles(lang: Language) {
     queryKey: ['articles', 'edition', lang],
     queryFn: ({ signal }) => getArticles({ language: lang, limit: RAIL_POOL_LIMIT }, signal),
     staleTime: 60_000,
-  })
+  });
 }
 
 /** Same-category, same-edition stories, fetched only once the article resolves. */
@@ -49,71 +49,71 @@ function useCategoryArticles(category: Category | undefined, lang: Language) {
       getArticles({ category, language: lang, limit: RAIL_POOL_LIMIT }, signal),
     enabled: Boolean(category),
     staleTime: 60_000,
-  })
+  });
 }
 
 export function ArticlePage() {
-  const { slug } = useParams<{ slug: string }>()
-  const { lang, t } = useLang()
+  const { slug } = useParams<{ slug: string }>();
+  const { lang, t } = useLang();
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['article', slug],
     queryFn: ({ signal }) => {
       if (!slug) {
-        throw new Error('Missing article slug')
+        throw new Error('Missing article slug');
       }
-      return getArticle(slug, signal)
+      return getArticle(slug, signal);
     },
     enabled: Boolean(slug),
-  })
+  });
 
   // These run in parallel with (and never block) the article query. The hooks
   // are always called; the queries self-gate via `enabled`/derived inputs.
-  const editionQuery = useEditionArticles(lang)
-  const categoryQuery = useCategoryArticles(data?.category, lang)
+  const editionQuery = useEditionArticles(lang);
+  const categoryQuery = useCategoryArticles(data?.category, lang);
 
   if (isPending) {
-    return <ArticleSkeleton />
+    return <ArticleSkeleton />;
   }
 
   if (isError) {
     if (error instanceof ApiRequestError && error.status === 404) {
-      return <NotFound />
+      return <NotFound />;
     }
     return (
       <StatusMessage
         title={t('loadingError')}
         detail={error instanceof Error ? error.message : undefined}
       />
-    )
+    );
   }
 
-  const article = data
+  const article = data;
   // An old slug resolves (via the API's 301) to the story's current one: move the
   // address bar to the canonical URL instead of serving the story at a stale path.
   if (article.slug !== slug) {
-    return <Navigate to={localizePath(article.language, `/article/${article.slug}`)} replace />
+    return <Navigate to={localizePath(article.language, `/article/${article.slug}`)} replace />;
   }
-  const editionPool = editionQuery.data?.data ?? []
-  const categoryPool = categoryQuery.data?.data ?? []
+  const editionPool = editionQuery.data?.data ?? [];
+  const categoryPool = categoryQuery.data?.data ?? [];
 
   // Most Popular: top stories in this edition, excluding the current article.
-  const mostPopular = editionPool.filter((a) => a.id !== article.id).slice(0, POPULAR_LIMIT)
+  const mostPopular = editionPool.filter((a) => a.id !== article.id).slice(0, POPULAR_LIMIT);
 
   // "More in {category}": same category + edition, current article excluded. If
   // the category is thin, top up with other recent edition stories so the row
   // never looks broken — without ever duplicating an article.
-  const sameCategory = categoryPool.filter((a) => a.id !== article.id)
-  const usedIds = new Set([article.id, ...sameCategory.map((a) => a.id)])
-  const fallback = editionPool.filter((a) => !usedIds.has(a.id))
-  const related = [...sameCategory, ...fallback].slice(0, RELATED_LIMIT)
+  const sameCategory = categoryPool.filter((a) => a.id !== article.id);
+  const usedIds = new Set([article.id, ...sameCategory.map((a) => a.id)]);
+  const fallback = editionPool.filter((a) => !usedIds.has(a.id));
+  const related = [...sameCategory, ...fallback].slice(0, RELATED_LIMIT);
 
   // "More from {author}" — other stories by the same writer in this edition.
   const byAuthor = editionPool
     .filter((a) => a.id !== article.id && a.author === article.author)
-    .slice(0, AUTHOR_LIMIT)
+    .slice(0, AUTHOR_LIMIT);
 
-  const categoryName = categoryLabel(article.category, lang)
+  const categoryName = categoryLabel(article.category, lang);
 
   return (
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-8">
@@ -229,7 +229,7 @@ export function ArticlePage() {
         </section>
       ) : null}
     </div>
-  )
+  );
 }
 
 /**
@@ -238,15 +238,7 @@ export function ArticlePage() {
  * channel in a new tab. The URL comes from the shared `TELEGRAM_CHANNEL_URL`
  * constant — no new form/endpoint, no over-build.
  */
-function FollowCard({
-  title,
-  line,
-  ctaLabel,
-}: {
-  title: string
-  line: string
-  ctaLabel: string
-}) {
+function FollowCard({ title, line, ctaLabel }: { title: string; line: string; ctaLabel: string }) {
   return (
     <section className="border border-rule bg-ink/[0.02] p-5 text-center">
       <p className="label mb-2 text-[0.625rem] tracking-[0.16em] text-accent">{title}</p>
@@ -260,5 +252,5 @@ function FollowCard({
         {ctaLabel}
       </a>
     </section>
-  )
+  );
 }
