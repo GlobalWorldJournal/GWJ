@@ -8,6 +8,7 @@ import {
   DEFAULT_LANGUAGE,
   type Article,
   type ArticleInput,
+  type ArticleUpdate,
   type Category,
   type HeroImage,
   type Language,
@@ -16,8 +17,10 @@ import {
   createArticle,
   updateArticle,
   publishArticle,
+  unpublishArticle,
   uploadImage,
-  getAdminArticles,
+  getAdminArticle,
+  ApiRequestError,
 } from '../lib/api'
 import { useAuth } from './useAuth'
 import { StatusMessage } from '../components/StatusMessage'
@@ -35,6 +38,11 @@ interface EditorForm {
   heroImage: HeroImage | null
   /** Article body as GitHub-flavored Markdown. */
   body: string
+  /** URL slug; blank on a new article means "derive it from the title". */
+  slug: string
+  metaTitle: string
+  metaDescription: string
+  ogImage: string
 }
 
 function emptyForm(): EditorForm {
@@ -49,6 +57,10 @@ function emptyForm(): EditorForm {
     featured: 0,
     heroImage: null,
     body: '',
+    slug: '',
+    metaTitle: '',
+    metaDescription: '',
+    ogImage: '',
   }
 }
 
@@ -64,10 +76,19 @@ function formFromArticle(article: Article): EditorForm {
     featured: article.featured,
     heroImage: article.heroImage ?? null,
     body: article.body,
+    slug: article.slug,
+    metaTitle: article.seo.metaTitle ?? '',
+    metaDescription: article.seo.metaDescription ?? '',
+    ogImage: article.seo.ogImage ?? '',
   }
 }
 
-function toArticleInput(form: EditorForm): ArticleInput {
+/**
+ * The editable content of the form. Deliberately carries NO `status`: saving never
+ * changes whether a story is live — that is only ever the explicit Publish /
+ * Unpublish action, so saving an edit to a published story keeps it published.
+ */
+function formContent(form: EditorForm): Omit<ArticleInput, 'status' | 'slug'> {
   return {
     title: form.title,
     deck: form.deck || undefined,
@@ -77,14 +98,29 @@ function toArticleInput(form: EditorForm): ArticleInput {
     author: form.author,
     body: form.body,
     heroImage: form.heroImage ?? undefined,
-    status: 'draft',
     featured: form.featured,
     tags: form.tags
       .split(',')
       .map((tag) => tag.trim())
       .filter((tag) => tag.length > 0),
-    seo: {},
+    // All three keys are always sent: an empty string clears a stored value.
+    seo: {
+      metaTitle: form.metaTitle.trim(),
+      metaDescription: form.metaDescription.trim(),
+      ogImage: form.ogImage.trim(),
+    },
   }
+}
+
+/** A new article always starts as a draft; a blank slug is derived from the title. */
+function toArticleInput(form: EditorForm): ArticleInput {
+  return { ...formContent(form), status: 'draft', slug: form.slug.trim() || undefined }
+}
+
+/** Only send a slug the editor actually changed; otherwise the server keeps it. */
+function toArticleUpdate(form: EditorForm, savedSlug: string): ArticleUpdate {
+  const slug = form.slug.trim()
+  return { ...formContent(form), slug: slug && slug !== savedSlug ? slug : undefined }
 }
 
 export function Editor() {
@@ -92,7 +128,7 @@ export function Editor() {
   const isNew = !id || id === 'new'
 
   if (isNew) {
-    return <EditorForm initial={emptyForm()} articleId={null} />
+    return <EditorForm initial={emptyForm()} article={null} />
   }
 
   return <ExistingEditor id={id} />
@@ -101,10 +137,10 @@ export function Editor() {
 function ExistingEditor({ id }: { id: string }) {
   const { token } = useAuth()
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ['admin', 'articles'],
+    queryKey: ['admin', 'article', id],
     queryFn: ({ signal }) => {
       if (!token) throw new Error('Not authenticated')
-      return getAdminArticles(token, { limit: 50 }, signal)
+      return getAdminArticle(token, id, signal)
     },
     enabled: Boolean(token),
   })
@@ -113,6 +149,9 @@ function ExistingEditor({ id }: { id: string }) {
     return <StatusMessage title="Loading editor&hellip;" />
   }
   if (isError) {
+    if (error instanceof ApiRequestError && error.status === 404) {
+      return <StatusMessage title="Article not found." />
+    }
     return (
       <StatusMessage
         title="Could not load the article."
@@ -121,45 +160,50 @@ function ExistingEditor({ id }: { id: string }) {
     )
   }
 
-  const article = data.data.find((item) => item.id === id)
-  if (!article) {
-    return <StatusMessage title="Article not found." />
-  }
-
-  return <EditorForm initial={formFromArticle(article)} articleId={id} />
+  return <EditorForm initial={formFromArticle(data)} article={data} />
 }
 
 interface EditorFormProps {
   initial: EditorForm
-  articleId: string | null
+  /** The stored article being edited, or null for a new one. */
+  article: Article | null
 }
 
-function EditorForm({ initial, articleId }: EditorFormProps) {
+function EditorForm({ initial, article }: EditorFormProps) {
   const { token } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [form, setForm] = useState<EditorForm>(initial)
-  const [savedId, setSavedId] = useState<string | null>(articleId)
+  // The server's view of the article after the latest save/publish/unpublish.
+  const [saved, setSaved] = useState<Article | null>(article)
 
   function update<K extends keyof EditorForm>(key: K, value: EditorForm[K]) {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
   function invalidate() {
-    return queryClient.invalidateQueries({ queryKey: ['admin', 'articles'] })
+    return queryClient.invalidateQueries({ queryKey: ['admin'] })
+  }
+
+  /** Persist the form without changing whether the story is live. */
+  async function persist(authToken: string): Promise<Article> {
+    if (saved) return updateArticle(authToken, saved.id, toArticleUpdate(form, saved.slug))
+    return createArticle(authToken, toArticleInput(form))
+  }
+
+  function onSaved(next: Article) {
+    setSaved(next)
+    // Reflect server-side normalisation (a derived slug, cleared SEO keys).
+    setForm((current) => ({ ...current, slug: next.slug }))
   }
 
   const save = useMutation({
     mutationFn: async (): Promise<Article> => {
       if (!token) throw new Error('Not authenticated')
-      const input = toArticleInput(form)
-      if (savedId) {
-        return updateArticle(token, savedId, input)
-      }
-      return createArticle(token, input)
+      return persist(token)
     },
-    onSuccess: async (article) => {
-      setSavedId(article.id)
+    onSuccess: async (next) => {
+      onSaved(next)
       await invalidate()
     },
   })
@@ -167,16 +211,24 @@ function EditorForm({ initial, articleId }: EditorFormProps) {
   const publish = useMutation({
     mutationFn: async (): Promise<Article> => {
       if (!token) throw new Error('Not authenticated')
-      const input = toArticleInput(form)
-      const saved = savedId
-        ? await updateArticle(token, savedId, input)
-        : await createArticle(token, input)
-      setSavedId(saved.id)
-      return publishArticle(token, saved.id)
+      const stored = await persist(token)
+      onSaved(stored)
+      return publishArticle(token, stored.id)
     },
     onSuccess: async () => {
       await invalidate()
       navigate('/admin', { replace: true })
+    },
+  })
+
+  const unpublish = useMutation({
+    mutationFn: async (): Promise<Article> => {
+      if (!token || !saved) throw new Error('Not authenticated')
+      return unpublishArticle(token, saved.id)
+    },
+    onSuccess: async (next) => {
+      setSaved(next)
+      await invalidate()
     },
   })
 
@@ -193,13 +245,23 @@ function EditorForm({ initial, articleId }: EditorFormProps) {
     },
   })
 
-  const busy = save.isPending || publish.isPending
-  const mutationError = save.error ?? publish.error ?? heroUpload.error
+  const isLive = saved?.status === 'published'
+  // Once a story has been public its URL is frozen; changing it is deliberate.
+  const slugFrozen = Boolean(saved?.firstPublishedAt) || isLive
+  const busy = save.isPending || publish.isPending || unpublish.isPending
+  const mutationError = save.error ?? publish.error ?? unpublish.error ?? heroUpload.error
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <header className="mb-6 flex items-center justify-between border-b-3 border-ink pb-4">
-        <h1 className="headline text-2xl text-ink">{savedId ? 'Edit Article' : 'New Article'}</h1>
+        <div className="flex items-baseline gap-3">
+          <h1 className="headline text-2xl text-ink">{saved ? 'Edit Article' : 'New Article'}</h1>
+          {saved ? (
+            <span className={`label text-[0.625rem] ${isLive ? 'text-accent' : 'text-muted'}`}>
+              {isLive ? 'Live' : 'Draft'}
+            </span>
+          ) : null}
+        </div>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -208,24 +270,42 @@ function EditorForm({ initial, articleId }: EditorFormProps) {
           >
             Back
           </button>
+          {isLive ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => unpublish.mutate()}
+              className="label text-[0.6875rem] text-ink-soft transition-colors hover:text-accent disabled:opacity-50"
+            >
+              {unpublish.isPending ? 'Unpublishing…' : 'Unpublish'}
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={busy}
             onClick={() => save.mutate()}
-            className="label border border-ink px-4 py-2 text-[0.6875rem] text-ink transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+            className={
+              isLive
+                ? 'label bg-ink px-4 py-2 text-[0.6875rem] text-paper transition-colors hover:bg-accent disabled:opacity-50'
+                : 'label border border-ink px-4 py-2 text-[0.6875rem] text-ink transition-colors hover:border-accent hover:text-accent disabled:opacity-50'
+            }
           >
-            {save.isPending ? 'Saving…' : 'Save Draft'}
+            {save.isPending ? 'Saving…' : isLive ? 'Update' : 'Save Draft'}
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => publish.mutate()}
-            className="label bg-ink px-4 py-2 text-[0.6875rem] text-paper transition-colors hover:bg-accent disabled:opacity-50"
-          >
-            {publish.isPending ? 'Publishing…' : 'Publish'}
-          </button>
+          {isLive ? null : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => publish.mutate()}
+              className="label bg-ink px-4 py-2 text-[0.6875rem] text-paper transition-colors hover:bg-accent disabled:opacity-50"
+            >
+              {publish.isPending ? 'Publishing…' : 'Publish'}
+            </button>
+          )}
         </div>
       </header>
+
+      {save.isSuccess && !busy ? <p className="mb-4 text-[0.85rem] text-ink-soft">Saved.</p> : null}
 
       {mutationError ? (
         <p className="mb-4 text-[0.85rem] text-accent">
@@ -244,6 +324,16 @@ function EditorForm({ initial, articleId }: EditorFormProps) {
 
         <Field label="Deck">
           <TextInput value={form.deck} onChange={(value) => update('deck', value)} />
+        </Field>
+
+        <Field
+          label={
+            slugFrozen
+              ? 'URL slug (published: changing it moves the story; the old URL redirects)'
+              : 'URL slug (leave blank to derive it from the title)'
+          }
+        >
+          <TextInput value={form.slug} onChange={(value) => update('slug', value)} />
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -310,8 +400,59 @@ function EditorForm({ initial, articleId }: EditorFormProps) {
         />
 
         <BodyField value={form.body} onChange={(body) => update('body', body)} />
+
+        <fieldset className="border border-rule p-4">
+          <legend className="label px-2 text-[0.625rem] text-ink-soft">Search &amp; Sharing</legend>
+          <div className="flex flex-col gap-4">
+            <Field label={`Meta title (${form.metaTitle.length}/60)`}>
+              <TextInput value={form.metaTitle} onChange={(value) => update('metaTitle', value)} />
+            </Field>
+            <Field label={`Meta description (${form.metaDescription.length}/155)`}>
+              <TextInput value={form.metaDescription} onChange={(value) => update('metaDescription', value)} />
+            </Field>
+            <Field label="Social image URL (defaults to the hero image)">
+              <TextInput value={form.ogImage} onChange={(value) => update('ogImage', value)} />
+            </Field>
+          </div>
+        </fieldset>
+
+        {saved?.source ? <ProvenancePanel source={saved.source} /> : null}
       </div>
     </div>
+  )
+}
+
+/* ---------- provenance (read-only, never shown to readers) ---------- */
+
+function ProvenancePanel({ source }: { source: NonNullable<Article['source']> }) {
+  return (
+    <fieldset className="border border-rule p-4">
+      <legend className="label px-2 text-[0.625rem] text-ink-soft">Provenance (internal)</legend>
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-[0.85rem] text-ink-soft">
+        {source.name ? (
+          <>
+            <dt className="label text-[0.625rem]">Outlet</dt>
+            <dd>{source.name}</dd>
+          </>
+        ) : null}
+        {source.articleUrl ? (
+          <>
+            <dt className="label text-[0.625rem]">Article</dt>
+            <dd className="break-all">
+              <a href={source.articleUrl} target="_blank" rel="noreferrer noopener" className="underline">
+                {source.articleUrl}
+              </a>
+            </dd>
+          </>
+        ) : null}
+        {source.imageUrl ? (
+          <>
+            <dt className="label text-[0.625rem]">Image</dt>
+            <dd className="break-all">{source.imageUrl}</dd>
+          </>
+        ) : null}
+      </dl>
+    </fieldset>
   )
 }
 

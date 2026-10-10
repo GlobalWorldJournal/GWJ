@@ -24,8 +24,9 @@ export async function readTarget(db: Executor): Promise<Record<SourceCollection,
   const followerRows = await db.select().from(followers).orderBy(followers.id)
   const takedownRows = await db.select().from(takedownRequests).orderBy(takedownRequests.id)
   return {
-    // The generated search vector is derived, not data.
-    articles: articleRows.map(({ searchVector: _derived, ...row }) => row),
+    // Derived, not Mongo data: the generated search vector, and firstPublishedAt
+    // (which `articleRow` derives from publishedAt on every write).
+    articles: articleRows.map(({ searchVector: _derived, firstPublishedAt: _derivedFirst, ...row }) => row),
     users: userRows.map((row) => ({ ...row })),
     actorkeys: keyRows.map((row) => ({ ...row })),
     // The identity id never existed in Mongo; the natural key identifies a follower.

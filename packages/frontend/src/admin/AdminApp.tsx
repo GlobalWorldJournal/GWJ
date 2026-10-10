@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { ApiRequestError } from '../lib/api'
 import { AuthProvider } from './AuthProvider'
 import { useAuth } from './useAuth'
 import { Login } from './Login'
@@ -15,10 +18,43 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function isUnauthorized(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.status === 401
+}
+
+/**
+ * An expired or revoked admin JWT makes every call fail with 401. Rather than
+ * leave the editor showing error text, end the session so RequireAuth sends the
+ * user back to the login page.
+ */
+function SignOutOnUnauthorized() {
+  const queryClient = useQueryClient()
+  const { isAuthenticated, signOut } = useAuth()
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined
+    const unsubscribeQueries = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type === 'updated' && event.action.type === 'error' && isUnauthorized(event.action.error)) signOut()
+    })
+    const unsubscribeMutations = queryClient.getMutationCache().subscribe((event) => {
+      if (event.type === 'updated' && event.mutation.state.status === 'error' && isUnauthorized(event.mutation.state.error)) {
+        signOut()
+      }
+    })
+    return () => {
+      unsubscribeQueries()
+      unsubscribeMutations()
+    }
+  }, [queryClient, isAuthenticated, signOut])
+
+  return null
+}
+
 /** Admin CMS subtree mounted at /admin/*. */
 export function AdminApp() {
   return (
     <AuthProvider>
+      <SignOutOnUnauthorized />
       <div className="min-h-screen bg-paper">
         <Routes>
           <Route path="login" element={<Login />} />

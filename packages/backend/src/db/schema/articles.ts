@@ -67,6 +67,12 @@ export const articles = pgTable(
     /** Internal provenance (never shown to readers). */
     source: jsonb().$type<Source>(),
     publishedAt: timestamp({ withTimezone: true, mode: 'date' }),
+    /**
+     * When the article first went live. Never cleared (unpublish only clears
+     * `publishedAt`), so it freezes the slug and makes the publish fan-out
+     * (fediverse, Telegram) fire exactly once per article.
+     */
+    firstPublishedAt: timestamp({ withTimezone: true, mode: 'date' }),
     createdAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     searchVector: tsvector().generatedAlwaysAs(ARTICLE_SEARCH_VECTOR_SQL),

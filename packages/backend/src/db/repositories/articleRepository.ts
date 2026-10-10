@@ -2,6 +2,7 @@ import { and, count, desc, eq, gt, ne, sql, type SQL } from 'drizzle-orm'
 import type { Article, HeroImage, Seo, Source } from '@gwj/shared-types'
 import { getDb, type Database } from '../client'
 import { articles, type ArticleRow, type NewArticleRow } from '../schema/articles'
+import { articleSlugHistory } from '../schema/articleSlugHistory'
 
 /** A transaction handle or the pool — every function here accepts either. */
 export type Executor = Pick<Database, 'select' | 'insert' | 'update' | 'delete'>
@@ -44,6 +45,7 @@ export function rowToArticle(row: ArticleRow): Article {
     seo,
     source,
     publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+    firstPublishedAt: row.firstPublishedAt ? row.firstPublishedAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -194,10 +196,54 @@ export async function findArticleById(id: string): Promise<ArticleRow | null> {
 }
 
 /** Whether `slug` is held by any article other than `excludeId`. */
+/**
+ * Whether `slug` is unavailable to the article `excludeId` (or to a new one): held
+ * by ANOTHER article's current slug, or reserved as another article's old slug —
+ * claiming that would shadow its redirect. An article may reclaim its own old slug.
+ */
 export async function isSlugTaken(executor: Executor, slug: string, excludeId?: string): Promise<boolean> {
   const where = excludeId ? and(eq(articles.slug, slug), ne(articles.id, excludeId)) : eq(articles.slug, slug)
   const [row] = await executor.select({ id: articles.id }).from(articles).where(where).limit(1)
-  return row !== undefined
+  if (row) return true
+  const historyWhere = excludeId
+    ? and(eq(articleSlugHistory.slug, slug), ne(articleSlugHistory.articleId, excludeId))
+    : eq(articleSlugHistory.slug, slug)
+  const [reserved] = await executor
+    .select({ slug: articleSlugHistory.slug })
+    .from(articleSlugHistory)
+    .where(historyWhere)
+    .limit(1)
+  return reserved !== undefined
+}
+
+/**
+ * Record a slug change: the old slug now redirects to the article, and the new
+ * slug leaves the history if the article is reclaiming one of its own old slugs.
+ */
+export async function recordSlugChange(
+  executor: Executor,
+  articleId: string,
+  oldSlug: string,
+  newSlug: string,
+): Promise<void> {
+  await executor
+    .delete(articleSlugHistory)
+    .where(and(eq(articleSlugHistory.slug, newSlug), eq(articleSlugHistory.articleId, articleId)))
+  await executor
+    .insert(articleSlugHistory)
+    .values({ slug: oldSlug, articleId })
+    .onConflictDoUpdate({ target: articleSlugHistory.slug, set: { articleId, createdAt: new Date() } })
+}
+
+/** The CURRENT slug of the published article that once used `oldSlug`, if any. */
+export async function findRedirectSlug(oldSlug: string): Promise<string | null> {
+  const [row] = await getDb()
+    .select({ slug: articles.slug })
+    .from(articleSlugHistory)
+    .innerJoin(articles, eq(articles.id, articleSlugHistory.articleId))
+    .where(and(eq(articleSlugHistory.slug, oldSlug), eq(articles.status, 'published')))
+    .limit(1)
+  return row?.slug ?? null
 }
 
 export async function insertArticle(executor: Executor, values: NewArticleRow): Promise<ArticleRow> {

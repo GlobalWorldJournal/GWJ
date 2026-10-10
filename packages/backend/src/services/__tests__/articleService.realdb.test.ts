@@ -62,16 +62,24 @@ describe('articleService', () => {
     expect(published.publishedAt).not.toBeNull()
   })
 
-  it('publish() preserves the original publishedAt on re-publish', async () => {
+  it('re-publish after unpublish restores the original publishedAt', async () => {
     const draft = await articleService.create(baseInput())
     const first = await articleService.publish(draft.id)
-    const firstTime = first.publishedAt
+    expect(first.publishedAt).not.toBeNull()
+    expect(first.firstPublishedAt).toBe(first.publishedAt)
 
-    await articleService.unpublish(draft.id)
+    const unpublished = await articleService.unpublish(draft.id)
+    expect(unpublished.publishedAt).toBeNull()
+    expect(unpublished.firstPublishedAt).toBe(first.publishedAt)
+
+    await new Promise((r) => setTimeout(r, 15))
     const second = await articleService.publish(draft.id)
-    // After unpublish clears publishedAt, re-publish stamps a fresh time.
-    expect(second.publishedAt).not.toBeNull()
-    expect(firstTime).not.toBeNull()
+    expect(second.publishedAt).toBe(first.publishedAt)
+
+    // The same holds for the status patch the CMS/MCP can send.
+    await articleService.update(draft.id, { status: 'draft' })
+    const viaPatch = await articleService.update(draft.id, { status: 'published' })
+    expect(viaPatch.publishedAt).toBe(first.publishedAt)
   })
 
   it('public list excludes drafts', async () => {
@@ -179,6 +187,25 @@ describe('articleService — PostgreSQL port semantics', () => {
     }
   })
 
+  it('fans out exactly once per article, even across unpublish → re-publish', async () => {
+    const seen: string[] = []
+    const off = onArticlePublished((a) => seen.push(a.id))
+    try {
+      const draft = await articleService.create(baseInput())
+      await articleService.publish(draft.id)
+      await articleService.unpublish(draft.id)
+      await articleService.publish(draft.id)
+      await articleService.update(draft.id, { status: 'draft' })
+      await articleService.update(draft.id, { status: 'published' })
+      const born = await articleService.create(baseInput({ title: 'Born live', status: 'published' }))
+      await articleService.unpublish(born.id)
+      await articleService.publish(born.id)
+      expect(seen).toEqual([draft.id, born.id])
+    } finally {
+      off()
+    }
+  })
+
   it('orders listings by featured, then publishedAt DESC with NULLS LAST (where Mongo put a null), then createdAt', async () => {
     const draft = await articleService.create(baseInput({ title: 'Draft', featured: 5 }))
     const older = await articleService.create(baseInput({ title: 'Older', featured: 5, status: 'published' }))
@@ -254,5 +281,64 @@ describe('articleService.search — Mongo $text semantics on tsvector', () => {
     expect((await articleService.list(baseQuery({ q: 'merger' }), { includeAll: true })).data.map((a) => a.id)).toEqual([
       draft.id,
     ])
+  })
+})
+
+describe('articleService — stable slugs and SEO patches', () => {
+  it('a never-published draft follows its title, without reserving the old slug', async () => {
+    const draft = await articleService.create(baseInput({ title: 'Working title' }))
+    const renamed = await articleService.update(draft.id, { title: 'Final headline' })
+    expect(renamed.slug).toBe('final-headline')
+    const other = await articleService.create(baseInput({ title: 'Working title' }))
+    expect(other.slug).toBe('working-title')
+  })
+
+  it('a published (or once-published) article keeps its slug when the title changes', async () => {
+    const article = await articleService.create(baseInput({ title: 'Original headline', status: 'published' }))
+    const edited = await articleService.update(article.id, { title: 'Sharper headline' })
+    expect(edited.slug).toBe('original-headline')
+
+    await articleService.unpublish(article.id)
+    const editedDraft = await articleService.update(article.id, { title: 'Even sharper headline' })
+    expect(editedDraft.slug).toBe('original-headline')
+  })
+
+  it('an explicit slug change redirects the old slug, which no other article can claim', async () => {
+    const article = await articleService.create(baseInput({ title: 'Original headline', status: 'published' }))
+    const moved = await articleService.update(article.id, { slug: 'new-url' })
+    expect(moved.slug).toBe('new-url')
+    expect(await articleService.findRedirectSlug('original-headline')).toBe('new-url')
+
+    const copycat = await articleService.create(baseInput({ title: 'Original headline' }))
+    expect(copycat.slug).toBe('original-headline-2')
+    await expect(articleService.create(baseInput({ slug: 'original-headline' }))).rejects.toMatchObject({ status: 409 })
+    await expect(articleService.update(copycat.id, { slug: 'new-url' })).rejects.toMatchObject({ status: 409 })
+
+    // Moving back to its own old slug reclaims it; the intermediate one redirects.
+    const back = await articleService.update(article.id, { slug: 'original-headline' })
+    expect(back.slug).toBe('original-headline')
+    expect(await articleService.findRedirectSlug('original-headline')).toBeNull()
+    expect(await articleService.findRedirectSlug('new-url')).toBe('original-headline')
+  })
+
+  it('does not redirect to an unpublished article', async () => {
+    const article = await articleService.create(baseInput({ title: 'Original headline', status: 'published' }))
+    await articleService.update(article.id, { slug: 'new-url' })
+    await articleService.unpublish(article.id)
+    expect(await articleService.findRedirectSlug('original-headline')).toBeNull()
+  })
+
+  it('merges SEO patches: omitted keys are kept, empty strings clear', async () => {
+    const article = await articleService.create(
+      baseInput({ seo: { metaTitle: 'Title', metaDescription: 'Description', ogImage: 'https://cdn.example.test/a.webp' } }),
+    )
+    const retitled = await articleService.update(article.id, { seo: { metaTitle: 'New title' } })
+    expect(retitled.seo).toEqual({
+      metaTitle: 'New title',
+      metaDescription: 'Description',
+      ogImage: 'https://cdn.example.test/a.webp',
+    })
+    const cleared = await articleService.update(article.id, { seo: { metaDescription: '', ogImage: '' } })
+    expect(cleared.seo).toEqual({ metaTitle: 'New title' })
   })
 })

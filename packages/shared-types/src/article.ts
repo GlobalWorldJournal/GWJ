@@ -35,9 +35,12 @@ export type HeroImage = z.infer<typeof HeroImageSchema>
 
 export const SeoSchema = z
   .object({
-    metaTitle: z.string().optional().describe('At most 60 characters.'),
-    metaDescription: z.string().optional().describe('At most 155 characters.'),
-    ogImage: z.string().url().optional().describe('Usually the same CDN url as heroImage.url.'),
+    metaTitle: z.string().optional().describe('At most 60 characters. On update, an omitted key is kept and "" clears it.'),
+    metaDescription: z.string().optional().describe('At most 155 characters. On update, an omitted key is kept and "" clears it.'),
+    ogImage: z
+      .union([z.string().url(), z.literal('')])
+      .optional()
+      .describe('Usually the same CDN url as heroImage.url. On update, an omitted key is kept and "" clears it.'),
   })
   .default({})
 export type Seo = z.infer<typeof SeoSchema>
@@ -54,9 +57,19 @@ export const SourceSchema = z.object({
 })
 export type Source = z.infer<typeof SourceSchema>
 
+/** A URL slug: lowercase ASCII words joined by single dashes (what `slugify` emits). */
+export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
 /** Payload to create an article. */
 export const ArticleInputSchema = z.object({
   title: z.string().min(1).describe('A specific, sentence-case headline.'),
+  slug: z
+    .string()
+    .regex(SLUG_PATTERN, 'lowercase letters, digits and single dashes only')
+    .optional()
+    .describe(
+      'Normally omit it: the URL slug is derived from the title and then frozen once the article has been published, so shared links never break. Set it only to deliberately change the URL; the old URL keeps redirecting to the new one.',
+    ),
   deck: z.string().optional().describe('A one-sentence summary shown under the headline.'),
   kicker: z.string().optional().describe('A short section/topic label shown above the headline, e.g. "Markets".'),
   category: CategorySchema,
@@ -105,6 +118,12 @@ export const ArticleSchema = ArticleInputSchema.extend({
   id: z.string(),
   slug: z.string(),
   publishedAt: z.string().datetime().nullable(),
+  /**
+   * When the article FIRST went live; kept through unpublish/re-publish. Once set,
+   * the slug is frozen and re-publishing does not re-announce the story. Optional
+   * so a client deployed ahead of the API still validates older responses.
+   */
+  firstPublishedAt: z.string().datetime().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })

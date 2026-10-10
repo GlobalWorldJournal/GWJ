@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { Navigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   authorSlug,
@@ -10,7 +10,7 @@ import {
 } from '@gwj/shared-types'
 import { getArticle, getArticles, ApiRequestError } from '../lib/api'
 import { useLang } from '../lib/i18n'
-import { LocaleLink } from '../lib/locale'
+import { LocaleLink, localizePath } from '../lib/locale'
 import { categoryLabel } from '../lib/dictionary'
 import { Kicker } from '../components/Kicker'
 import { Byline } from '../components/Byline'
@@ -91,6 +91,11 @@ export function ArticlePage() {
   }
 
   const article = data
+  // An old slug resolves (via the API's 301) to the story's current one: move the
+  // address bar to the canonical URL instead of serving the story at a stale path.
+  if (article.slug !== slug) {
+    return <Navigate to={localizePath(article.language, `/article/${article.slug}`)} replace />
+  }
   const editionPool = editionQuery.data?.data ?? []
   const categoryPool = categoryQuery.data?.data ?? []
 
