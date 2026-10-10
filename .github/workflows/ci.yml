@@ -8,6 +8,25 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The backend and mongo-migration suites run against a REAL PostgreSQL (each
+    # *.realdb.test.ts file creates, migrates and drops its own database). There
+    # is no skip: without TEST_POSTGRES_URL those suites fail, by design.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: gwj
+          POSTGRES_PASSWORD: gwj
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gwj"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      TEST_POSTGRES_URL: postgres://gwj:gwj@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
 

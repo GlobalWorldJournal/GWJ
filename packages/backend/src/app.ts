@@ -39,10 +39,10 @@ export interface BuiltApp {
 
 /**
  * Build the Express application AND the ActivityPub module. Pure with respect to
- * I/O: it wires routes and middleware but does not connect to Mongo or bind a
- * port, so tests can mount it against an in-memory database and a fake upload
- * service. The caller must `await activityPub.initialize()` once Mongo is
- * connected so the signing key is resolved.
+ * I/O: it wires routes and middleware but does not open the database pool or bind
+ * a port, so tests can mount it against a throwaway PostgreSQL database and a fake
+ * upload service. The caller connects the pool first (`connectDb`); actor signing
+ * keys are then resolved lazily on first use.
  *
  * It also starts distribution-channel publishing (Mastodon + Telegram): the channel
  * registry owns the single article-published subscription and routes each published

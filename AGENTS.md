@@ -7,11 +7,11 @@
 **GWJ has NOTHING to do with the Oxy ecosystem.** It is Nate's personal company project (Global World Journal, globalworldjournal.com), separate from OxyHQ/Mention/Allo/Homiio/etc.
 
 - Do **NOT** use any `@oxyhq/*` package (core, services, auth, bloom, contracts). GWJ has its own types, auth, and UI.
-- Do **NOT** use Oxy SSO/FedCM, `cloud.oxy.so` media, the Oxy API, Oxy's MongoDB, or any Oxy application data.
+- Do **NOT** use Oxy SSO/FedCM, `cloud.oxy.so` media, the Oxy API, any Oxy database, or any Oxy application data.
 - Do **NOT** spawn the Oxy team agents (mention-*, oxy-*, bloom, allo, etc.) for GWJ work.
 - The global `~/AGENTS.md` Oxy rules (Oxy SDK versions, SSO architecture, agent-first Oxy team) **do not apply here**, except for universal quality standards (below).
 
-**Hosting (user decision, 2026-06-23):** GWJ is hosted ON the Oxy AWS account (`237343248947`, us-west-2, CLI `--profile oxy`) for convenience, but as **fully ISOLATED `gwj-*` resources** — its own ECR repos, ECS services, S3 bucket (`gwj-media`), CloudFront, and a **NEW dedicated MongoDB** (NOT Oxy's Mongo EC2). GWJ shares no application data, database, SSO, or SDKs with Oxy. Frontend deploys to Cloudflare Pages (project `gwj`). **Infra is STANDALONE in `~/GWJ/infra/`** — its own terraform state (S3 key `gwj/terraform.tfstate`), its own IAM roles (`gwj-ecs-execution`/`gwj-ecs-task`/`gwj-mongo`), its own SSM `/gwj/*` and `gwj-tasks` security group. It consumes Oxy's shared VPC/ALB/ECS-cluster ONLY via read-only data sources, so a GWJ `plan`/`apply` can never modify Oxy's resources. Do NOT put GWJ resources in `oxy-infra`.
+**Hosting (user decision, 2026-06-23):** GWJ is hosted ON the Oxy AWS account (`237343248947`, us-west-2, CLI `--profile oxy`) for convenience, but as **fully ISOLATED `gwj-*` resources** — its own ECR repos, ECS services, S3 bucket (`gwj-media`), CloudFront, and its **own PostgreSQL database `gwj`** (own login role `gwj`, SSM `/gwj/DATABASE_URL`) on the shared RDS instance `oxy-postgres` (user decision 2026-10-10, replacing the dedicated `gwj-mongo` EC2 — cutover + decommission in `docs/POSTGRES-CUTOVER.md`). GWJ shares the instance only: no database, role, table, application data, SSO, or SDKs with Oxy. Frontend deploys to Cloudflare Pages (project `gwj`). **Infra is STANDALONE in `~/GWJ/infra/`** — its own terraform state (S3 key `gwj/terraform.tfstate`), its own IAM roles (`gwj-ecs-execution`/`gwj-ecs-task`), its own SSM `/gwj/*` and `gwj-tasks` security group. It consumes Oxy's shared VPC/ALB/ECS-cluster ONLY via read-only data sources, so a GWJ `plan`/`apply` can never modify Oxy's resources. Do NOT put GWJ resources in `oxy-infra`. (Sole cross-reference: `oxy-postgres-sg`, owned by oxy-infra with inline ingress, lists `gwj-tasks-sg` by id so GWJ can reach its database.)
 
 ## What GWJ is
 WSJ-style news site for "Global World Journal". Public reader SPA + admin CMS + a remote MCP server so AI agents manage the newspaper.
@@ -26,13 +26,21 @@ Bun monorepo, `packages/` layout. Single Zod source of truth shared by all packa
 ```
 packages/
   shared-types/  @gwj/shared-types — Zod schemas + TS types
-  backend/       @gwj/backend     — Express 5 + Mongoose 8 + Zod; REST + service layer; admin JWT; S3 upload
+  backend/       @gwj/backend     — Express 5 + Drizzle (PostgreSQL) + Zod; REST + service layer; admin JWT; S3 upload
+  mongo-migration/ ONE-TIME Mongo→Postgres copy (deleted at the Mongo decommission)
   mcp/           @gwj/mcp         — @modelcontextprotocol/sdk HTTP server (bearer token); wraps backend
   frontend/      @gwj/frontend    — Vite 6 + React 19 + Tailwind 4 (SPA) + public/_worker.js (Cloudflare SEO)
 ```
 
 ## Stack
-TypeScript (strict), Vite 6, React 19, Tailwind 4, Express 5, Mongoose 8, Zod, `@modelcontextprotocol/sdk`, bcrypt, jsonwebtoken, multer, `@aws-sdk/client-s3`, Vitest, supertest. MongoDB Atlas (M0, own cluster). S3 `gwj-media` + CloudFront `cdn.globalworldjournal.com`. Backend+MCP on AWS ECS Fargate; frontend on Cloudflare Pages.
+TypeScript (strict), Vite 6, React 19, Tailwind 4, Express 5, Drizzle ORM + postgres.js, Zod, `@modelcontextprotocol/sdk`, bcrypt, jsonwebtoken, multer, `@aws-sdk/client-s3`, Vitest, supertest. PostgreSQL 17 (database `gwj` on `oxy-postgres`). S3 `gwj-media` + CloudFront `cdn.globalworldjournal.com`. Backend+MCP on AWS ECS Fargate; frontend on Cloudflare Pages.
+
+## Database (PostgreSQL) — rules (details: `docs/DATABASE.md`)
+- PostgreSQL only. Never reintroduce MongoDB/Mongoose/`MONGO_*` in `@gwj/backend` (`no-mongo.test.ts` gates it).
+- Migrations: `bun run --cwd packages/backend db:generate`, then add exactly one `-- oxy:deploy-phase=pre|post` line and read the SQL. Apply ONLY with `db:migrate --target-database=<db>` (deploy runs it as an ECS one-shot) — never `drizzle-kit migrate`, never hand-edit `drizzle/meta`.
+- Adding a category/language/status value is a schema change: tuple + `db:generate` + migration in the same PR (CHECK constraints).
+- DB tests are `*.realdb.test.ts` against real Postgres: `TEST_POSTGRES_URL=postgres://gwj:gwj@127.0.0.1:5432/postgres bun run test` (`docker compose up -d postgres`). No mocks, no skips.
+- Article/user ids stay 24-hex (federated Note ids embed them). SQLSTATE is on `err.cause` — use `src/db/pgErrors.ts`.
 
 ## Categories (fixed)
 `World, Business, Markets, Tech, Politics, Opinion, Arts`

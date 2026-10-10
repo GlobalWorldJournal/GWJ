@@ -66,7 +66,12 @@ const editionUsernamesOverride = z
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_PORT),
-  MONGO_URI: requiredSecret('MONGO_URI'),
+  // PostgreSQL connection string (logical database `gwj` on the shared RDS
+  // instance in production; `?sslmode=require` there).
+  DATABASE_URL: requiredSecret('DATABASE_URL').refine(
+    (v) => /^postgres(ql)?:\/\//.test(v),
+    'DATABASE_URL must be a postgres:// or postgresql:// URL',
+  ),
   JWT_SECRET: requiredSecret('JWT_SECRET'),
   ADMIN_USERNAME: requiredSecret('ADMIN_USERNAME'),
   ADMIN_PASSWORD: requiredSecret('ADMIN_PASSWORD'),
