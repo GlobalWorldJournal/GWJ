@@ -1,12 +1,8 @@
 import { useMemo, useState } from 'react';
-import { z } from 'zod';
-import type { LoginResponse } from '@gwj/shared-types';
+import { LoginResponseSchema, type LoginResponse } from '@gwj/shared-types';
 import { AuthContext, STORAGE_TOKEN_KEY, STORAGE_USER_KEY, type AuthState } from './useAuth';
 
-const StoredUserSchema = z.object({
-  username: z.string(),
-  role: z.literal('admin'),
-});
+const StoredUserSchema = LoginResponseSchema.shape.user;
 
 interface StoredSession {
   token: string;

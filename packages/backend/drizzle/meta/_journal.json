@@ -113,6 +113,13 @@
       "when": 1791837601934,
       "tag": "0015_media_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791837662651,
+      "tag": "0016_user_roles",
+      "breakpoints": true
     }
   ]
 }

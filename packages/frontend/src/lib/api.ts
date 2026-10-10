@@ -16,6 +16,7 @@ import {
   TakedownRequestSchema,
   ApiTokenSchema,
   CreatedApiTokenSchema,
+  UserSchema,
   PaginatedTakedownRequestsSchema,
   type Article,
   type ArticleRevisionSummary,
@@ -38,6 +39,10 @@ import {
   type ApiToken,
   type CreateApiTokenInput,
   type CreatedApiToken,
+  type ChangePasswordInput,
+  type CreateUserInput,
+  type UpdateUserInput,
+  type User,
   type TakedownStatus,
   type ActiveAdResponse,
   type AdCampaign,
@@ -520,4 +525,32 @@ export function revokeApiToken(token: string, id: string): Promise<ApiToken> {
     method: 'POST',
     token,
   });
+}
+
+/** The newsroom's accounts (admins only). */
+export function getUsers(token: string, signal?: AbortSignal): Promise<User[]> {
+  return request('/api/admin/users', z.array(UserSchema), { token, signal });
+}
+
+export function createUser(token: string, input: CreateUserInput): Promise<User> {
+  return request('/api/admin/users', UserSchema, { method: 'POST', token, body: input });
+}
+
+/** Change someone's role, or deactivate / reactivate them (admins only). */
+export function updateUser(token: string, id: string, input: UpdateUserInput): Promise<User> {
+  return request(`/api/admin/users/${encodeURIComponent(id)}`, UserSchema, {
+    method: 'PATCH',
+    token,
+    body: input,
+  });
+}
+
+/** Change the signed-in person's own password. */
+export async function changePassword(token: string, input: ChangePasswordInput): Promise<void> {
+  const response = await fetch(buildUrl('/api/admin/account/password'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await readError(response);
 }

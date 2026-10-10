@@ -10,6 +10,8 @@ import { Editor } from './Editor';
 import { Takedowns } from './Takedowns';
 import { AdCampaigns } from './AdCampaigns';
 import { Tokens } from './Tokens';
+import { Users } from './Users';
+import { Account } from './Account';
 import { NotFound } from '../pages/NotFound';
 import { LanguageProvider } from '../lib/i18n';
 
@@ -116,6 +118,22 @@ export function AdminApp() {
               element={
                 <RequireAuth>
                   <Tokens />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="users"
+              element={
+                <RequireAuth>
+                  <Users />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="account"
+              element={
+                <RequireAuth>
+                  <Account />
                 </RequireAuth>
               }
             />
