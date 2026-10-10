@@ -1,20 +1,20 @@
 import { generateKeyPairSync } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import mongoose from 'mongoose'
-import { MongoMemoryServer } from 'mongodb-memory-server'
 import request from 'supertest'
 import type { Express } from 'express'
 import { CATEGORIES, type ArticleInput } from '@gwj/shared-types'
 import { loadEnv, resetEnvCache, type Env } from '../../env'
 import { buildApp, type BuiltApp } from '../../app'
-import { ArticleModel } from '../../models/Article'
-import { FollowerModel } from '../../models/Follower'
+import { and, count, eq, type SQL } from 'drizzle-orm'
+import { getDb } from '../../db/client'
+import { followers } from '../../db/schema/followers'
+import { useTestDatabase, type TestDatabase } from '../../test/postgres'
 import { articleService } from '../../services/articleService'
 import { signRequest, computeDigest } from '../httpSignature'
 import { clearRemoteActorCache } from '../remoteActor'
 import type { ActorKeyPair } from '../keyService'
 
-let mongod: MongoMemoryServer
+let testDb: TestDatabase
 let built: BuiltApp
 let app: Express
 
@@ -91,7 +91,7 @@ const fakeDns = async () => [{ address: '93.184.216.34', family: 4 }]
 function setTestEnv(): Env {
   process.env.NODE_ENV = 'test'
   process.env.PORT = '4000'
-  process.env.MONGO_URI = mongod.getUri()
+  process.env.DATABASE_URL = testDb.url
   process.env.JWT_SECRET = 'test-jwt-secret'
   process.env.ADMIN_USERNAME = 'nate'
   process.env.ADMIN_PASSWORD = 'super-secret-pw'
@@ -125,20 +125,31 @@ async function seedPublished(overrides: Partial<ArticleInput> = {}): Promise<voi
   await articleService.publish(draft.id)
 }
 
+/** Count follower rows matching an optional local actor / remote actor. */
+async function countFollowers(filter: { actorUsername?: string; actorId?: string } = {}): Promise<number> {
+  const conditions: SQL[] = []
+  if (filter.actorUsername !== undefined) conditions.push(eq(followers.actorUsername, filter.actorUsername))
+  if (filter.actorId !== undefined) conditions.push(eq(followers.actorId, filter.actorId))
+  const [row] = await getDb().select({ n: count() }).from(followers).where(and(...conditions))
+  return row?.n ?? 0
+}
+
+/** Insert one follower row directly (fixture). */
+async function insertFollower(row: { actorUsername: string; actorId: string; inbox: string; followedAt: Date }): Promise<void> {
+  await getDb().insert(followers).values(row)
+}
+
 beforeAll(async () => {
-  mongod = await MongoMemoryServer.create()
-  await mongoose.connect(mongod.getUri())
+  testDb = await useTestDatabase()
   const env = setTestEnv()
   built = buildApp(env, {
     activityPub: { keyPairs, fetchOptions: { fetch: fakeFetch, resolveDns: fakeDns } },
   })
-  await built.activityPub.initialize()
   app = built.app
 })
 
 beforeEach(async () => {
-  await ArticleModel.deleteMany({})
-  await FollowerModel.deleteMany({})
+  await testDb.truncateAll()
   outboundPosts = []
   clearRemoteActorCache()
 })
@@ -149,8 +160,7 @@ afterEach(() => {
 
 afterAll(async () => {
   built.stopChannels()
-  await mongoose.disconnect()
-  await mongod.stop()
+  await testDb.drop()
 })
 
 describe('ActivityPub WebFinger (multi-actor)', () => {
@@ -329,11 +339,14 @@ describe('ActivityPub Inbox — per actor', () => {
     const res = await postInbox(`/users/${WRITER_USERNAME}/inbox`, body)
     expect(res.status).toBe(202)
 
-    const follower = await FollowerModel.findOne({ actorUsername: WRITER_USERNAME, actorId: REMOTE_ACTOR_ID }).lean()
-    expect(follower).not.toBeNull()
+    const [follower] = await getDb()
+      .select()
+      .from(followers)
+      .where(and(eq(followers.actorUsername, WRITER_USERNAME), eq(followers.actorId, REMOTE_ACTOR_ID)))
+    expect(follower).toBeDefined()
     expect(follower?.inbox).toBe(REMOTE_INBOX)
     // Not a follower of any edition.
-    expect(await FollowerModel.countDocuments({ actorUsername: NEWS })).toBe(0)
+    expect(await countFollowers({ actorUsername: NEWS })).toBe(0)
 
     const accept = outboundPosts.find((p) => p.url === REMOTE_INBOX)
     expect(accept).toBeDefined()
@@ -353,7 +366,7 @@ describe('ActivityPub Inbox — per actor', () => {
     })
     const res = await postInbox('/inbox', body)
     expect(res.status).toBe(202)
-    expect(await FollowerModel.countDocuments({ actorUsername: NEWS, actorId: REMOTE_ACTOR_ID })).toBe(1)
+    expect(await countFollowers({ actorUsername: NEWS, actorId: REMOTE_ACTOR_ID })).toBe(1)
   })
 
   it('rejects a missing signature with 401, no follower persisted', async () => {
@@ -366,7 +379,7 @@ describe('ActivityPub Inbox — per actor', () => {
       .set('digest', computeDigest(body))
       .send(body)
     expect(res.status).toBe(401)
-    expect(await FollowerModel.countDocuments({})).toBe(0)
+    expect(await countFollowers({})).toBe(0)
   })
 
   it('rejects a tampered body (digest mismatch) with 401', async () => {
@@ -410,12 +423,12 @@ describe('ActivityPub Inbox — per actor', () => {
     })
     const res = await postInbox(`/users/${WRITER_USERNAME}/inbox`, body)
     expect(res.status).toBe(401)
-    expect(await FollowerModel.countDocuments({})).toBe(0)
+    expect(await countFollowers({})).toBe(0)
   })
 
   it('Undo(Follow) removes only the scoped follower', async () => {
-    await FollowerModel.create({ actorUsername: WRITER_USERNAME, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
-    await FollowerModel.create({ actorUsername: NEWS, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
+    await insertFollower({ actorUsername: WRITER_USERNAME, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
+    await insertFollower({ actorUsername: NEWS, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
 
     const body = JSON.stringify({
       '@context': 'https://www.w3.org/ns/activitystreams',
@@ -426,14 +439,14 @@ describe('ActivityPub Inbox — per actor', () => {
     })
     const res = await postInbox(`/users/${WRITER_USERNAME}/inbox`, body)
     expect(res.status).toBe(202)
-    expect(await FollowerModel.countDocuments({ actorUsername: WRITER_USERNAME })).toBe(0)
+    expect(await countFollowers({ actorUsername: WRITER_USERNAME })).toBe(0)
     // The edition follow is untouched.
-    expect(await FollowerModel.countDocuments({ actorUsername: NEWS })).toBe(1)
+    expect(await countFollowers({ actorUsername: NEWS })).toBe(1)
   })
 
   it('Delete of an actor removes it from every actor it followed', async () => {
-    await FollowerModel.create({ actorUsername: WRITER_USERNAME, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
-    await FollowerModel.create({ actorUsername: NEWS, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
+    await insertFollower({ actorUsername: WRITER_USERNAME, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
+    await insertFollower({ actorUsername: NEWS, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
 
     const body = JSON.stringify({
       id: 'https://remote.example/activities/delete/1',
@@ -443,13 +456,13 @@ describe('ActivityPub Inbox — per actor', () => {
     })
     const res = await postInbox('/inbox', body)
     expect(res.status).toBe(202)
-    expect(await FollowerModel.countDocuments({ actorId: REMOTE_ACTOR_ID })).toBe(0)
+    expect(await countFollowers({ actorId: REMOTE_ACTOR_ID })).toBe(0)
   })
 })
 
 describe('ActivityPub Followers collection — per actor', () => {
   it('reports a page of actor ids for one actor only', async () => {
-    await FollowerModel.create({ actorUsername: WRITER_USERNAME, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
+    await insertFollower({ actorUsername: WRITER_USERNAME, actorId: REMOTE_ACTOR_ID, inbox: REMOTE_INBOX, followedAt: new Date() })
     const head = await request(app).get(`/users/${WRITER_USERNAME}/followers`).set('accept', ACTIVITY_JSON())
     expect(head.body.totalItems).toBe(1)
     const page = await request(app).get(`/users/${WRITER_USERNAME}/followers?page=1`).set('accept', ACTIVITY_JSON())
@@ -466,8 +479,8 @@ describe('ActivityPub publish delivery — writer Create + edition Announce', ()
     // The writer's follower and the en-edition's follower are different remote inboxes.
     const writerInbox = 'https://remote.example/users/wfollower/inbox'
     const editionInbox = 'https://remote.example/users/efollower/inbox'
-    await FollowerModel.create({ actorUsername: WRITER_USERNAME, actorId: 'https://remote.example/users/wfollower', inbox: writerInbox, followedAt: new Date() })
-    await FollowerModel.create({ actorUsername: NEWS, actorId: 'https://remote.example/users/efollower', inbox: editionInbox, followedAt: new Date() })
+    await insertFollower({ actorUsername: WRITER_USERNAME, actorId: 'https://remote.example/users/wfollower', inbox: writerInbox, followedAt: new Date() })
+    await insertFollower({ actorUsername: NEWS, actorId: 'https://remote.example/users/efollower', inbox: editionInbox, followedAt: new Date() })
 
     await seedPublished({ title: 'Federated Headline', language: 'en', author: WRITER_NAME })
     await vi.waitFor(() => expect(outboundPosts.length).toBeGreaterThanOrEqual(2))
@@ -496,7 +509,7 @@ describe('ActivityPub publish delivery — writer Create + edition Announce', ()
 
   it('a non-roster byline: the edition authors the Create directly (no Announce)', async () => {
     const editionInbox = 'https://remote.example/users/efollower2/inbox'
-    await FollowerModel.create({ actorUsername: NEWS, actorId: 'https://remote.example/users/efollower2', inbox: editionInbox, followedAt: new Date() })
+    await insertFollower({ actorUsername: NEWS, actorId: 'https://remote.example/users/efollower2', inbox: editionInbox, followedAt: new Date() })
 
     await seedPublished({ title: 'Wire Report', language: 'en', author: 'Reuters Staff' })
     await vi.waitFor(() => expect(outboundPosts.length).toBeGreaterThanOrEqual(1))

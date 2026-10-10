@@ -1,13 +1,11 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import mongoose from 'mongoose'
-import { MongoMemoryServer } from 'mongodb-memory-server'
 import { CATEGORIES, type ArticleInput, type TakedownRequestInput } from '@gwj/shared-types'
 import { takedownService } from '../takedownService'
+import { NotFoundError } from '../../errors'
 import { articleService } from '../articleService'
-import { ArticleModel } from '../../models/Article'
-import { TakedownRequestModel } from '../../models/TakedownRequest'
+import { useTestDatabase, type TestDatabase } from '../../test/postgres'
 
-let mongod: MongoMemoryServer
+let testDb: TestDatabase
 
 const baseArticle = (overrides: Partial<ArticleInput> = {}): ArticleInput => ({
   title: 'A Story With A Borrowed Photo',
@@ -34,18 +32,15 @@ const baseInput = (overrides: Partial<TakedownRequestInput> = {}): TakedownReque
 })
 
 beforeAll(async () => {
-  mongod = await MongoMemoryServer.create()
-  await mongoose.connect(mongod.getUri())
+  testDb = await useTestDatabase()
 })
 
 afterEach(async () => {
-  await ArticleModel.deleteMany({})
-  await TakedownRequestModel.deleteMany({})
+  await testDb.truncateAll()
 })
 
 afterAll(async () => {
-  await mongoose.disconnect()
-  await mongod.stop()
+  await testDb.drop()
 })
 
 describe('takedownService', () => {
@@ -120,5 +115,38 @@ describe('takedownService', () => {
 
     const pending = await takedownService.list({ status: 'pending', page: 1, limit: 20 })
     expect(pending.data.map((r) => r.id)).toEqual([second.id])
+  })
+})
+
+describe('takedownService — PostgreSQL port semantics', () => {
+  it('resolves by source.articleUrl too (all three jsonb provenance paths are searched)', async () => {
+    const article = await articleService.create(baseArticle())
+    const record = await takedownService.create(baseInput({ articleUrl: 'https://example.com/news/story' }))
+    expect(record.articleId).toBe(article.id)
+  })
+
+  it('a malformed or unknown id is a 404', async () => {
+    await expect(takedownService.getById('nope')).rejects.toBeInstanceOf(NotFoundError)
+    await expect(takedownService.action('0123456789abcdef01234567', { status: 'dismissed', apply: 'none' })).rejects.toBeInstanceOf(
+      NotFoundError,
+    )
+  })
+
+  it('clear-hero-image stamps the article updatedAt (Mongoose timestamps applied to updateOne)', async () => {
+    const article = await articleService.create(baseArticle())
+    const record = await takedownService.create(baseInput({ imageUrl: 'https://example.com/photo.jpg' }))
+    await new Promise((r) => setTimeout(r, 15))
+    await takedownService.action(record.id, { status: 'actioned', apply: 'clear-hero-image' })
+    const after = await articleService.getById(article.id)
+    expect(after.heroImage).toBeUndefined()
+    expect(after.updatedAt > article.updatedAt).toBe(true)
+  })
+
+  it('re-applying the same decision is a no-op save: updatedAt does not move', async () => {
+    const record = await takedownService.create(baseInput())
+    const first = await takedownService.action(record.id, { status: 'dismissed', resolution: 'Licensed', apply: 'none' })
+    await new Promise((r) => setTimeout(r, 15))
+    const again = await takedownService.action(record.id, { status: 'dismissed', resolution: 'Licensed', apply: 'none' })
+    expect(again.updatedAt).toBe(first.updatedAt)
   })
 })

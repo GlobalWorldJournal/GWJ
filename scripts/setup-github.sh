@@ -2,7 +2,7 @@
 # Configure GitHub Actions secrets + variables for GlobalWorldJournal/GWJ.
 # Run this from your authenticated session:  bash scripts/setup-github.sh
 #
-# App secrets (MONGO_URI / JWT_SECRET / MCP_TOKEN / ADMIN_*) are NOT set here —
+# App secrets (DATABASE_URL / JWT_SECRET / MCP_TOKEN / ADMIN_*) are NOT set here —
 # they live in AWS SSM /gwj/* (created by terraform) and the ECS task defs read
 # them at launch. GitHub only needs the deploy plumbing below.
 set -euo pipefail

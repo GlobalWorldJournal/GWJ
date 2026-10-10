@@ -9,12 +9,18 @@ COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/backend/package.json packages/backend/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/frontend/package.json packages/frontend/
+COPY packages/mongo-migration/package.json packages/mongo-migration/
 RUN bun install --frozen-lockfile
 
-# Source needed at runtime (bun runs TypeScript directly).
+# Source needed at runtime (bun runs TypeScript directly). `packages/backend`
+# includes `drizzle/` — the migrations the one-shot `src/db/migrate.ts` applies.
 COPY tsconfig.base.json ./
 COPY packages/shared-types packages/shared-types
 COPY packages/backend packages/backend
+# TEMPORARY — the one-time Mongo -> Postgres copy, run as an ECS one-shot from
+# this image during the cutover (docs/POSTGRES-CUTOVER.md). Removed, with the
+# package, when gwj-mongo is decommissioned. The backend never imports it.
+COPY packages/mongo-migration packages/mongo-migration
 
 ENV NODE_ENV=production
 ENV PORT=4000
