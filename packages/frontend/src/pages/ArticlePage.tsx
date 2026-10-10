@@ -13,6 +13,8 @@ import { categoryLabel } from '../lib/dictionary';
 import { Kicker } from '../components/Kicker';
 import { Byline } from '../components/Byline';
 import { ArticleBody } from '../components/ArticleBody';
+import { CorrectionsNote, ShareBar, TopicTags } from '../components/ArticleExtras';
+import { readingMinutes } from '../lib/format';
 import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
 import { MostPopular } from '../components/MostPopular';
@@ -131,6 +133,9 @@ export function ArticlePage() {
               author={article.author}
               category={article.category}
               publishedAt={article.publishedAt}
+              updatedAt={article.updatedAt}
+              readingMinutes={readingMinutes(article.body)}
+              showPortrait
             />
           </header>
 
@@ -163,6 +168,16 @@ export function ArticlePage() {
           <div className="mt-6">
             <ArticleBody markdown={article.body} />
           </div>
+
+          <CorrectionsNote corrections={article.corrections ?? []} />
+          <TopicTags tags={article.tags} />
+          <ShareBar
+            title={article.title}
+            url={new URL(
+              localizePath(article.language, `/article/${article.slug}`),
+              window.location.origin,
+            ).toString()}
+          />
 
           {byAuthor.length > 0 ? (
             <section className="mt-10 border-t border-rule pt-6">

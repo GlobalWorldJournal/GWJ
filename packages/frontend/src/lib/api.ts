@@ -134,6 +134,8 @@ export interface ArticlesQuery {
   category?: Category;
   language?: Language;
   featured?: boolean;
+  /** Only stories carrying this exact tag. */
+  tag?: string;
   page?: number;
   limit?: number;
 }
@@ -147,6 +149,7 @@ export function getArticles(
       category: query.category,
       language: query.language,
       featured: query.featured,
+      tag: query.tag,
       page: query.page,
       limit: query.limit,
     },

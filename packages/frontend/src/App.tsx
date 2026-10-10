@@ -19,6 +19,7 @@ const ArticlePage = lazy(() =>
 const AuthorPage = lazy(() =>
   import('./pages/AuthorPage').then((m) => ({ default: m.AuthorPage })),
 );
+const TagPage = lazy(() => import('./pages/TagPage').then((m) => ({ default: m.TagPage })));
 const Search = lazy(() => import('./pages/Search').then((m) => ({ default: m.Search })));
 const Category = lazy(() => import('./pages/Category').then((m) => ({ default: m.Category })));
 const AdminApp = lazy(() => import('./admin/AdminApp').then((m) => ({ default: m.AdminApp })));
@@ -111,6 +112,14 @@ function publicRoutes(): ReactNode {
         element={
           <Suspense fallback={<ListSkeleton />}>
             <AuthorPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="tag/:tag"
+        element={
+          <Suspense fallback={<ListSkeleton />}>
+            <TagPage />
           </Suspense>
         }
       />
