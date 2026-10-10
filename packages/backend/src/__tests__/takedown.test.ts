@@ -1,17 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import mongoose from 'mongoose'
+import { MongoMemoryServer } from 'mongodb-memory-server'
 import bcrypt from 'bcryptjs'
 import request from 'supertest'
 import type { Express } from 'express'
 import { CATEGORIES } from '@gwj/shared-types'
 import { loadEnv, resetEnvCache, type Env } from '../env'
 import { createApp } from '../app'
-import { getDb } from '../db/client'
-import { newRecordId } from '../db/ids'
-import { users } from '../db/schema/users'
-import { useTestDatabase, type TestDatabase } from '../test/postgres'
+import { ArticleModel } from '../models/Article'
+import { TakedownRequestModel } from '../models/TakedownRequest'
+import { UserModel } from '../models/User'
 import { type UploadService } from '../services/uploadService'
 
-let testDb: TestDatabase
+let mongod: MongoMemoryServer
 let app: Express
 
 const ADMIN_USERNAME = 'nate'
@@ -26,7 +27,7 @@ const fakeUploadService: UploadService = {
 function setTestEnv(): Env {
   process.env.NODE_ENV = 'test'
   process.env.PORT = '4000'
-  process.env.DATABASE_URL = testDb.url
+  process.env.MONGO_URI = mongod.getUri()
   process.env.JWT_SECRET = 'test-jwt-secret'
   process.env.ADMIN_USERNAME = ADMIN_USERNAME
   process.env.ADMIN_PASSWORD = ADMIN_PASSWORD
@@ -60,19 +61,23 @@ const validRequest = (overrides: Record<string, unknown> = {}) => ({
 })
 
 beforeAll(async () => {
-  testDb = await useTestDatabase()
+  mongod = await MongoMemoryServer.create()
+  await mongoose.connect(mongod.getUri())
   const env = setTestEnv()
   app = createApp(env, { uploadService: fakeUploadService })
 })
 
 beforeEach(async () => {
-  await testDb.truncateAll()
+  await ArticleModel.deleteMany({})
+  await TakedownRequestModel.deleteMany({})
+  await UserModel.deleteMany({})
   const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 10)
-  await getDb().insert(users).values({ id: newRecordId(), username: ADMIN_USERNAME, passwordHash, role: 'admin' })
+  await UserModel.create({ username: ADMIN_USERNAME, passwordHash, role: 'admin' })
 })
 
 afterAll(async () => {
-  await testDb.drop()
+  await mongoose.disconnect()
+  await mongod.stop()
 })
 
 async function loginToken(): Promise<string> {

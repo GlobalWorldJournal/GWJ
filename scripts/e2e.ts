@@ -1,31 +1,20 @@
 /**
  * End-to-end cross-package contract test.
  *
- * Boots a real backend (Express + Drizzle against a throwaway PostgreSQL database) and
+ * Boots a real backend (Express + Mongoose against an in-memory MongoDB) and
  * drives it through the @gwj/mcp HTTP client over real HTTP, verifying the
  * agent → MCP → backend → DB → public-API data path and that the route shapes
  * (login, admin create/get/publish/delete, 204 delete, public list) all line up.
  *
- * Run: TEST_POSTGRES_URL=postgres://gwj:gwj@127.0.0.1:5432/postgres bun run scripts/e2e.ts
- * (a database is created, migrated with the production migrator, and dropped).
+ * Run: bun run scripts/e2e.ts   (disable the command sandbox — mongodb-memory-server
+ * needs a writable /tmp for its unix socket).
  */
+import { MongoMemoryServer } from 'mongodb-memory-server'
 import type { Server } from 'node:http'
 
-const { createEmptyDatabase, dropDatabase } = await import('../packages/backend/src/test/postgres')
-const { runMigrations } = await import('../packages/backend/src/db/migrator')
-const { MIGRATIONS_FOLDER } = await import('../packages/backend/src/db/migrationsFolder')
-
 // Configure env BEFORE loading modules that read it (loadEnv is lazy anyway).
-const target = await createEmptyDatabase('gwj_e2e')
-await runMigrations({
-  databaseUrl: target.url,
-  migrationsFolder: MIGRATIONS_FOLDER,
-  run: 'all',
-  expectedDatabase: target.name,
-  dryRun: false,
-  logger: { info: () => undefined },
-})
-process.env.DATABASE_URL = target.url
+const mongo = await MongoMemoryServer.create()
+process.env.MONGO_URI = mongo.getUri()
 process.env.JWT_SECRET = 'e2e-jwt-secret-not-for-prod'
 process.env.ADMIN_USERNAME = 'nate'
 process.env.ADMIN_PASSWORD = 'e2e-admin-password'
@@ -38,9 +27,9 @@ process.env.CORS_ORIGINS = 'http://localhost:5173'
 process.env.NODE_ENV = 'test'
 
 const { loadEnv } = await import('../packages/backend/src/env')
-const { connectDb, disconnectDb } = await import('../packages/backend/src/db/client')
+const { connectDb, disconnectDb } = await import('../packages/backend/src/db')
 const { createApp } = await import('../packages/backend/src/app')
-const { seedAdminUser } = await import('../packages/backend/src/seed')
+const { seedCategories, seedAdminUser } = await import('../packages/backend/src/seed')
 const { createGwjClient } = await import('../packages/mcp/src/client')
 
 let failures = 0
@@ -54,7 +43,8 @@ function check(label: string, ok: boolean): void {
 }
 
 const env = loadEnv()
-await connectDb(env.DATABASE_URL)
+await connectDb(env.MONGO_URI)
+await seedCategories()
 await seedAdminUser(env)
 
 const app = createApp(env, {
@@ -76,7 +66,7 @@ try {
   })
 
   const categories = await client.listCategories()
-  check('list_categories returns the 7 categories', categories.length === 7)
+  check('list_categories returns the 7 seeded categories', categories.length === 7)
 
   const created = await client.createArticle({
     title: 'Global Equities Climb as Central Banks Signal a Pause',
@@ -84,7 +74,7 @@ try {
     kicker: 'Markets',
     category: 'Markets',
     author: 'A. Reporter',
-    body: 'Stocks rose across major markets Tuesday.',
+    body: [{ type: 'paragraph', text: 'Stocks rose across major markets Tuesday.' }],
     status: 'draft',
     featured: 0,
     tags: ['rates'],
@@ -123,7 +113,7 @@ try {
 } finally {
   await new Promise<void>((resolve) => server.close(() => resolve()))
   await disconnectDb()
-  await dropDatabase(target.name)
+  await mongo.stop()
 }
 
 if (failures > 0) {

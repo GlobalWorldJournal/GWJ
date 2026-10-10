@@ -205,45 +205,6 @@ data "aws_iam_policy_document" "github_deploy" {
       aws_ecs_service.mcp.id,
     ]
   }
-
-  # Database migrations run as one-shots from the backend's CURRENT task
-  # definition (scripts/ecs-oneshot.sh): start the task on the shared cluster,
-  # read the task definition's container/log names, wait for it, read its log.
-  statement {
-    sid       = "EcsMigrationOneShot"
-    actions   = ["ecs:RunTask"]
-    resources = ["arn:aws:ecs:${var.region}:${var.account_id}:task-definition/${aws_ecs_task_definition.backend.family}:*"]
-    condition {
-      test     = "ArnEquals"
-      variable = "ecs:cluster"
-      values   = [data.aws_ecs_cluster.oxy.arn]
-    }
-  }
-  statement {
-    sid       = "EcsMigrationOneShotObserve"
-    actions   = ["ecs:DescribeTasks"]
-    resources = ["arn:aws:ecs:${var.region}:${var.account_id}:task/${data.aws_ecs_cluster.oxy.cluster_name}/*"]
-  }
-  statement {
-    sid       = "EcsDescribeTaskDefinition"
-    actions   = ["ecs:DescribeTaskDefinition"]
-    resources = ["*"] # this action does not support resource-level permissions
-  }
-  statement {
-    sid       = "PassGwjTaskRoles"
-    actions   = ["iam:PassRole"]
-    resources = [aws_iam_role.ecs_execution.arn, aws_iam_role.ecs_task.arn]
-    condition {
-      test     = "StringEquals"
-      variable = "iam:PassedToService"
-      values   = ["ecs-tasks.amazonaws.com"]
-    }
-  }
-  statement {
-    sid       = "ReadOneShotLogs"
-    actions   = ["logs:GetLogEvents"]
-    resources = ["${aws_cloudwatch_log_group.app.arn}:log-stream:*"]
-  }
 }
 
 resource "aws_iam_role_policy" "github_deploy" {

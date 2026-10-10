@@ -1,4 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import mongoose from 'mongoose'
+import { MongoMemoryServer } from 'mongodb-memory-server'
 import type { Article, ArticleInput, Language } from '@gwj/shared-types'
 import { CATEGORIES } from '@gwj/shared-types'
 import { loadEnv, resetEnvCache, type Env } from '../../env'
@@ -8,11 +10,11 @@ import { telegramChannels } from '../telegramChannel'
 import { startChannelPublishing } from '../registry'
 import type { PublishChannel } from '../types'
 import { articleService } from '../../services/articleService'
-import { useTestDatabase, type TestDatabase } from '../../test/postgres'
+import { ArticleModel } from '../../models/Article'
 
 const DOMAIN = 'globalworldjournal.com'
 
-let testDb: TestDatabase
+let mongod: MongoMemoryServer
 
 /** A fabricated published-article DTO; override fields per test (Telegram/Mastodon unit tests). */
 function makeArticle(overrides: Partial<Article> = {}): Article {
@@ -43,7 +45,7 @@ function makeArticle(overrides: Partial<Article> = {}): Article {
 function makeEnv(overrides: Record<string, string> = {}): Env {
   process.env.NODE_ENV = 'test'
   process.env.PORT = '4000'
-  process.env.DATABASE_URL = testDb.url
+  process.env.MONGO_URI = mongod.getUri()
   process.env.JWT_SECRET = 'test-jwt-secret'
   process.env.ADMIN_USERNAME = 'nate'
   process.env.ADMIN_PASSWORD = 'super-secret-pw'
@@ -106,11 +108,12 @@ async function flush(): Promise<void> {
 }
 
 beforeAll(async () => {
-  testDb = await useTestDatabase()
+  mongod = await MongoMemoryServer.create()
+  await mongoose.connect(mongod.getUri())
 })
 
 beforeEach(async () => {
-  await testDb.truncateAll()
+  await ArticleModel.deleteMany({})
 })
 
 afterEach(() => {
@@ -118,7 +121,8 @@ afterEach(() => {
 })
 
 afterAll(async () => {
-  await testDb.drop()
+  await mongoose.disconnect()
+  await mongod.stop()
 })
 
 describe('channel registry routing', () => {

@@ -1,16 +1,16 @@
 /**
  * Seed demo content into the configured database so the homepage looks real.
- * Idempotent: skips an article whose slug already exists. Also ensures the admin
- * user exists (runSeed).
+ * Idempotent: skips an article whose slug already exists. Also ensures the 7
+ * categories and the admin user exist (runSeed).
  *
- * Run: bun run scripts/seed-demo.ts   (requires DATABASE_URL of a migrated database)
+ * Run: bun run scripts/seed-demo.ts   (requires a real MONGO_URI in the env)
  */
 import { slugify, type ArticleInput } from '@gwj/shared-types'
 import { loadEnv } from '../packages/backend/src/env'
-import { connectDb, disconnectDb } from '../packages/backend/src/db/client'
+import { connectDb, disconnectDb } from '../packages/backend/src/db'
 import { runSeed } from '../packages/backend/src/seed'
 import { articleService } from '../packages/backend/src/services/articleService'
-import { findArticleBySlug } from '../packages/backend/src/db/repositories/articleRepository'
+import { ArticleModel } from '../packages/backend/src/models/Article'
 
 type DemoArticle = Omit<ArticleInput, 'status' | 'seo'> & { seo?: ArticleInput['seo'] }
 
@@ -139,14 +139,14 @@ const DEMO: DemoArticle[] = [
 ]
 
 const env = loadEnv()
-await connectDb(env.DATABASE_URL)
+await connectDb(env.MONGO_URI)
 await runSeed(env)
 
 let created = 0
 let skipped = 0
 for (const demo of DEMO) {
   const slug = slugify(demo.title)
-  if (await findArticleBySlug(slug, false)) {
+  if (await ArticleModel.exists({ slug })) {
     skipped += 1
     continue
   }

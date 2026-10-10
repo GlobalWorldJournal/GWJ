@@ -6,7 +6,7 @@ function baseEnv(): Record<string, string> {
   return {
     NODE_ENV: 'test',
     PORT: '4000',
-    DATABASE_URL: 'postgres://gwj:gwj@localhost:5432/gwj_test',
+    MONGO_URI: 'mongodb://localhost:27017/gwj-test',
     JWT_SECRET: 'test-jwt-secret',
     ADMIN_USERNAME: 'nate',
     ADMIN_PASSWORD: 'super-secret-pw',
@@ -22,7 +22,6 @@ const AWS_KEYS = [
   'AWS_SECRET_ACCESS_KEY',
   'NODE_ENV',
   'PORT',
-  'DATABASE_URL',
   'MONGO_URI',
   'JWT_SECRET',
   'ADMIN_USERNAME',
@@ -116,27 +115,5 @@ describe('env — Telegram channel config (optional)', () => {
   it("rejects the placeholder '-' for a non-empty TELEGRAM_BOT_TOKEN", () => {
     applyEnv({ ...baseEnv(), TELEGRAM_BOT_TOKEN: '-' })
     expect(() => loadEnv()).toThrow(/TELEGRAM_BOT_TOKEN/)
-  })
-})
-
-describe('env — PostgreSQL connection string', () => {
-  it('requires DATABASE_URL', () => {
-    const { DATABASE_URL: _omitted, ...rest } = baseEnv()
-    applyEnv(rest)
-    expect(() => loadEnv()).toThrow(/DATABASE_URL/)
-  })
-
-  it("rejects the placeholder '-' and a non-postgres URL (e.g. a leftover mongodb:// value)", () => {
-    applyEnv({ ...baseEnv(), DATABASE_URL: '-' })
-    expect(() => loadEnv()).toThrow(/DATABASE_URL/)
-    applyEnv({ ...baseEnv(), DATABASE_URL: 'mongodb://10.20.1.92:27017/gwj' })
-    expect(() => loadEnv()).toThrow(/DATABASE_URL must be a postgres/)
-  })
-
-  it('boots while the task definition still carries MONGO_URI (cutover transition) and ignores it', () => {
-    applyEnv({ ...baseEnv(), MONGO_URI: 'mongodb://10.20.1.92:27017/gwj' })
-    const env = loadEnv()
-    expect(env.DATABASE_URL).toBe('postgres://gwj:gwj@localhost:5432/gwj_test')
-    expect(Object.keys(env)).not.toContain('MONGO_URI')
   })
 })

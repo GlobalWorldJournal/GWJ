@@ -2,9 +2,10 @@ import type { Router } from 'express'
 import type { Article } from '@gwj/shared-types'
 import { DEFAULT_LANGUAGE, isLanguage } from '@gwj/shared-types'
 import type { Env } from '../env'
-import { countArticles } from '../db/repositories/articleRepository'
+import { ArticleModel } from '../models/Article'
+import { FollowerModel } from '../models/Follower'
 import { logger } from '../logger'
-import { buildActorRegistry, type ActorIdentity, type ActorRegistry } from './identity'
+import { buildActorRegistry, resolveEditionUsernames, type ActorIdentity, type ActorRegistry } from './identity'
 import { resolveActorKeyPair, type ActorKeyPair } from './keyService'
 import { createActivityPubRouter } from './router'
 import { createInboxService } from './inboxService'
@@ -12,12 +13,9 @@ import { createDeliveryService, type DeliveryService } from './deliveryService'
 import type { FederationFetchOptions } from './remoteActor'
 
 /**
- * The wired multi-actor ActivityPub feature: an Express router to mount and a
- * `deliverArticle` step that federates one published article.
- *
- * (The boot-time `initialize()` that re-scoped legacy single-actor follower rows
- * is gone: `followers.actor_username` is NOT NULL in PostgreSQL, and the one-time
- * Mongo → Postgres copy assigns such a row to the default edition while copying.)
+ * The wired multi-actor ActivityPub feature: an Express router to mount, a
+ * `deliverArticle` step that federates one published article, plus an async
+ * `initialize` step (run after Mongo connects) that migrates legacy follower rows.
  *
  * The module no longer subscribes to article-published transitions itself: the
  * Mastodon distribution channel calls {@link ActivityPubModule.deliverArticle}, and
@@ -27,7 +25,7 @@ import type { FederationFetchOptions } from './remoteActor'
  *
  * Per-actor signing keys are resolved LAZILY and cached: the first time an actor's
  * key is needed (its Actor document is fetched, or it delivers/accepts), the key is
- * read from — or generated and persisted to — the `actor_keys` table. This avoids generating 21
+ * read from — or generated and persisted to — Mongo. This avoids generating 21
  * keypairs eagerly on boot while keeping each request fast after warm-up.
  */
 export interface ActivityPubModule {
@@ -41,12 +39,14 @@ export interface ActivityPubModule {
    * with no followers or signing key it is a logged no-op.
    */
   deliverArticle(article: Article): Promise<void>
+  /** Migrate legacy followers. Idempotent. */
+  initialize(): Promise<void>
 }
 
 export interface ActivityPubOptions {
   /**
-   * Test seam: pre-resolved keypairs by username, skipping database generation.
-   * Any username not present falls back to the `actor_keys` table.
+   * Test seam: pre-resolved keypairs by username, skipping Mongo generation. Any
+   * username not present falls back to Mongo resolution.
    */
   keyPairs?: Record<string, ActorKeyPair>
   /** Test seam: injectable fetch + DNS for outbound federation. */
@@ -116,17 +116,16 @@ export function createActivityPub(env: Env, options: ActivityPubOptions = {}): A
     registry,
     getPublicKeyPem,
     inbox,
-    countPublished: () => countArticles({ status: 'published' }),
+    countPublished: () => ArticleModel.countDocuments({ status: 'published' }),
     countForActor: (actor) => countForActor(actor),
   })
 
   /** Count published articles in one actor's outbox scope (language or author). */
   function countForActor(actor: ActorIdentity): Promise<number> {
-    return countArticles({
-      status: 'published',
-      language: actor.kind === 'edition' ? actor.language : undefined,
-      author: actor.kind === 'writer' ? actor.authorName : undefined,
-    })
+    const filter: Record<string, unknown> = { status: 'published' }
+    if (actor.kind === 'edition' && actor.language) filter.language = actor.language
+    if (actor.kind === 'writer') filter.author = actor.authorName
+    return ArticleModel.countDocuments(filter)
   }
 
   /**
@@ -154,10 +153,35 @@ export function createActivityPub(env: Env, options: ActivityPubOptions = {}): A
     }
   }
 
+  let initialized = false
+
   return {
     router,
     registry,
     delivery,
     deliverArticle,
+    async initialize() {
+      if (initialized) return
+      initialized = true
+      await migrateLegacyFollowers(resolveEditionUsernames(env)[DEFAULT_LANGUAGE])
+    },
+  }
+}
+
+/**
+ * Backfill follower rows from the prior SINGLE-actor shape (no `actorUsername`) to
+ * the default English edition. Idempotent: a no-op once every row is scoped. This
+ * runs once at boot before the new compound unique index is relied upon.
+ */
+async function migrateLegacyFollowers(defaultEditionUsername: string): Promise<void> {
+  const result = await FollowerModel.updateMany(
+    { actorUsername: { $exists: false } },
+    { $set: { actorUsername: defaultEditionUsername } },
+  )
+  if (result.modifiedCount > 0) {
+    logger.info('activitypub: migrated legacy followers to edition', {
+      edition: defaultEditionUsername,
+      migrated: result.modifiedCount,
+    })
   }
 }

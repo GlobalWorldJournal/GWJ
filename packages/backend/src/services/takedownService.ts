@@ -1,4 +1,4 @@
-import { count, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm'
+import { isValidObjectId } from 'mongoose'
 import {
   type PaginatedTakedownRequests,
   type TakedownAction,
@@ -6,31 +6,10 @@ import {
   type TakedownRequestInput,
   type TakedownRequestRecord,
 } from '@gwj/shared-types'
-import { getDb } from '../db/client'
-import { isRecordId, newRecordId } from '../db/ids'
-import { articles } from '../db/schema/articles'
-import { takedownRequests, type TakedownRequestRow } from '../db/schema/takedownRequests'
+import { ArticleModel } from '../models/Article'
+import { TakedownRequestModel, takedownRequestToDTO, type TakedownRequestDoc } from '../models/TakedownRequest'
 import { articleService } from './articleService'
 import { NotFoundError } from '../errors'
-
-/** Map a row to its public/admin DTO (absent optional values omitted, as before). */
-export function takedownRequestToDTO(row: TakedownRequestRow): TakedownRequestRecord {
-  return {
-    id: row.id,
-    requesterName: row.requesterName,
-    requesterEmail: row.requesterEmail,
-    articleUrl: row.articleUrl ?? undefined,
-    imageUrl: row.imageUrl ?? undefined,
-    claimType: row.claimType,
-    explanation: row.explanation,
-    goodFaithAssertion: true,
-    status: row.status,
-    articleId: row.articleId,
-    resolution: row.resolution ?? undefined,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }
-}
 
 /**
  * Best-effort match of a submitted URL to one of our own articles: either it
@@ -40,36 +19,42 @@ export function takedownRequestToDTO(row: TakedownRequestRow): TakedownRequestRe
  * resolved article still gets reviewed, just without a one-click action.
  */
 async function resolveArticleId(input: TakedownRequestInput): Promise<string | null> {
-  const db = getDb()
   const slugMatch = input.articleUrl ? /\/article\/([^/?#]+)/.exec(input.articleUrl) : null
-  const slug = slugMatch?.[1]
-  if (slug) {
-    const [bySlug] = await db.select({ id: articles.id }).from(articles).where(eq(articles.slug, slug)).limit(1)
-    if (bySlug) return bySlug.id
+  if (slugMatch) {
+    const bySlug = await ArticleModel.findOne({ slug: slugMatch[1] }).select('_id').lean()
+    if (bySlug) return bySlug._id.toString()
   }
   const urls = [input.articleUrl, input.imageUrl].filter((u): u is string => !!u)
   if (urls.length === 0) return null
-  const provenance: SQL[] = [
-    inArray(sql`${articles.heroImage}->>'url'`, urls),
-    inArray(sql`${articles.source}->>'articleUrl'`, urls),
-    inArray(sql`${articles.source}->>'imageUrl'`, urls),
-  ]
-  // Oldest first: Mongo's un-sorted findOne returned the first in insertion order.
-  const [byProvenance] = await db
-    .select({ id: articles.id })
-    .from(articles)
-    .where(or(...provenance))
-    .orderBy(articles.createdAt, articles.id)
-    .limit(1)
-  return byProvenance?.id ?? null
+  const byProvenance = await ArticleModel.findOne({
+    $or: [
+      { 'heroImage.url': { $in: urls } },
+      { 'source.articleUrl': { $in: urls } },
+      { 'source.imageUrl': { $in: urls } },
+    ],
+  })
+    .select('_id')
+    .lean()
+  return byProvenance ? byProvenance._id.toString() : null
 }
 
-async function findRowById(id: string): Promise<TakedownRequestRow> {
-  const [row] = isRecordId(id)
-    ? await getDb().select().from(takedownRequests).where(eq(takedownRequests.id, id)).limit(1)
-    : []
-  if (!row) throw new NotFoundError('Takedown request not found')
-  return row
+function buildPaginated(
+  docs: TakedownRequestDoc[],
+  total: number,
+  page: number,
+  limit: number,
+): PaginatedTakedownRequests {
+  return {
+    data: docs.map((d) => takedownRequestToDTO(d)),
+    pagination: { page, limit, total, totalPages: total === 0 ? 0 : Math.ceil(total / limit) },
+  }
+}
+
+async function findDocById(id: string): Promise<TakedownRequestDoc> {
+  if (!isValidObjectId(id)) throw new NotFoundError('Takedown request not found')
+  const doc = await TakedownRequestModel.findById(id)
+  if (!doc) throw new NotFoundError('Takedown request not found')
+  return doc
 }
 
 export interface TakedownService {
@@ -82,78 +67,40 @@ export interface TakedownService {
 export const takedownService: TakedownService = {
   async create(input) {
     const articleId = await resolveArticleId(input)
-    const now = new Date()
-    const [row] = await getDb()
-      .insert(takedownRequests)
-      .values({
-        id: newRecordId(now),
-        requesterName: input.requesterName,
-        requesterEmail: input.requesterEmail,
-        articleUrl: input.articleUrl,
-        imageUrl: input.imageUrl,
-        claimType: input.claimType,
-        explanation: input.explanation,
-        goodFaithAssertion: input.goodFaithAssertion,
-        status: 'pending',
-        articleId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning()
-    if (!row) throw new Error('insert into takedown_requests returned no row')
-    return takedownRequestToDTO(row)
+    const doc = await TakedownRequestModel.create({ ...input, status: 'pending', articleId })
+    return takedownRequestToDTO(doc)
   },
 
   async list(query) {
-    const db = getDb()
-    const where = query.status ? eq(takedownRequests.status, query.status) : undefined
-    const [rows, totals] = await Promise.all([
-      db
-        .select()
-        .from(takedownRequests)
-        .where(where)
-        .orderBy(desc(takedownRequests.createdAt), desc(takedownRequests.id))
-        .limit(query.limit)
-        .offset((query.page - 1) * query.limit),
-      db.select({ total: count() }).from(takedownRequests).where(where),
-    ])
-    const total = totals[0]?.total ?? 0
-    return {
-      data: rows.map(takedownRequestToDTO),
-      pagination: { page: query.page, limit: query.limit, total, totalPages: total === 0 ? 0 : Math.ceil(total / query.limit) },
-    }
+    const filter: Record<string, unknown> = {}
+    if (query.status) filter.status = query.status
+    const total = await TakedownRequestModel.countDocuments(filter)
+    const docs = await TakedownRequestModel.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((query.page - 1) * query.limit)
+      .limit(query.limit)
+    return buildPaginated(docs, total, query.page, query.limit)
   },
 
   async getById(id) {
-    return takedownRequestToDTO(await findRowById(id))
+    const doc = await findDocById(id)
+    return takedownRequestToDTO(doc)
   },
 
   async action(id, action) {
-    const current = await findRowById(id)
-    if (action.status === 'actioned' && action.apply !== 'none' && current.articleId) {
-      if (action.apply === 'unpublish') await articleService.unpublish(current.articleId)
+    const doc = await findDocById(id)
+    if (action.status === 'actioned' && action.apply !== 'none' && doc.articleId) {
+      if (action.apply === 'unpublish') await articleService.unpublish(doc.articleId.toString())
       else if (action.apply === 'clear-hero-image') {
         // articleService.update()'s partial-patch semantics treat an absent field as
         // "leave it alone", so there is no way through it to unset one — this is the
-        // one case that genuinely needs its own direct, minimal operation. (Mongo's
-        // `$unset` via updateOne also stamped updatedAt through Mongoose timestamps.)
-        await getDb()
-          .update(articles)
-          .set({ heroImage: null, updatedAt: new Date() })
-          .where(eq(articles.id, current.articleId))
+        // one case that genuinely needs its own direct, minimal operation.
+        await ArticleModel.updateOne({ _id: doc.articleId }, { $unset: { heroImage: 1 } })
       }
     }
-    const changes: Partial<Pick<TakedownRequestRow, 'status' | 'resolution'>> = {}
-    if (action.status !== current.status) changes.status = action.status
-    if (action.resolution !== undefined && action.resolution !== current.resolution) changes.resolution = action.resolution
-    // No change, no write: a no-op save() did not move updatedAt under Mongoose.
-    if (Object.keys(changes).length === 0) return takedownRequestToDTO(current)
-    const [row] = await getDb()
-      .update(takedownRequests)
-      .set({ ...changes, updatedAt: new Date() })
-      .where(eq(takedownRequests.id, id))
-      .returning()
-    if (!row) throw new NotFoundError('Takedown request not found')
-    return takedownRequestToDTO(row)
+    doc.status = action.status
+    if (action.resolution !== undefined) doc.resolution = action.resolution
+    await doc.save()
+    return takedownRequestToDTO(doc)
   },
 }

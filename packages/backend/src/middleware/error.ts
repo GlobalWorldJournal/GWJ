@@ -2,7 +2,20 @@ import { type ErrorRequestHandler, type NextFunction, type Request, type Respons
 import { ZodError } from 'zod'
 import { HttpError } from '../errors'
 import { logger } from '../logger'
-import { constraintNameOf, isUniqueViolation } from '../db/pgErrors'
+
+interface MongoDuplicateError {
+  code: number
+  keyValue?: Record<string, unknown>
+}
+
+function isDuplicateKeyError(err: unknown): err is MongoDuplicateError {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code: unknown }).code === 11000
+  )
+}
 
 const INTERNAL_ERROR = 'Internal server error'
 
@@ -12,8 +25,8 @@ export const notFoundHandler = (req: Request, res: Response): void => {
 }
 
 /**
- * Central error handler. Maps known error shapes (HttpError, ZodError, a
- * PostgreSQL unique violation — e.g. two writers racing for one slug) to structured `{ error, details? }` responses and treats
+ * Central error handler. Maps known error shapes (HttpError, ZodError, Mongo
+ * duplicate key) to structured `{ error, details? }` responses and treats
  * anything else as a 500. The stack is never leaked outside development.
  */
 export function createErrorHandler(isDev: boolean): ErrorRequestHandler {
@@ -26,8 +39,8 @@ export function createErrorHandler(isDev: boolean): ErrorRequestHandler {
       res.status(400).json({ error: 'Validation failed', details: err.flatten() })
       return
     }
-    if (isUniqueViolation(err)) {
-      res.status(409).json({ error: 'Duplicate key', details: { constraint: constraintNameOf(err) } })
+    if (isDuplicateKeyError(err)) {
+      res.status(409).json({ error: 'Duplicate key', details: err.keyValue })
       return
     }
 
