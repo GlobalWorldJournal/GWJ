@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   API_SCOPES,
@@ -11,6 +10,7 @@ import {
 import { createApiToken, getApiTokens, revokeApiToken } from '../lib/api';
 import { useAuth } from './useAuth';
 import { StatusMessage } from '../components/StatusMessage';
+import { AdminHeader } from './AdminHeader';
 
 const TOKENS_KEY = ['admin', 'tokens'] as const;
 
@@ -71,18 +71,7 @@ export function Tokens() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-8 flex items-center justify-between border-b-3 border-ink pb-4">
-        <div>
-          <p className="kicker">Newsroom</p>
-          <h1 className="headline text-3xl text-ink">Agent Tokens</h1>
-        </div>
-        <Link
-          to="/admin"
-          className="label text-[0.75rem] text-ink-soft transition-colors hover:text-accent"
-        >
-          ← Dashboard
-        </Link>
-      </header>
+      <AdminHeader title="Agent Tokens" />
 
       {created ? (
         <section role="status" className="mb-8 border border-accent p-4">

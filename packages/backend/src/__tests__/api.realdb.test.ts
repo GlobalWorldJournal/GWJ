@@ -717,3 +717,117 @@ describe('Most Popular API', () => {
     expect(res.body.data).toEqual([]);
   });
 });
+
+describe('Newsroom users and roles', () => {
+  const EDITOR = { username: 'ana.editor', password: 'a-long-editor-pass', role: 'editor' };
+
+  async function login(username: string, password: string): Promise<request.Response> {
+    return request(app).post('/api/auth/login').send({ username, password });
+  }
+
+  async function createEditor(adminToken: string): Promise<{ id: string; token: string }> {
+    const created = await request(app)
+      .post('/api/admin/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(EDITOR);
+    expect(created.status).toBe(201);
+    const session = await login(EDITOR.username, EDITOR.password);
+    expect(session.body.user).toEqual({ username: EDITOR.username, role: 'editor' });
+    return { id: created.body.id, token: session.body.token };
+  }
+
+  it('an editor writes and publishes, but cannot delete or run the newsroom', async () => {
+    const admin = await loginToken();
+    const editor = await createEditor(admin);
+    const auth = { Authorization: `Bearer ${editor.token}` };
+
+    const article = await request(app)
+      .post('/api/admin/articles')
+      .set(auth)
+      .send({ ...validArticle(), status: 'published' });
+    expect(article.status).toBe(201);
+    expect(
+      (await request(app).delete(`/api/admin/articles/${article.body.id}`).set(auth)).status,
+    ).toBe(403);
+    expect((await request(app).get('/api/admin/tokens').set(auth)).status).toBe(403);
+    expect((await request(app).get('/api/admin/users').set(auth)).status).toBe(403);
+    // Advertising and the Mention grant are the business side, not the newsroom's.
+    expect((await request(app).get('/api/admin/ad-campaigns').set(auth)).status).toBe(403);
+    expect((await request(app).get('/api/admin/mention/connect').set(auth)).status).toBe(403);
+    expect((await request(app).get('/api/admin/takedown-requests').set(auth)).status).toBe(200);
+  });
+
+  it('deactivating an account cuts off its current session at once, and its sign-in', async () => {
+    const admin = await loginToken();
+    const editor = await createEditor(admin);
+    const off = await request(app)
+      .patch(`/api/admin/users/${editor.id}`)
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ disabled: true });
+    expect(off.status).toBe(200);
+    expect(off.body.disabledAt).not.toBeNull();
+
+    const stale = await request(app)
+      .get('/api/admin/articles')
+      .set('Authorization', `Bearer ${editor.token}`);
+    expect(stale.status).toBe(401);
+    expect((await login(EDITOR.username, EDITOR.password)).status).toBe(401);
+  });
+
+  it('the newsroom always keeps an active admin; nobody removes their own admin access', async () => {
+    const admin = await loginToken();
+    const auth = { Authorization: `Bearer ${admin}` };
+    const users = await request(app).get('/api/admin/users').set(auth);
+    const self = users.body.find((u: { username: string }) => u.username === ADMIN_USERNAME);
+
+    const demoteSelf = await request(app)
+      .patch(`/api/admin/users/${self.id}`)
+      .set(auth)
+      .send({ role: 'editor' });
+    expect(demoteSelf.status).toBe(400);
+
+    const editor = await createEditor(admin);
+    const promoted = await request(app)
+      .patch(`/api/admin/users/${editor.id}`)
+      .set(auth)
+      .send({ role: 'admin' });
+    expect(promoted.body.role).toBe('admin');
+    // With a second admin, the first may now be demoted (by the other).
+    const second = (await login(EDITOR.username, EDITOR.password)).body.token;
+    const demoted = await request(app)
+      .patch(`/api/admin/users/${self.id}`)
+      .set('Authorization', `Bearer ${second}`)
+      .send({ role: 'editor' });
+    expect(demoted.status).toBe(200);
+  });
+
+  it('usernames are unique and passwords long', async () => {
+    const admin = await loginToken();
+    const auth = { Authorization: `Bearer ${admin}` };
+    await createEditor(admin);
+    expect((await request(app).post('/api/admin/users').set(auth).send(EDITOR)).status).toBe(409);
+    const short = await request(app)
+      .post('/api/admin/users')
+      .set(auth)
+      .send({ ...EDITOR, username: 'other', password: 'short' });
+    expect(short.status).toBe(400);
+  });
+
+  it('a person changes their own password; a wrong current password keeps the session', async () => {
+    const admin = await loginToken();
+    const auth = { Authorization: `Bearer ${admin}` };
+    const wrong = await request(app)
+      .post('/api/admin/account/password')
+      .set(auth)
+      .send({ currentPassword: 'not-it', newPassword: 'a-brand-new-password' });
+    expect(wrong.status).toBe(400);
+
+    const changed = await request(app)
+      .post('/api/admin/account/password')
+      .set(auth)
+      .send({ currentPassword: ADMIN_PASSWORD, newPassword: 'a-brand-new-password' });
+    expect(changed.status).toBe(204);
+    expect((await login(ADMIN_USERNAME, ADMIN_PASSWORD)).status).toBe(401);
+    expect((await login(ADMIN_USERNAME, 'a-brand-new-password')).status).toBe(200);
+  });
+});
