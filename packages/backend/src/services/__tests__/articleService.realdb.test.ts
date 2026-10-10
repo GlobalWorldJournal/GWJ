@@ -681,3 +681,22 @@ describe('articleService — corrections', () => {
     expect(publicView.corrections).toHaveLength(1);
   });
 });
+
+describe('articleService.list — sort', () => {
+  it('latest ignores the featured rank; the default stays editorial', async () => {
+    const lead = await articleService.create(
+      baseInput({ title: 'Older lead', featured: 9, status: 'published' }),
+    );
+    await new Promise((r) => setTimeout(r, 15));
+    const fresh = await articleService.create(
+      baseInput({ title: 'Fresh brief', status: 'published' }),
+    );
+    expect((await articleService.list(baseQuery())).data.map((a) => a.id)).toEqual([
+      lead.id,
+      fresh.id,
+    ]);
+    expect(
+      (await articleService.list(baseQuery({ sort: 'latest' }))).data.map((a) => a.id),
+    ).toEqual([fresh.id, lead.id]);
+  });
+});

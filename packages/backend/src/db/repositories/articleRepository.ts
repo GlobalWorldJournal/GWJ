@@ -167,6 +167,8 @@ export interface ArticleFilter {
   author?: string;
   /** Articles carrying this exact tag. */
   tag?: string;
+  /** Newest first instead of the editorial (featured) order. */
+  latestFirst?: boolean;
   /** Free-text search over headline, deck and body. */
   q?: string;
 }
@@ -204,11 +206,13 @@ export async function listArticles(
 
   const order: SQL[] = search
     ? [sql`${search.rank} desc`, sql`${articles.publishedAt} desc nulls last`]
-    : [
-        desc(articles.featured),
-        sql`${articles.publishedAt} desc nulls last`,
-        desc(articles.createdAt),
-      ];
+    : filter.latestFirst
+      ? [sql`${articles.publishedAt} desc nulls last`, desc(articles.createdAt)]
+      : [
+          desc(articles.featured),
+          sql`${articles.publishedAt} desc nulls last`,
+          desc(articles.createdAt),
+        ];
 
   const [rows, totals] = await Promise.all([
     db

@@ -354,6 +354,7 @@ export const articleService: ArticleService = {
     if (query.language) filter.language = query.language;
     if (query.featured) filter.featuredOnly = true;
     if (query.tag) filter.tag = query.tag;
+    if (query.sort === 'latest') filter.latestFirst = true;
     // The ActivityPub writer outbox pins its own author; otherwise the query's.
     const author = options?.author ?? query.author;
     if (author !== undefined) filter.author = author;

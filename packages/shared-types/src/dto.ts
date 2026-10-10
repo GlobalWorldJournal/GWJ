@@ -33,6 +33,11 @@ export const ArticleListQuerySchema = z.object({
   status: ArticleStatusSchema.optional(),
   /** Only articles carrying this exact tag. */
   tag: z.string().trim().min(1).optional(),
+  /**
+   * `editorial` (the default when absent): front-page order — featured rank, then newest.
+   * `latest`: newest first, regardless of rank (feeds, sitemaps, "latest" rails).
+   */
+  sort: z.enum(['editorial', 'latest']).optional(),
   /** Only articles by this exact byline (see list_writers for the roster). */
   author: z.string().trim().min(1).optional(),
   q: z.string().optional(),
