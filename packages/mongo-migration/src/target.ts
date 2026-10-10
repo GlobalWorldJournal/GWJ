@@ -26,10 +26,15 @@ export async function readTarget(
   const followerRows = await db.select().from(followers).orderBy(followers.id);
   const takedownRows = await db.select().from(takedownRequests).orderBy(takedownRequests.id);
   return {
-    // Derived, not Mongo data: the generated search vector, and firstPublishedAt
-    // (which `articleRow` derives from publishedAt on every write).
+    // Derived, not Mongo data: the generated search vector, plus firstPublishedAt
+    // and translationGroupId (which `articleRow` derives on every write).
     articles: articleRows.map(
-      ({ searchVector: _derived, firstPublishedAt: _derivedFirst, ...row }) => row,
+      ({
+        searchVector: _derived,
+        firstPublishedAt: _derivedFirst,
+        translationGroupId: _derivedGroup,
+        ...row
+      }) => row,
     ),
     users: userRows.map((row) => ({ ...row })),
     actorkeys: keyRows.map((row) => ({ ...row })),

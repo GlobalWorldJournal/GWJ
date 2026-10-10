@@ -5,6 +5,7 @@ import {
   type ArticleListQuery,
   type ArticleUpdate,
   type PaginatedArticles,
+  type Language,
   type Seo,
   slugify,
 } from '@gwj/shared-types';
@@ -20,13 +21,14 @@ import {
   listArticles,
   recordSlugChange,
   findRedirectSlug,
+  findTranslations,
   rowToArticle,
   updateArticle,
   type ArticleFilter,
   type Executor,
 } from '../db/repositories/articleRepository';
 import type { ArticleRow, NewArticleRow } from '../db/schema/articles';
-import { ConflictError, NotFoundError } from '../errors';
+import { BadRequestError, ConflictError, NotFoundError } from '../errors';
 
 /** Fallback slug stem when a title slugifies to an empty string (e.g. all symbols). */
 const FALLBACK_SLUG = 'article';
@@ -150,6 +152,54 @@ function isFirstPublish(before: Pick<ArticleRow, 'firstPublishedAt'>, after: Art
   return before.firstPublishedAt === null && after.status === 'published';
 }
 
+/**
+ * The translation group an article joins when it is declared a translation of
+ * `translationOf`: that article's group. Refuses a target that does not exist,
+ * and a group that already has an edition in `language` (the unique constraint
+ * is the race-proof backstop; this gives the caller a precise error).
+ */
+async function translationGroupFor(
+  executor: Executor,
+  translationOf: string,
+  language: Language,
+  articleId: string,
+): Promise<string> {
+  const target = isRecordId(translationOf) ? await findArticleById(translationOf, executor) : null;
+  if (!target)
+    throw new BadRequestError('translationOf: no article with that id', { translationOf });
+  await assertEditionFree(executor, target.translationGroupId, language, articleId);
+  return target.translationGroupId;
+}
+
+/** Refuse a second article in the same language within one story's group. */
+async function assertEditionFree(
+  executor: Executor,
+  groupId: string,
+  language: Language,
+  articleId: string,
+): Promise<void> {
+  const editions = await findTranslations(executor, groupId, articleId, false);
+  const clash = editions.find((edition) => edition.language === language);
+  if (clash) {
+    throw new ConflictError(`This story already has an edition in ${language}`, {
+      language,
+      articleId: clash.id,
+      slug: clash.slug,
+    });
+  }
+}
+
+/** An article with its other language editions attached (single-article responses). */
+async function withTranslations(row: ArticleRow, publishedOnly: boolean): Promise<Article> {
+  const translations = await findTranslations(
+    getDb(),
+    row.translationGroupId,
+    row.id,
+    publishedOnly,
+  );
+  return { ...rowToArticle(row), translations };
+}
+
 function buildPaginated(
   rows: ArticleRow[],
   total: number,
@@ -267,23 +317,29 @@ export const articleService: ArticleService = {
   },
 
   async getBySlug(slug, options) {
-    const row = await findArticleBySlug(slug, !options?.includeDrafts);
+    const publishedOnly = !options?.includeDrafts;
+    const row = await findArticleBySlug(slug, publishedOnly);
     if (!row) throw new NotFoundError('Article not found');
-    return rowToArticle(row);
+    return withTranslations(row, publishedOnly);
   },
 
   async getById(id) {
     // A malformed id is a resource that does not exist (404), not a server error.
     const row = isRecordId(id) ? await findArticleById(id) : null;
     if (!row) throw new NotFoundError('Article not found');
-    return rowToArticle(row);
+    return withTranslations(row, false);
   },
 
   async create(input) {
     const db = getDb();
     const now = new Date();
+    const id = newRecordId(now);
     const row = await insertArticle(db, {
-      id: newRecordId(now),
+      id,
+      // Its own story unless declared an edition of an existing one.
+      translationGroupId: input.translationOf
+        ? await translationGroupFor(db, input.translationOf, input.language, id)
+        : id,
       slug: input.slug
         ? await claimSlug(db, input.slug)
         : await generateUniqueSlug(db, input.title),
@@ -347,6 +403,20 @@ export const articleService: ArticleService = {
       if (nextSlug !== undefined) {
         changes.slug = nextSlug;
         if (everPublished) await recordSlugChange(tx, id, current.slug, nextSlug);
+      }
+
+      // Joining another story's group, or changing language within its own: either
+      // way the (group, language) pair must stay unique.
+      const language = patch.language ?? current.language;
+      if (patch.translationOf !== undefined && patch.translationOf !== id) {
+        changes.translationGroupId = await translationGroupFor(
+          tx,
+          patch.translationOf,
+          language,
+          id,
+        );
+      } else if (language !== current.language) {
+        await assertEditionFree(tx, current.translationGroupId, language, id);
       }
 
       if (patch.status !== undefined && patch.status !== current.status) {

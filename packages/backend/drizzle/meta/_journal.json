@@ -29,6 +29,20 @@
       "when": 1791654506363,
       "tag": "0003_hot_blacklash",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791655227916,
+      "tag": "0004_translation_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791655235862,
+      "tag": "0005_translation_groups_not_null",
+      "breakpoints": true
     }
   ]
 }

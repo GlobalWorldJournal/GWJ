@@ -92,3 +92,9 @@ The newsroom is international: publish a story in English, then publish an
 equally professional, independently written version in other languages as
 separate articles with the same `language` standards. Readers see only the
 edition they have selected.
+
+**Link every translation to its original:** pass `translationOf: "<id of the
+original article>"` to `create_article`. Linked editions let readers switch
+language on the same story and tell search engines the pages are alternates
+(hreflang) instead of duplicates. A story holds one article per language; to link
+two articles that already exist, use `link_translation({ id, translationOf })`.

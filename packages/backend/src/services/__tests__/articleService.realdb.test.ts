@@ -405,3 +405,79 @@ describe('articleService — stable slugs and SEO patches', () => {
     expect(cleared.seo).toEqual({ metaTitle: 'New title' });
   });
 });
+
+describe('articleService — linked translations', () => {
+  it('an article starts as its own story; a translation joins the original story', async () => {
+    const en = await articleService.create(
+      baseInput({ title: 'Central bank holds rates', status: 'published' }),
+    );
+    expect(en.translationGroupId).toBe(en.id);
+
+    const es = await articleService.create(
+      baseInput({
+        title: 'El banco central mantiene los tipos',
+        language: 'es',
+        translationOf: en.id,
+        status: 'published',
+      }),
+    );
+    expect(es.translationGroupId).toBe(en.id);
+
+    // A third edition may point at ANY member of the story, not only the original.
+    const fr = await articleService.create(
+      baseInput({
+        title: 'La banque centrale maintient ses taux',
+        language: 'fr',
+        translationOf: es.id,
+      }),
+    );
+    expect(fr.translationGroupId).toBe(en.id);
+
+    const adminView = await articleService.getById(en.id);
+    expect(adminView.translations?.map((t) => [t.language, t.slug, t.status])).toEqual([
+      ['es', es.slug, 'published'],
+      ['fr', fr.slug, 'draft'],
+    ]);
+
+    // Readers only see published editions.
+    const publicView = await articleService.getBySlug(en.slug);
+    expect(publicView.translations?.map((t) => t.language)).toEqual(['es']);
+  });
+
+  it('refuses a second edition in the same language, and an unknown original', async () => {
+    const en = await articleService.create(baseInput({ title: 'Original story' }));
+    await articleService.create(
+      baseInput({ title: 'Historia original', language: 'es', translationOf: en.id }),
+    );
+    await expect(
+      articleService.create(
+        baseInput({ title: 'Otra versión', language: 'es', translationOf: en.id }),
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      articleService.create(
+        baseInput({ title: 'English twin', language: 'en', translationOf: en.id }),
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      articleService.create(
+        baseInput({ title: 'Orphan', language: 'fr', translationOf: 'f'.repeat(24) }),
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('links two existing articles later, and guards a language change inside a story', async () => {
+    const en = await articleService.create(baseInput({ title: 'Story in English' }));
+    const es = await articleService.create(
+      baseInput({ title: 'Historia en español', language: 'es' }),
+    );
+    const linked = await articleService.update(es.id, { translationOf: en.id });
+    expect(linked.translationGroupId).toBe(en.id);
+    expect((await articleService.getById(en.id)).translations?.map((t) => t.id)).toEqual([es.id]);
+
+    await expect(articleService.update(es.id, { language: 'en' })).rejects.toMatchObject({
+      status: 409,
+    });
+    expect((await articleService.update(es.id, { language: 'fr' })).language).toBe('fr');
+  });
+});
