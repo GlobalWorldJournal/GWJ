@@ -12,6 +12,7 @@ import { Byline } from '../components/Byline';
 import { ArticleBody } from '../components/ArticleBody';
 import { CorrectionsNote, ShareBar, TopicTags } from '../components/ArticleExtras';
 import { readingMinutes } from '../lib/format';
+import { IMAGE_SIZES, responsiveImage } from '../lib/responsiveImage';
 import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
 import { MostPopular } from '../components/MostPopular';
@@ -144,10 +145,8 @@ export function ArticlePage() {
           {article.heroImage ? (
             <figure className="my-8">
               <img
-                src={article.heroImage.url}
+                {...responsiveImage(article.heroImage, IMAGE_SIZES.articleHero, 1200, 800)}
                 alt={article.heroImage.alt}
-                width={1200}
-                height={800}
                 className="aspect-[3/2] w-full object-cover"
                 loading="eager"
                 fetchPriority="high"

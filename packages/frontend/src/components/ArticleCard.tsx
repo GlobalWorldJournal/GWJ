@@ -2,6 +2,7 @@ import type { Article } from '@gwj/shared-types';
 import { LocaleLink } from '../lib/locale';
 import { Kicker } from './Kicker';
 import { Byline } from './Byline';
+import { IMAGE_SIZES, responsiveImage } from '../lib/responsiveImage';
 
 type CardVariant = 'lead' | 'feature' | 'standard' | 'compact' | 'list';
 
@@ -27,6 +28,14 @@ const HEADLINE_SIZE: Record<CardVariant, string> = {
   standard: 'text-[1.375rem] leading-[1.12]',
   compact: 'text-[1.05rem] leading-[1.15]',
   list: 'text-[1.05rem] leading-[1.2]',
+};
+
+/** How wide each stacked card variant draws its image. */
+const CARD_IMAGE_SIZES: Record<Exclude<CardVariant, 'list'>, string> = {
+  lead: IMAGE_SIZES.lead,
+  feature: IMAGE_SIZES.feature,
+  standard: IMAGE_SIZES.standard,
+  compact: IMAGE_SIZES.standard,
 };
 
 /**
@@ -69,10 +78,8 @@ export function ArticleCard({
             aria-hidden="true"
           >
             <img
-              src={article.heroImage.url}
+              {...responsiveImage(article.heroImage, IMAGE_SIZES.thumbnail, 72, 72)}
               alt={article.heroImage.alt}
-              width={72}
-              height={72}
               className="h-[4.5rem] w-[4.5rem] object-cover"
               loading="lazy"
               decoding="async"
@@ -89,10 +96,8 @@ export function ArticleCard({
         <figure className="m-0">
           <LocaleLink to={href} className="block overflow-hidden" tabIndex={-1} aria-hidden="true">
             <img
-              src={article.heroImage.url}
+              {...responsiveImage(article.heroImage, CARD_IMAGE_SIZES[variant], 1200, 800)}
               alt={article.heroImage.alt}
-              width={1200}
-              height={800}
               className="aspect-[3/2] w-full object-cover"
               loading={priority ? 'eager' : 'lazy'}
               fetchPriority={priority ? 'high' : 'auto'}

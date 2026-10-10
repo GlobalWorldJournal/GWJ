@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { CategorySchema } from './category';
 import { DEFAULT_LANGUAGE, LanguageSchema } from './language';
-import { ArticleSchema, ArticleStatusSchema, PublicArticleSchema } from './article';
+import {
+  ArticleSchema,
+  ArticleStatusSchema,
+  ImageVariantSchema,
+  PublicArticleSchema,
+} from './article';
 
 export const LoginInputSchema = z.object({
   username: z.string().min(1),
@@ -97,7 +102,17 @@ export const UploadFromUrlInputSchema = z.object({
 });
 export type UploadFromUrlInput = z.infer<typeof UploadFromUrlInputSchema>;
 
-export const UploadResponseSchema = z.object({ url: z.string().url() });
+/**
+ * An uploaded image on our CDN: its URL, its size and the narrower renditions
+ * made for responsive images (none for a GIF, or for a re-upload made before
+ * renditions existed).
+ */
+export const UploadResponseSchema = z.object({
+  url: z.string().url(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+  variants: z.array(ImageVariantSchema).default([]),
+});
 export type UploadResponse = z.infer<typeof UploadResponseSchema>;
 
 /**

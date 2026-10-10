@@ -19,10 +19,10 @@ const ADMIN_PASSWORD = 'super-secret-pw';
 
 const fakeUploadService: UploadService = {
   async uploadImage(_buffer, filename) {
-    return { url: `https://cdn.example.test/articles/${filename}` };
+    return { url: `https://cdn.example.test/articles/${filename}`, variants: [] };
   },
   async storeImage(_buffer, filename, _contentType, keyPrefix) {
-    return { url: `https://cdn.example.test/${keyPrefix}${filename}` };
+    return { url: `https://cdn.example.test/${keyPrefix}${filename}`, variants: [] };
   },
 };
 
