@@ -97,10 +97,34 @@ resource "aws_iam_role" "mongo" {
   assume_role_policy = data.aws_iam_policy_document.mongo_ec2_assume.json
 }
 
-# SSM-managed instance access (no SSH; matches Oxy's "access via SSM" posture).
-resource "aws_iam_role_policy_attachment" "mongo_ssm_core" {
-  role       = aws_iam_role.mongo.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+# SSM-managed instance access (no SSH; matches Oxy's "access via SSM" posture):
+# Session Manager and Run Command only. Not AmazonSSMManagedInstanceCore, whose
+# `ssm:GetParameter(s)` on `*` let this host read every parameter in the
+# account; the host reads only /gwj/mongo_* (below).
+data "aws_iam_policy_document" "mongo_session_manager" {
+  statement {
+    sid = "SessionManager"
+    actions = [
+      "ssm:UpdateInstanceInformation",
+      "ssmmessages:CreateControlChannel",
+      "ssmmessages:CreateDataChannel",
+      "ssmmessages:OpenControlChannel",
+      "ssmmessages:OpenDataChannel",
+      "ec2messages:AcknowledgeMessage",
+      "ec2messages:DeleteMessage",
+      "ec2messages:FailMessage",
+      "ec2messages:GetEndpoint",
+      "ec2messages:GetMessages",
+      "ec2messages:SendReply",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "mongo_session_manager" {
+  name   = "gwj-mongo-session-manager"
+  role   = aws_iam_role.mongo.id
+  policy = data.aws_iam_policy_document.mongo_session_manager.json
 }
 
 # Read the Mongo admin creds from /gwj/mongo_* + write backups to the media
