@@ -12,7 +12,16 @@ import '@fontsource/pt-serif/700.css';
 import '@fontsource/pt-serif/400-italic.css';
 import '@fontsource/pt-serif/700-italic.css';
 import { App } from './App';
+import { queryClient } from './lib/queryClient';
+import { readServerArticle } from './lib/serverData';
 import './index.css';
+
+// An article page arrives with the article already in it (see serverData): seed
+// the query the article page uses, so it renders immediately with no refetch.
+const serverArticle = readServerArticle(document);
+if (serverArticle) {
+  queryClient.setQueryData(['article', serverArticle.slug], serverArticle);
+}
 
 const container = document.getElementById('root');
 if (!container) {

@@ -98,7 +98,10 @@ describe('worker locale parsing', () => {
     expect(html).not.toContain(`hreflang="fr"`);
     expect(html).not.toContain(`hreflang="en" href="${SITE}/article/hola-mundo"`);
     // The article text is server-rendered into #root for crawlers.
-    expect(html).toContain('<div id="root"><article>');
+    expect(html).toContain('<div id="root"><article class="sr-only">');
+    // The app receives the article with the page instead of fetching it again.
+    expect(html).toContain('<script type="application/json" id="gwj-article">');
+    expect(html).toContain('"slug":"hola-mundo"');
   });
 
   it('article: wrong locale prefix 301-redirects to the canonical URL', async () => {

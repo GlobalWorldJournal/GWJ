@@ -168,3 +168,29 @@ describe('ArticlePage reader extras', () => {
     expect(screen.getByText('· Mundo')).toBeInTheDocument();
   });
 });
+
+describe('ArticlePage with the article embedded by the server', () => {
+  it('renders at once from the seeded cache, without fetching the article again', () => {
+    getArticle.mockReset();
+    getArticles.mockReset();
+    getArticles.mockResolvedValue(paginate([]));
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 60_000 } },
+    });
+    client.setQueryData(['article', 'lead-story'], makeArticle());
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/article/lead-story']}>
+          <LanguageProvider lang="en">
+            <Routes>
+              <Route path="/article/:slug" element={<ArticlePage />} />
+            </Routes>
+          </LanguageProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    // Synchronously on the first render: no skeleton, no request.
+    expect(screen.getByRole('heading', { level: 1, name: 'The Lead Story' })).toBeInTheDocument();
+    expect(getArticle).not.toHaveBeenCalled();
+  });
+});

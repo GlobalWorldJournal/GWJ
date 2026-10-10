@@ -30,6 +30,7 @@ import {
   type PublicArticle,
 } from '@gwj/shared-types';
 import { categoryLabel } from '../lib/dictionary';
+import { articleDataScript } from '../lib/serverData';
 import { fetchJson } from './edgeCache';
 import { escapeHtml, firstParagraphText, markdownToHtml } from './markdown';
 
@@ -361,9 +362,14 @@ function breadcrumbJsonLd(article: PublicArticle, url: string, siteUrl: string):
   };
 }
 
-/** Server-rendered article markup injected into #root so crawlers get the full text. */
+/**
+ * The full article text, server-rendered into #root for crawlers (Google News
+ * reads it without running JavaScript). It is visually hidden: readers see the
+ * app's styled page, which renders at once from the embedded article data, so
+ * there is no unstyled flash and no layout jump when the app takes over.
+ */
 function articleContentHtml(article: PublicArticle, image: string): string {
-  const parts = ['<article>'];
+  const parts = ['<article class="sr-only">'];
   if (article.kicker) parts.push(`<p>${escapeHtml(article.kicker)}</p>`);
   parts.push(`<h1>${escapeHtml(article.title)}</h1>`);
   if (article.deck) parts.push(`<p>${escapeHtml(article.deck)}</p>`);
@@ -381,9 +387,14 @@ function articleContentHtml(article: PublicArticle, image: string): string {
   return parts.join('\n');
 }
 
-/** Put server-rendered content inside #root. React replaces it on mount; crawlers read it. */
-function injectRoot(html: string, contentHtml: string): string {
-  return html.replace(/<div id="root">\s*<\/div>/i, `<div id="root">${contentHtml}</div>`);
+/**
+ * Put server-rendered content inside #root (React replaces it on mount) and
+ * the article data before </body> (the app reads it instead of refetching).
+ */
+function injectRoot(html: string, contentHtml: string, dataScript: string): string {
+  return html
+    .replace(/<div id="root">\s*<\/div>/i, `<div id="root">${contentHtml}</div>`)
+    .replace('</body>', `${dataScript}\n</body>`);
 }
 
 async function getShell(env: Env, request: Request): Promise<Response> {
@@ -513,7 +524,11 @@ async function handleArticle(
   // the full content without executing JS; React replaces it on mount.
   return withHtmlBody(
     shell,
-    injectRoot(injectHead(html, metaTags, lang), articleContentHtml(article, image)),
+    injectRoot(
+      injectHead(html, metaTags, lang),
+      articleContentHtml(article, image),
+      articleDataScript(article),
+    ),
   );
 }
 
