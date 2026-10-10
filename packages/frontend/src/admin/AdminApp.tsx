@@ -8,6 +8,7 @@ import { Login } from './Login';
 import { Dashboard } from './Dashboard';
 import { Editor } from './Editor';
 import { Takedowns } from './Takedowns';
+import { Tokens } from './Tokens';
 import { NotFound } from '../pages/NotFound';
 import { LanguageProvider } from '../lib/i18n';
 
@@ -98,6 +99,14 @@ export function AdminApp() {
               element={
                 <RequireAuth>
                   <Takedowns />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="tokens"
+              element={
+                <RequireAuth>
+                  <Tokens />
                 </RequireAuth>
               }
             />
