@@ -168,6 +168,94 @@ describe('GWJ API', () => {
     expect(adminList.body.data).toHaveLength(2)
   })
 
+  it('public listing and search never return drafts, even when ?status=draft is asked for', async () => {
+    const token = await loginToken()
+    await request(app)
+      .post('/api/admin/articles')
+      .set('authorization', `Bearer ${token}`)
+      .send({ ...validArticle(), title: 'Secret merger draft' })
+
+    const list = await request(app).get('/api/articles?status=draft')
+    expect(list.status).toBe(200)
+    expect(list.body.data).toEqual([])
+    expect(list.body.pagination.total).toBe(0)
+
+    const search = await request(app).get('/api/search?q=merger&status=draft')
+    expect(search.status).toBe(200)
+    expect(search.body.data).toEqual([])
+
+    // The admin path still honours an explicit status.
+    const admin = await request(app)
+      .get('/api/admin/articles?status=draft')
+      .set('authorization', `Bearer ${token}`)
+    expect(admin.body.data.map((a: { title: string }) => a.title)).toEqual(['Secret merger draft'])
+  })
+
+  it('public responses omit the internal source provenance; admin responses keep it', async () => {
+    const token = await loginToken()
+    const source = { name: 'Wire', articleUrl: 'https://example.com/original' }
+    const created = await request(app)
+      .post('/api/admin/articles')
+      .set('authorization', `Bearer ${token}`)
+      .send({ ...validArticle(), title: 'Provenance story', status: 'published', source })
+    expect(created.status).toBe(201)
+    expect(created.body.source).toEqual(source)
+
+    const list = await request(app).get('/api/articles')
+    expect(list.body.data).toHaveLength(1)
+    expect(list.body.data[0]).not.toHaveProperty('source')
+
+    const single = await request(app).get(`/api/articles/${created.body.slug}`)
+    expect(single.status).toBe(200)
+    expect(single.body).not.toHaveProperty('source')
+
+    const search = await request(app).get('/api/search?q=provenance')
+    expect(search.body.data).toHaveLength(1)
+    expect(search.body.data[0]).not.toHaveProperty('source')
+
+    const admin = await request(app)
+      .get(`/api/admin/articles/${created.body.id}`)
+      .set('authorization', `Bearer ${token}`)
+    expect(admin.body.source).toEqual(source)
+  })
+
+  it('?featured=false does not filter to featured stories only', async () => {
+    const token = await loginToken()
+    for (const [title, featured] of [['Lead story', 5], ['Ordinary story', 0]] as const) {
+      await request(app)
+        .post('/api/admin/articles')
+        .set('authorization', `Bearer ${token}`)
+        .send({ ...validArticle(), title, featured, status: 'published' })
+    }
+    const all = await request(app).get('/api/articles?featured=false')
+    expect(all.body.data).toHaveLength(2)
+    const featuredOnly = await request(app).get('/api/articles?featured=true')
+    expect(featuredOnly.body.data.map((a: { title: string }) => a.title)).toEqual(['Lead story'])
+  })
+
+  it('rate limits key on the client address behind the load balancer, not the proxy', async () => {
+    // Two clients behind the same proxy hop get independent login buckets: the
+    // remaining-count header for client B is untouched by client A's attempts.
+    const attempt = (ip: string) =>
+      request(app)
+        .post('/api/auth/login')
+        .set('x-forwarded-for', ip)
+        .send({ username: ADMIN_USERNAME, password: 'wrong-password' })
+    const firstA = await attempt('198.51.100.1')
+    await attempt('198.51.100.1')
+    const firstB = await attempt('198.51.100.2')
+    expect(firstB.headers['ratelimit-remaining']).toBe(firstA.headers['ratelimit-remaining'])
+  })
+
+  it('refuses an off-allowlist browser origin without a server error', async () => {
+    const res = await request(app).get('/api/categories').set('origin', 'https://evil.example')
+    expect(res.status).toBe(200)
+    expect(res.headers['access-control-allow-origin']).toBeUndefined()
+
+    const allowed = await request(app).get('/api/categories').set('origin', 'https://globalworldjournal.com')
+    expect(allowed.headers['access-control-allow-origin']).toBe('https://globalworldjournal.com')
+  })
+
   it('GET /api/categories returns the 7 fixed categories', async () => {
     const res = await request(app).get('/api/categories')
     expect(res.status).toBe(200)

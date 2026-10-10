@@ -31,6 +31,7 @@ const AWS_KEYS = [
   'S3_BUCKET',
   'CDN_BASE_URL',
   'CORS_ORIGINS',
+  'TRUST_PROXY_HOPS',
   'TELEGRAM_BOT_TOKEN',
   'TELEGRAM_CHANNEL',
 ]
@@ -138,5 +139,24 @@ describe('env — PostgreSQL connection string', () => {
     const env = loadEnv()
     expect(env.DATABASE_URL).toBe('postgres://gwj:gwj@localhost:5432/gwj_test')
     expect(Object.keys(env)).not.toContain('MONGO_URI')
+  })
+})
+
+describe('env — CORS allowlist and proxy hops', () => {
+  it('rejects an empty CORS_ORIGINS in production', () => {
+    applyEnv({ ...baseEnv(), NODE_ENV: 'production', CORS_ORIGINS: ' , ' })
+    expect(() => loadEnv()).toThrow(/CORS_ORIGINS must list at least one origin in production/)
+  })
+
+  it('allows an empty CORS_ORIGINS outside production', () => {
+    applyEnv({ ...baseEnv(), CORS_ORIGINS: '' })
+    expect(loadEnv().CORS_ORIGINS).toBe('')
+  })
+
+  it('trusts one proxy hop (the ALB) by default and accepts an override', () => {
+    applyEnv(baseEnv())
+    expect(loadEnv().TRUST_PROXY_HOPS).toBe(1)
+    applyEnv({ ...baseEnv(), TRUST_PROXY_HOPS: '2' })
+    expect(loadEnv().TRUST_PROXY_HOPS).toBe(2)
   })
 })

@@ -84,6 +84,11 @@ const EnvSchema = z.object({
     'CDN_BASE_URL must be an absolute http(s) URL',
   ),
   CORS_ORIGINS: z.string().default(''),
+  // How many reverse proxies sit in front of the app and append to
+  // X-Forwarded-For. Production: 1 (the ALB — api.* is DNS-only, not proxied
+  // through Cloudflare). Without it `req.ip` is the ALB's address, so every
+  // reader shares ONE rate-limit bucket and anyone can lock the admin out of login.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(1),
 
   // --- ActivityPub / fediverse federation ---
   // The handles live on the APEX domain (`@news@globalworldjournal.com`), so every
@@ -113,6 +118,21 @@ const EnvSchema = z.object({
     .default(TELEGRAM_CHANNEL_HANDLE),
 })
 
+/**
+ * Cross-field rules. In production an empty CORS allowlist is a misconfiguration
+ * (it would otherwise mean "no browser origin may call the API"), so fail at boot
+ * rather than serve a site whose own pages are refused.
+ */
+const RefinedEnvSchema = EnvSchema.superRefine((env, ctx) => {
+  if (env.NODE_ENV === 'production' && parseCorsOrigins(env.CORS_ORIGINS).length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['CORS_ORIGINS'],
+      message: 'CORS_ORIGINS must list at least one origin in production',
+    })
+  }
+})
+
 export type Env = z.infer<typeof EnvSchema>
 
 let cached: Env | null = null
@@ -127,7 +147,7 @@ let cached: Env | null = null
 export function loadEnv(): Env {
   if (cached) return cached
   loadDotenv()
-  const parsed = EnvSchema.safeParse(process.env)
+  const parsed = RefinedEnvSchema.safeParse(process.env)
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`)

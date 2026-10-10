@@ -4,6 +4,8 @@ import {
   ArticleUpdateSchema,
   ContentBlockSchema,
   ArticleListQuerySchema,
+  PublicArticleListQuerySchema,
+  PublicArticleSchema,
   slugify,
   CATEGORIES,
 } from '../index'
@@ -77,5 +79,38 @@ describe('ArticleListQuerySchema', () => {
   it('caps limit at 50', () => {
     const r = ArticleListQuerySchema.safeParse({ limit: '500' })
     expect(r.success).toBe(false)
+  })
+  it('reads featured "false" as false and "true" as true (not truthy-string coercion)', () => {
+    expect(ArticleListQuerySchema.parse({ featured: 'false' }).featured).toBe(false)
+    expect(ArticleListQuerySchema.parse({ featured: 'true' }).featured).toBe(true)
+    expect(ArticleListQuerySchema.parse({ featured: false }).featured).toBe(false)
+    expect(ArticleListQuerySchema.safeParse({ featured: 'yes' }).success).toBe(false)
+  })
+})
+
+describe('PublicArticleListQuerySchema', () => {
+  it('drops a requested status so readers can never ask for drafts', () => {
+    const r = PublicArticleListQuerySchema.parse({ status: 'draft', q: 'merger' })
+    expect(r).not.toHaveProperty('status')
+    expect(r.q).toBe('merger')
+  })
+})
+
+describe('PublicArticleSchema', () => {
+  it('strips internal source provenance', () => {
+    const r = PublicArticleSchema.parse({
+      id: 'a'.repeat(24),
+      slug: 'a-story',
+      title: 'A story',
+      category: 'World',
+      author: 'Nate',
+      body: 'Body',
+      seo: {},
+      source: { name: 'Wire', articleUrl: 'https://example.com/a' },
+      publishedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    expect(r).not.toHaveProperty('source')
   })
 })

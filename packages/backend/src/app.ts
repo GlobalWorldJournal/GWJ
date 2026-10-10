@@ -51,19 +51,21 @@ export interface BuiltApp {
  */
 export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   const app = express()
+  // Resolve `req.ip` from X-Forwarded-For across exactly the proxies we run behind,
+  // so the rate limiters key on the real client rather than the load balancer.
+  app.set('trust proxy', env.TRUST_PROXY_HOPS)
 
   app.use(helmet())
 
   const allowlist = parseCorsOrigins(env.CORS_ORIGINS)
   app.use(
     cors({
+      // Non-browser clients send no Origin and are unaffected. A browser origin off
+      // the allowlist simply gets no CORS headers (the browser blocks the read);
+      // it is a refusal, not a server error. An empty allowlist (dev only — boot
+      // rejects it in production) allows every origin.
       origin: (origin, callback) => {
-        // Allow non-browser clients (no Origin header) and any allowlisted origin.
-        if (!origin || allowlist.length === 0 || allowlist.includes(origin)) {
-          callback(null, true)
-          return
-        }
-        callback(new Error('Not allowed by CORS'))
+        callback(null, !origin || allowlist.length === 0 || allowlist.includes(origin))
       },
       credentials: true,
     }),
