@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { describe, it, expect, vi, beforeEach, onTestFinished } from 'vitest';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Article, ArticleRevisionSummary } from '@gwj/shared-types';
 import { AuthContext, type AuthState } from '../useAuth';
@@ -13,6 +13,7 @@ const createArticle = vi.fn<(...args: unknown[]) => Promise<Article>>();
 const getArticleRevisions = vi.fn<(...args: unknown[]) => Promise<ArticleRevisionSummary[]>>();
 const restoreArticleRevision = vi.fn<(...args: unknown[]) => Promise<Article>>();
 const addArticleCorrection = vi.fn<(...args: unknown[]) => Promise<Article>>();
+const uploadImage = vi.fn<(...args: unknown[]) => Promise<{ url: string; variants: [] }>>();
 
 vi.mock('../../lib/api', async () => {
   const actual = await vi.importActual<typeof import('../../lib/api')>('../../lib/api');
@@ -26,6 +27,7 @@ vi.mock('../../lib/api', async () => {
     getArticleRevisions: (...args: unknown[]) => getArticleRevisions(...args),
     restoreArticleRevision: (...args: unknown[]) => restoreArticleRevision(...args),
     addArticleCorrection: (...args: unknown[]) => addArticleCorrection(...args),
+    uploadImage: (...args: unknown[]) => uploadImage(...args),
   };
 });
 
@@ -65,16 +67,19 @@ const authValue: AuthState = {
 
 function renderEditor(path = `/admin/articles/${ARTICLE_ID}`) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // A data router, as in the app: the editor guards unsaved work with useBlocker.
+  const router = createMemoryRouter(
+    [
+      { path: '/admin/articles/:id', element: <Editor /> },
+      { path: '/admin', element: <p>Dashboard</p> },
+    ],
+    { initialEntries: [path] },
+  );
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[path]}>
-        <AuthContext.Provider value={authValue}>
-          <Routes>
-            <Route path="/admin/articles/:id" element={<Editor />} />
-            <Route path="/admin" element={<p>Dashboard</p>} />
-          </Routes>
-        </AuthContext.Provider>
-      </MemoryRouter>
+      <AuthContext.Provider value={authValue}>
+        <RouterProvider router={router} />
+      </AuthContext.Provider>
     </QueryClientProvider>,
   );
 }
@@ -233,5 +238,59 @@ describe('Editor publishing rules', () => {
     ).toBeInTheDocument();
     expect(updateArticle).not.toHaveBeenCalled();
     expect(publishArticle).not.toHaveBeenCalled();
+  });
+
+  it('asks before leaving with unsaved changes, and stops guarding once they are saved', async () => {
+    // Saving refetches the article: answer every load.
+    getAdminArticle.mockResolvedValue(article());
+    updateArticle.mockImplementation(async () => article({ title: 'Edited' }));
+    const listeners = { added: 0, removed: 0 };
+    const added = vi.spyOn(window, 'addEventListener').mockImplementation((type) => {
+      if (type === 'beforeunload') listeners.added += 1;
+    });
+    const removed = vi.spyOn(window, 'removeEventListener').mockImplementation((type) => {
+      if (type === 'beforeunload') listeners.removed += 1;
+    });
+    onTestFinished(() => {
+      added.mockRestore();
+      removed.mockRestore();
+    });
+    renderEditor();
+    const title = await screen.findByDisplayValue('Original headline');
+    expect(listeners.added).toBe(0);
+
+    fireEvent.change(title, { target: { value: 'Edited' } });
+    expect(listeners.added).toBe(1); // closing the tab now asks first
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Unsaved changes' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('Edited')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }));
+    await waitFor(() => expect(updateArticle).toHaveBeenCalledTimes(1));
+    // Saved: nothing left to lose, so the guard is released.
+    await waitFor(() => expect(listeners.removed).toBe(1));
+  });
+
+  it('formats the selection and places an uploaded image at the cursor', async () => {
+    getAdminArticle.mockResolvedValueOnce(article({ body: 'Hello world' }));
+    uploadImage.mockResolvedValue({ url: 'https://cdn.test/inline.webp', variants: [] });
+    renderEditor();
+    const body = await screen.findByLabelText<HTMLTextAreaElement>('Article body (Markdown)');
+
+    body.setSelectionRange(6, 11);
+    fireEvent.click(screen.getByRole('button', { name: 'Bold' }));
+    expect(body.value).toBe('Hello **world**');
+
+    body.setSelectionRange(body.value.length, body.value.length);
+    const file = new File(['x'], 'inline.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Image'), { target: { files: [file] } });
+    await waitFor(() =>
+      expect(body.value).toBe(
+        'Hello **world**\n\n![Describe the image](https://cdn.test/inline.webp)\n\n',
+      ),
+    );
+    expect(uploadImage).toHaveBeenCalledWith('test-token', file);
   });
 });
