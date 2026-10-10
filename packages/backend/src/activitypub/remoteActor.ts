@@ -53,6 +53,17 @@ export interface FederationFetchOptions {
 /** Redirect hops followed (each re-guarded) when fetching a remote actor. */
 const ACTOR_MAX_REDIRECTS = 1;
 
+/** A remote actor's server answered with a non-OK status. */
+export class RemoteActorFetchError extends Error {
+  constructor(
+    readonly actorUrl: string,
+    readonly status: number,
+  ) {
+    super(`Failed to fetch remote actor ${actorUrl} (${status})`);
+    this.name = 'RemoteActorFetchError';
+  }
+}
+
 /**
  * Fetch and cache a remote actor by its id/URL. Used to (a) look up a signer's
  * public key for inbound verification and (b) resolve a follower's inbox. The
@@ -73,7 +84,7 @@ export async function fetchRemoteActor(
     resolveDns: options.resolveDns,
   });
   if (!response.ok) {
-    throw new Error(`Failed to fetch remote actor ${actorUrl} (${response.status})`);
+    throw new RemoteActorFetchError(actorUrl, response.status);
   }
   const text = (await readBodyCapped(response, MAX_ACTOR_BYTES)).toString('utf8');
 
