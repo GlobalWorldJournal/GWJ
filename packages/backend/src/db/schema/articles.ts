@@ -73,6 +73,12 @@ export const articles = pgTable(
      * (fediverse, Telegram) fire exactly once per article.
      */
     firstPublishedAt: timestamp({ withTimezone: true, mode: 'date' }),
+    /**
+     * The story this article is an edition of: every language version of one story
+     * shares this id (the id of the article the group started from). An article
+     * with no translations is its own group.
+     */
+    translationGroupId: text().notNull(),
     createdAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     searchVector: tsvector().generatedAlwaysAs(ARTICLE_SEARCH_VECTOR_SQL),
@@ -104,6 +110,8 @@ export const articles = pgTable(
     ),
     index('articles_category_published_at_idx').on(t.category, t.publishedAt.desc().nullsLast()),
     index('articles_search_vector_idx').using('gin', t.searchVector),
+    // One article per language per story — and the lookup for an article's editions.
+    unique('articles_translation_group_language_unique').on(t.translationGroupId, t.language),
   ],
 );
 

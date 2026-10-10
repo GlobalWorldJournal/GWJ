@@ -310,6 +310,37 @@ describe('GWJ API', () => {
     expect(missing.status).toBe(404);
   });
 
+  it('a public article lists its published editions in other languages', async () => {
+    const token = await loginToken();
+    const en = await request(app)
+      .post('/api/admin/articles')
+      .set('authorization', `Bearer ${token}`)
+      .send({ ...validArticle(), title: 'Markets rally worldwide', status: 'published' });
+    const es = await request(app)
+      .post('/api/admin/articles')
+      .set('authorization', `Bearer ${token}`)
+      .send({
+        ...validArticle(),
+        title: 'Los mercados suben en todo el mundo',
+        language: 'es',
+        translationOf: en.body.id,
+        status: 'published',
+      });
+    expect(es.status).toBe(201);
+
+    const res = await request(app).get(`/api/articles/${en.body.slug}`);
+    expect(res.body.translations).toEqual([
+      { id: es.body.id, language: 'es', slug: es.body.slug, status: 'published' },
+    ]);
+
+    const clash = await request(app)
+      .post('/api/admin/articles')
+      .set('authorization', `Bearer ${token}`)
+      .send({ ...validArticle(), title: 'Otra', language: 'es', translationOf: en.body.id });
+    expect(clash.status).toBe(409);
+    expect(clash.body.error).toMatch(/already has an edition in es/);
+  });
+
   it('GET /api/categories returns the 7 fixed categories', async () => {
     const res = await request(app).get('/api/categories');
     expect(res.status).toBe(200);

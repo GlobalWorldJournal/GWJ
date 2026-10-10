@@ -25,8 +25,10 @@ afterAll(async () => {
 });
 
 function article(overrides: Partial<NewArticleRow> = {}): NewArticleRow {
+  const id = overrides.id ?? newRecordId();
   return {
-    id: newRecordId(),
+    id,
+    translationGroupId: id,
     slug: `slug-${newRecordId()}`,
     title: 'A title',
     category: 'World',

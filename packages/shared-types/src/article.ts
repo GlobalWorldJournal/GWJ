@@ -108,7 +108,7 @@ export const ArticleInputSchema = z.object({
     .describe('A short section/topic label shown above the headline, e.g. "Markets".'),
   category: CategorySchema,
   language: LanguageSchema.default('en').describe(
-    'The edition this article belongs to. Readers only see content for the edition they selected; publish the same story in another language as a separate article with that language set, not a translation field on this one.',
+    'The edition this article belongs to. Readers only see content for the edition they selected; publish the same story in another language as a separate article with that language set, and link the two with `translationOf`.',
   ),
   author: z
     .string()
@@ -145,17 +145,39 @@ export const ArticleInputSchema = z.object({
   source: SourceSchema.optional().describe(
     'Internal provenance only — never shown to readers. Record this on every article the newsroom writes from an outside source, so the story and its photo can be traced and re-attributed later.',
   ),
+  translationOf: z
+    .string()
+    .optional()
+    .describe(
+      'The id of an existing article this one is a translation of — another language edition of the SAME story. Links the two so readers can switch editions and search engines see them as alternates. A story has at most one article per language.',
+    ),
 });
 export type ArticleInput = z.infer<typeof ArticleInputSchema>;
+
+/** One language edition of a story, as listed on each of its articles. */
+export const TranslationRefSchema = z.object({
+  id: z.string(),
+  language: LanguageSchema,
+  slug: z.string(),
+  status: ArticleStatusSchema,
+});
+export type TranslationRef = z.infer<typeof TranslationRefSchema>;
 
 /** Partial payload to update an article. */
 export const ArticleUpdateSchema = ArticleInputSchema.partial();
 export type ArticleUpdate = z.infer<typeof ArticleUpdateSchema>;
 
 /** Full article DTO returned by the API (dates as ISO strings, `id` not `_id`). */
-export const ArticleSchema = ArticleInputSchema.extend({
+export const ArticleSchema = ArticleInputSchema.omit({ translationOf: true }).extend({
   id: z.string(),
   slug: z.string(),
+  /** Shared by every language edition of the same story (optional: older API responses lack it). */
+  translationGroupId: z.string().optional(),
+  /**
+   * The OTHER language editions of this story — only on single-article responses
+   * (published ones only, on the public API).
+   */
+  translations: z.array(TranslationRefSchema).optional(),
   publishedAt: z.string().datetime().nullable(),
   /**
    * When the article FIRST went live; kept through unpublish/re-publish. Once set,

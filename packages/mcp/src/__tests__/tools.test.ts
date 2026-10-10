@@ -69,6 +69,7 @@ describe('GWJ MCP tools', () => {
         'create_article',
         'delete_article',
         'get_article',
+        'link_translation',
         'list_articles',
         'list_categories',
         'list_languages',
@@ -326,5 +327,29 @@ describe('MCP request log', () => {
       server.close();
       stdout.mockRestore();
     }
+  });
+});
+
+describe('link_translation', () => {
+  it('links an article into another story and returns it with its editions', async () => {
+    const client = mockClient();
+    vi.mocked(client.updateArticle).mockResolvedValue(sampleArticle({ id: 'es-1' }));
+    vi.mocked(client.getArticle).mockResolvedValue(
+      sampleArticle({
+        id: 'es-1',
+        translations: [{ id: 'en-1', language: 'en', slug: 'original', status: 'published' }],
+      }),
+    );
+    const mcp = await connect(client);
+    const result = await mcp.callTool({
+      name: 'link_translation',
+      arguments: { id: 'es-1', translationOf: 'en-1' },
+    });
+    await mcp.close();
+
+    expect(result.isError).toBeFalsy();
+    expect(client.updateArticle).toHaveBeenCalledWith('es-1', { translationOf: 'en-1' });
+    const content = result.content as Array<{ type: string; text: string }>;
+    expect(JSON.parse(content[0]?.text ?? '{}').translations).toHaveLength(1);
   });
 });

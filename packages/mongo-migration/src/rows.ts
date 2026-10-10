@@ -142,7 +142,8 @@ export function articleRow(doc: LogicalDocument): NewArticleRow {
     'createdAt',
     'updatedAt',
   ]);
-  const row: NewArticleRow = {
+  // The fields Mongo held; the derived columns are added on return.
+  const row: Omit<NewArticleRow, 'translationGroupId'> = {
     id: c.string('id', { pattern: HEX24 }) ?? '',
     slug: c.string('slug', { nonEmpty: true }) ?? '',
     title: c.string('title', { nonEmpty: true }) ?? '',
@@ -172,9 +173,10 @@ export function articleRow(doc: LogicalDocument): NewArticleRow {
     );
   }
   c.done('articles', String(doc.id));
-  // Mongo never tracked a first-publish time. Derive it exactly as migration 0002
-  // backfills existing rows: a published article first went live at publishedAt.
-  return { ...row, firstPublishedAt: row.publishedAt };
+  // Mongo had neither. Derive them exactly as the migrations backfill existing
+  // rows: a published article first went live at publishedAt (0002), and every
+  // article is the only edition of its own story (0003).
+  return { ...row, firstPublishedAt: row.publishedAt, translationGroupId: row.id };
 }
 
 export function userRow(doc: LogicalDocument): UserRow {

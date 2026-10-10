@@ -55,6 +55,14 @@ const ArticleRefShape = {
 
 const ArticleIdShape = { id: z.string().min(1).describe('Article id') };
 
+const LinkTranslationShape = {
+  id: z.string().min(1).describe('The article to link (e.g. the Spanish edition)'),
+  translationOf: z
+    .string()
+    .min(1)
+    .describe('Any article of the story it translates (e.g. the English original)'),
+};
+
 /**
  * Create-article input: `author` is optional because the agent normally should
  * not name a byline. When omitted, the tool auto-assigns one from the writer
@@ -192,10 +200,24 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
   );
 
   server.registerTool(
+    'link_translation',
+    {
+      description:
+        'Link an EXISTING article as another language edition of an existing story (readers can switch editions; search engines see them as alternates). Prefer passing `translationOf` to create_article when writing the translation. A story holds at most one article per language. Returns the article with its `translations`.',
+      inputSchema: LinkTranslationShape,
+    },
+    ({ id, translationOf }) =>
+      guard(async () => {
+        await client.updateArticle(id, { translationOf });
+        return jsonResult(await client.getArticle({ id }));
+      }),
+  );
+
+  server.registerTool(
     'list_languages',
     {
       description:
-        "List the editions (languages) the paper publishes in. Pass an article's `language` to create_article to publish it in that edition; write the article's prose in that language.",
+        "List the editions (languages) the paper publishes in. Pass an article's `language` to create_article to publish it in that edition; write the article's prose in that language. When it is a version of a story another edition already ran, also pass `translationOf` (that article's id) so the editions are linked.",
     },
     () =>
       guard(async () =>

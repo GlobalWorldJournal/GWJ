@@ -57,28 +57,27 @@ describe('runMigrations against a real server', () => {
     expect(await readAppliedMillis(client)).toEqual([]);
   });
 
-  it('applies the journal, records every entry, and is a no-op the second time', async () => {
+  it('a fresh database takes the whole journal, after which every phase is a no-op', async () => {
+    // A brand-new database (local compose, a new environment) migrates with
+    // `all`; the deploy's pre/post split only applies on top of an existing
+    // ledger, and its ordering rules are unit-tested in migrator.test.ts.
     const journal = readJournal(MIGRATIONS_FOLDER);
-    const first = await runMigrations({
-      databaseUrl: target.url,
-      migrationsFolder: MIGRATIONS_FOLDER,
-      run: 'pre',
-      expectedDatabase: target.name,
-      dryRun: false,
-      logger: silent,
-    });
-    expect(first.applied.length).toBeGreaterThan(0);
+    const run = (phase: 'pre' | 'post' | 'all') =>
+      runMigrations({
+        databaseUrl: target.url,
+        migrationsFolder: MIGRATIONS_FOLDER,
+        run: phase,
+        expectedDatabase: target.name,
+        dryRun: false,
+        logger: silent,
+      });
+
+    const first = await run('all');
+    expect(first.applied.length).toBe(journal.length);
     expect((await readAppliedMillis(client)).sort()).toEqual(journal.map((j) => j.when).sort());
     await assertPreDeployMigrationsApplied(client, MIGRATIONS_FOLDER);
 
-    const second = await runMigrations({
-      databaseUrl: target.url,
-      migrationsFolder: MIGRATIONS_FOLDER,
-      run: 'post',
-      expectedDatabase: target.name,
-      dryRun: false,
-      logger: silent,
-    });
-    expect(second.applied).toEqual([]);
+    expect((await run('pre')).applied).toEqual([]);
+    expect((await run('post')).applied).toEqual([]);
   });
 });

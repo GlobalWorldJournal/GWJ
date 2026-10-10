@@ -1,5 +1,5 @@
 import { and, count, desc, eq, gt, ne, sql, type SQL } from 'drizzle-orm';
-import type { Article, HeroImage, Seo, Source } from '@gwj/shared-types';
+import type { Article, HeroImage, Seo, Source, TranslationRef } from '@gwj/shared-types';
 import { getDb, type Database } from '../client';
 import { articles, type ArticleRow, type NewArticleRow } from '../schema/articles';
 import { articleSlugHistory } from '../schema/articleSlugHistory';
@@ -31,6 +31,7 @@ export function rowToArticle(row: ArticleRow): Article {
   return {
     id: row.id,
     slug: row.slug,
+    translationGroupId: row.translationGroupId,
     title: row.title,
     deck: row.deck ?? undefined,
     kicker: row.kicker ?? undefined,
@@ -210,8 +211,11 @@ export async function findArticleByIdForUpdate(
   return row ?? null;
 }
 
-export async function findArticleById(id: string): Promise<ArticleRow | null> {
-  const [row] = await getDb().select().from(articles).where(eq(articles.id, id)).limit(1);
+export async function findArticleById(
+  id: string,
+  executor: Executor = getDb(),
+): Promise<ArticleRow | null> {
+  const [row] = await executor.select().from(articles).where(eq(articles.id, id)).limit(1);
   return row ?? null;
 }
 
@@ -262,6 +266,30 @@ export async function recordSlugChange(
       target: articleSlugHistory.slug,
       set: { articleId, createdAt: new Date() },
     });
+}
+
+/**
+ * The OTHER language editions in a story's translation group, by language.
+ * `publishedOnly` restricts them to what readers may see.
+ */
+export async function findTranslations(
+  executor: Executor,
+  groupId: string,
+  excludeId: string,
+  publishedOnly: boolean,
+): Promise<TranslationRef[]> {
+  const conditions = [eq(articles.translationGroupId, groupId), ne(articles.id, excludeId)];
+  if (publishedOnly) conditions.push(eq(articles.status, 'published'));
+  return executor
+    .select({
+      id: articles.id,
+      language: articles.language,
+      slug: articles.slug,
+      status: articles.status,
+    })
+    .from(articles)
+    .where(and(...conditions))
+    .orderBy(articles.language);
 }
 
 /** The CURRENT slug of the published article that once used `oldSlug`, if any. */
