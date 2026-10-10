@@ -273,3 +273,52 @@ describe('client with its own API token', () => {
     await expect(client.getArticle({ id: 'a1' })).rejects.toMatchObject({ status: 401 });
   });
 });
+
+describe('client takedowns and popularity', () => {
+  const json = (body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+  it('lists and acts on takedowns through the admin API, and reads popularity publicly', async () => {
+    const record = {
+      id: 'td-1',
+      requesterName: 'Jamie',
+      requesterEmail: 'jamie@example.com',
+      claimType: 'copyright',
+      explanation: 'My photo.',
+      goodFaithAssertion: true,
+      status: 'actioned',
+      articleId: null,
+      createdAt: '2026-10-10T10:00:00.000Z',
+      updatedAt: '2026-10-10T10:00:00.000Z',
+    };
+    const fetchImpl = scriptedFetch([
+      (url) => {
+        expect(url).toBe(
+          'https://api.example.com/api/admin/takedown-requests?status=pending&page=1&limit=20',
+        );
+        return json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } });
+      },
+      (url, init) => {
+        expect(url).toBe('https://api.example.com/api/admin/takedown-requests/td-1/action');
+        expect(JSON.parse(String(init?.body))).toEqual({ status: 'dismissed', apply: 'none' });
+        return json({ ...record, status: 'dismissed' });
+      },
+      (url, init) => {
+        expect(url).toBe('https://api.example.com/api/articles/popular?language=fr&days=2&limit=6');
+        expect(new Headers(init?.headers).get('authorization')).toBeNull();
+        return json({ data: [] });
+      },
+    ]);
+    const client = createGwjClient(
+      baseOptions({ fetch: fetchImpl, credentials: { kind: 'token', token: 'gwj_t' } }),
+    );
+    await client.listTakedowns({ status: 'pending' });
+    expect(
+      (await client.actOnTakedown('td-1', { status: 'dismissed', apply: 'none' })).status,
+    ).toBe('dismissed');
+    expect(await client.popularArticles({ language: 'fr' })).toEqual({ data: [] });
+  });
+});
