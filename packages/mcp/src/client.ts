@@ -6,6 +6,12 @@ import {
   CategoryDocSchema,
   LoginResponseSchema,
   PaginatedArticlesSchema,
+  PaginatedTakedownRequestsSchema,
+  PopularArticlesQuerySchema,
+  PopularArticlesSchema,
+  TakedownActionSchema,
+  TakedownListQuerySchema,
+  TakedownRequestSchema,
   UploadResponseSchema,
   type Article,
   type ArticleInput,
@@ -15,6 +21,12 @@ import {
   type ArticleUpdate,
   type CategoryDoc,
   type PaginatedArticles,
+  type PaginatedTakedownRequests,
+  type PopularArticles,
+  type PopularArticlesQuery,
+  type TakedownAction,
+  type TakedownListQuery,
+  type TakedownRequestRecord,
   type UploadResponse,
 } from '@gwj/shared-types';
 import { validateImageBuffer } from '@gwj/shared-types/image-validation';
@@ -63,6 +75,9 @@ export interface GwjClient {
   getRevision(id: string, revisionId: number): Promise<ArticleRevision>;
   restoreRevision(id: string, revisionId: number): Promise<Article>;
   addCorrection(id: string, text: string): Promise<Article>;
+  listTakedowns(query: Partial<TakedownListQuery>): Promise<PaginatedTakedownRequests>;
+  actOnTakedown(id: string, action: TakedownAction): Promise<TakedownRequestRecord>;
+  popularArticles(query: Partial<PopularArticlesQuery>): Promise<PopularArticles>;
 }
 
 export interface UploadImageInput {
@@ -283,6 +298,36 @@ export function createGwjClient(options: GwjClientOptions): GwjClient {
         },
       );
       return ArticleSchema.parse(payload);
+    },
+
+    async listTakedowns(query) {
+      const search = new URLSearchParams();
+      for (const [key, value] of Object.entries(TakedownListQuerySchema.parse(query))) {
+        if (value !== undefined) search.set(key, String(value));
+      }
+      const payload = await authedRequest(`/api/admin/takedown-requests?${search.toString()}`);
+      return PaginatedTakedownRequestsSchema.parse(payload);
+    },
+
+    async actOnTakedown(id, action) {
+      const payload = await authedRequest(
+        `/api/admin/takedown-requests/${encodeURIComponent(id)}/action`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(TakedownActionSchema.parse(action)),
+        },
+      );
+      return TakedownRequestSchema.parse(payload);
+    },
+
+    async popularArticles(query) {
+      const search = new URLSearchParams();
+      for (const [key, value] of Object.entries(PopularArticlesQuerySchema.parse(query))) {
+        search.set(key, String(value));
+      }
+      const payload = await publicRequest(`/api/articles/popular?${search.toString()}`);
+      return PopularArticlesSchema.parse(payload);
     },
 
     async listCategories() {
