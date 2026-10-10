@@ -595,3 +595,63 @@ describe('articleService — revisions', () => {
     });
   });
 });
+
+describe('articleService — scheduled publishing', () => {
+  const at = (iso: string) => new Date(iso);
+
+  it('publishes a scheduled draft once it is due — not before — and fans out once', async () => {
+    const seen: string[] = [];
+    const off = onArticlePublished((a) => seen.push(a.id));
+    try {
+      const draft = await articleService.create(
+        baseInput({ title: 'Morning briefing', scheduledAt: '2026-10-11T07:00:00.000Z' }),
+      );
+      expect(draft.scheduledAt).toBe('2026-10-11T07:00:00.000Z');
+
+      expect(await articleService.publishDue(at('2026-10-11T06:59:59Z'))).toEqual([]);
+      expect(await articleService.publishDue(at('2026-10-11T07:00:00Z'))).toEqual([draft.id]);
+      // A second tick (or a second backend task) finds nothing left to do.
+      expect(await articleService.publishDue(at('2026-10-11T07:00:30Z'))).toEqual([]);
+
+      const live = await articleService.getById(draft.id);
+      expect(live.status).toBe('published');
+      expect(live.scheduledAt).toBeNull();
+      expect(live.publishedAt).toBe('2026-10-11T07:00:00.000Z');
+      expect(seen).toEqual([draft.id]);
+      expect((await articleService.listRevisions(draft.id))[0]?.actor).toBe('scheduler');
+    } finally {
+      off();
+    }
+  });
+
+  it('a cancelled or moved schedule is respected; publishing by hand clears it', async () => {
+    const cancelled = await articleService.create(
+      baseInput({ title: 'Cancelled', scheduledAt: '2026-10-11T07:00:00.000Z' }),
+    );
+    await articleService.update(cancelled.id, { scheduledAt: null });
+    const moved = await articleService.create(
+      baseInput({ title: 'Moved', scheduledAt: '2026-10-11T07:00:00.000Z' }),
+    );
+    await articleService.update(moved.id, { scheduledAt: '2026-10-12T07:00:00.000Z' });
+    expect(await articleService.publishDue(at('2026-10-11T08:00:00Z'))).toEqual([]);
+
+    const byHand = await articleService.publish(moved.id);
+    expect(byHand.scheduledAt).toBeNull();
+  });
+
+  it('refuses to schedule an article that is live or being published', async () => {
+    await expect(
+      articleService.create(
+        baseInput({
+          title: 'Contradiction',
+          status: 'published',
+          scheduledAt: '2026-10-11T07:00:00.000Z',
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    const live = await articleService.create(baseInput({ title: 'Live', status: 'published' }));
+    await expect(
+      articleService.update(live.id, { scheduledAt: '2026-10-11T07:00:00.000Z' }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+});

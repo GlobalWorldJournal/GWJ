@@ -120,28 +120,35 @@ class Checker {
   }
 }
 
+/**
+ * Every field an article had in MongoDB: what the copy accepts, and what
+ * verification compares. Columns added since the port (derived or new) are not
+ * Mongo data, so they are neither copied from nor compared against the source.
+ */
+export const ARTICLE_SOURCE_FIELDS = [
+  'id',
+  'slug',
+  'title',
+  'deck',
+  'kicker',
+  'category',
+  'language',
+  'author',
+  'body',
+  'heroImage',
+  'status',
+  'featured',
+  'tags',
+  'seo',
+  'source',
+  'publishedAt',
+  'createdAt',
+  'updatedAt',
+] as const;
+
 export function articleRow(doc: LogicalDocument): NewArticleRow {
   const c = new Checker(doc);
-  c.only([
-    'id',
-    'slug',
-    'title',
-    'deck',
-    'kicker',
-    'category',
-    'language',
-    'author',
-    'body',
-    'heroImage',
-    'status',
-    'featured',
-    'tags',
-    'seo',
-    'source',
-    'publishedAt',
-    'createdAt',
-    'updatedAt',
-  ]);
+  c.only(ARTICLE_SOURCE_FIELDS);
   // The fields Mongo held; the derived columns are added on return.
   const row: Omit<NewArticleRow, 'translationGroupId'> = {
     id: c.string('id', { pattern: HEX24 }) ?? '',

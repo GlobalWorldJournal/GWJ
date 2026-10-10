@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { loadEnv } from './env';
 import { connectDb, disconnectDb } from './db/client';
 import { buildApp } from './app';
+import { startScheduler } from './services/scheduler';
 import { errorFields, logger } from './logger';
 
 export { createApp, buildApp } from './app';
@@ -35,12 +36,15 @@ async function bootstrap(): Promise<void> {
     actors: activityPub.registry.all.length,
   });
 
+  const stopScheduler = startScheduler();
+
   const server = app.listen(env.PORT, () => {
     logger.info('gwj backend listening', { port: env.PORT });
   });
 
   const shutdown = (signal: string): void => {
     logger.info('shutting down', { signal });
+    stopScheduler();
     stopChannels();
     server.close(() => {
       void disconnectDb().finally(() => process.exit(0));

@@ -83,6 +83,8 @@ export const articles = pgTable(
      * (fediverse, Telegram) fire exactly once per article.
      */
     firstPublishedAt: timestamp({ withTimezone: true, mode: 'date' }),
+    /** A draft set to go live at this time (the scheduler publishes it). */
+    scheduledAt: timestamp({ withTimezone: true, mode: 'date' }),
     /**
      * The story this article is an edition of: every language version of one story
      * shares this id (the id of the article the group started from). An article
@@ -127,6 +129,10 @@ export const articles = pgTable(
     // ?tag= (array containment) and ?author= listings.
     index('articles_tags_idx').using('gin', t.tags),
     index('articles_author_published_at_idx').on(t.author, t.publishedAt.desc().nullsLast()),
+    // The scheduler's lookup: due drafts.
+    index('articles_scheduled_at_idx').on(t.scheduledAt).where(sql`${t.scheduledAt} is not null`),
+    // Only a draft can be scheduled.
+    check('articles_scheduled_draft_check', sql`${t.scheduledAt} is null or ${t.status} = 'draft'`),
     // One article per language per story — and the lookup for an article's editions.
     unique('articles_translation_group_language_unique').on(t.translationGroupId, t.language),
   ],

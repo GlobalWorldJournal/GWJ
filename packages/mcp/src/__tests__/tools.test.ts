@@ -388,3 +388,27 @@ describe('revision tools', () => {
     expect(client.getRevision).not.toHaveBeenCalled();
   });
 });
+
+describe('create_article scheduling', () => {
+  it('a scheduledAt makes the article a draft that waits for its time', async () => {
+    const client = mockClient();
+    vi.mocked(client.createArticle).mockResolvedValue(sampleArticle({ id: 'later-1' }));
+    const mcp = await connect(client);
+    const result = await mcp.callTool({
+      name: 'create_article',
+      arguments: {
+        title: 'Morning briefing',
+        category: CATEGORIES[0],
+        author: 'nate',
+        body: 'Body',
+        scheduledAt: '2026-10-11T07:00:00Z',
+      },
+    });
+    await mcp.close();
+    expect(result.isError).toBeFalsy();
+    expect(vi.mocked(client.createArticle).mock.calls[0]?.[0]).toMatchObject({
+      status: 'draft',
+      scheduledAt: '2026-10-11T07:00:00Z',
+    });
+  });
+});
