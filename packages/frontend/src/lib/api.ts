@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ArticleRevisionSummarySchema,
   ArticleSchema,
   PaginatedArticlesSchema,
   PaginatedPublicArticlesSchema,
@@ -11,6 +12,7 @@ import {
   TakedownRequestSchema,
   PaginatedTakedownRequestsSchema,
   type Article,
+  type ArticleRevisionSummary,
   type PaginatedArticles,
   type PaginatedPublicArticles,
   type PublicArticle,
@@ -206,6 +208,41 @@ export function getAdminArticles(
 /** One article by id, drafts included (admin). */
 export function getAdminArticle(token: string, id: string, signal?: AbortSignal): Promise<Article> {
   return request(`/api/admin/articles/${encodeURIComponent(id)}`, ArticleSchema, { token, signal });
+}
+
+/** An article's history, newest first (each entry is the state before one change). */
+export function getArticleRevisions(
+  token: string,
+  id: string,
+  signal?: AbortSignal,
+): Promise<ArticleRevisionSummary[]> {
+  return request(
+    `/api/admin/articles/${encodeURIComponent(id)}/revisions`,
+    z.array(ArticleRevisionSummarySchema),
+    { token, signal },
+  );
+}
+
+/** Roll the article's content back to a revision; returns the restored article. */
+export function restoreArticleRevision(
+  token: string,
+  id: string,
+  revisionId: number,
+): Promise<Article> {
+  return request(
+    `/api/admin/articles/${encodeURIComponent(id)}/revisions/${revisionId}/restore`,
+    ArticleSchema,
+    { method: 'POST', token },
+  );
+}
+
+/** Append a dated public correction; returns the corrected article. */
+export function addArticleCorrection(token: string, id: string, text: string): Promise<Article> {
+  return request(`/api/admin/articles/${encodeURIComponent(id)}/corrections`, ArticleSchema, {
+    method: 'POST',
+    body: { text },
+    token,
+  });
 }
 
 export function createArticle(token: string, input: ArticleInput): Promise<Article> {

@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CATEGORIES,
   SUPPORTED_LANGUAGES,
   LANGUAGE_NAMES,
   DEFAULT_LANGUAGE,
+  WRITERS,
+  isLanguage,
   type Article,
   type ArticleInput,
   type ArticleUpdate,
@@ -24,6 +26,10 @@ import {
 } from '../lib/api';
 import { useAuth } from './useAuth';
 import { StatusMessage } from '../components/StatusMessage';
+import { ArticleBody } from '../components/ArticleBody';
+import { CorrectionsPanel } from './editor/CorrectionsPanel';
+import { HistoryPanel } from './editor/HistoryPanel';
+import { TranslationsPanel } from './editor/TranslationsPanel';
 
 interface EditorForm {
   title: string;
@@ -43,6 +49,18 @@ interface EditorForm {
   metaTitle: string;
   metaDescription: string;
   ogImage: string;
+  /** `datetime-local` value (the editor's local time); blank = no schedule. */
+  scheduledAt: string;
+  /** New article only: the id of the story it is an edition of. */
+  translationOf: string;
+}
+
+/** An ISO instant as a `datetime-local` value in the browser's time zone. */
+function toLocalInput(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
 }
 
 function emptyForm(): EditorForm {
@@ -61,6 +79,8 @@ function emptyForm(): EditorForm {
     metaTitle: '',
     metaDescription: '',
     ogImage: '',
+    scheduledAt: '',
+    translationOf: '',
   };
 }
 
@@ -80,6 +100,8 @@ function formFromArticle(article: Article): EditorForm {
     metaTitle: article.seo.metaTitle ?? '',
     metaDescription: article.seo.metaDescription ?? '',
     ogImage: article.seo.ogImage ?? '',
+    scheduledAt: toLocalInput(article.scheduledAt),
+    translationOf: '',
   };
 }
 
@@ -109,6 +131,9 @@ function formContent(form: EditorForm): Omit<ArticleInput, 'status' | 'slug'> {
       metaDescription: form.metaDescription.trim(),
       ogImage: form.ogImage.trim(),
     },
+    // Blank clears any schedule (the API ignores a null on a live article).
+    scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
+    translationOf: form.translationOf || undefined,
   };
 }
 
@@ -128,10 +153,25 @@ export function Editor() {
   const isNew = !id || id === 'new';
 
   if (isNew) {
-    return <EditorForm initial={emptyForm()} article={null} />;
+    return <NewEditor />;
   }
 
   return <ExistingEditor id={id} />;
+}
+
+/**
+ * A new article. `?translationOf=<id>&language=<code>` (from an article's
+ * Editions panel) starts it already linked to that story, in that edition.
+ */
+function NewEditor() {
+  const [params] = useSearchParams();
+  const language = params.get('language');
+  const initial: EditorForm = {
+    ...emptyForm(),
+    translationOf: params.get('translationOf') ?? '',
+    language: language && isLanguage(language) ? language : DEFAULT_LANGUAGE,
+  };
+  return <EditorForm initial={initial} article={null} />;
 }
 
 function ExistingEditor({ id }: { id: string }) {
@@ -258,7 +298,11 @@ function EditorForm({ initial, article }: EditorFormProps) {
           <h1 className="headline text-2xl text-ink">{saved ? 'Edit Article' : 'New Article'}</h1>
           {saved ? (
             <span className={`label text-[0.625rem] ${isLive ? 'text-accent' : 'text-muted'}`}>
-              {isLive ? 'Live' : 'Draft'}
+              {isLive
+                ? 'Live'
+                : saved.scheduledAt
+                  ? `Scheduled · ${new Date(saved.scheduledAt).toLocaleString()}`
+                  : 'Draft'}
             </span>
           ) : null}
         </div>
@@ -338,7 +382,22 @@ function EditorForm({ initial, article }: EditorFormProps) {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Author">
-            <TextInput value={form.author} onChange={(value) => update('author', value)} />
+            <select
+              value={form.author}
+              onChange={(event) => update('author', event.target.value)}
+              className="border border-ink bg-paper px-3 py-2 font-body text-ink outline-none focus:border-accent"
+            >
+              <option value="">Choose a writer…</option>
+              {/* A byline from before the roster still shows (and can be kept). */}
+              {form.author && !WRITERS.some((w) => w.name === form.author) ? (
+                <option value={form.author}>{form.author}</option>
+              ) : null}
+              {WRITERS.map((writer) => (
+                <option key={writer.name} value={writer.name}>
+                  {writer.name} — {writer.beats.join(', ')}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Category">
             <select
@@ -401,6 +460,17 @@ function EditorForm({ initial, article }: EditorFormProps) {
 
         <BodyField value={form.body} onChange={(body) => update('body', body)} />
 
+        {isLive ? null : (
+          <Field label="Publish automatically at (your local time; leave blank to publish by hand)">
+            <input
+              type="datetime-local"
+              value={form.scheduledAt}
+              onChange={(event) => update('scheduledAt', event.target.value)}
+              className="border border-ink bg-paper px-3 py-2 font-body text-ink outline-none focus:border-accent"
+            />
+          </Field>
+        )}
+
         <fieldset className="border border-rule p-4">
           <legend className="label px-2 text-[0.625rem] text-ink-soft">Search &amp; Sharing</legend>
           <div className="flex flex-col gap-4">
@@ -420,6 +490,20 @@ function EditorForm({ initial, article }: EditorFormProps) {
         </fieldset>
 
         {saved?.source ? <ProvenancePanel source={saved.source} /> : null}
+
+        {saved ? (
+          <>
+            <TranslationsPanel article={saved} onLinked={setSaved} />
+            <CorrectionsPanel article={saved} onCorrected={setSaved} />
+            <HistoryPanel
+              articleId={saved.id}
+              onRestored={(restored) => {
+                setSaved(restored);
+                setForm(formFromArticle(restored));
+              }}
+            />
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -556,20 +640,45 @@ function HeroImageField({
 /* ---------- body (markdown) ---------- */
 
 function BodyField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [preview, setPreview] = useState(false);
   return (
     <section className="mt-4">
-      <h2 className="label mb-1 border-t-3 border-ink pt-2 text-sm text-ink">Body</h2>
+      <div className="mb-1 flex items-baseline justify-between border-t-3 border-ink pt-2">
+        <h2 className="label text-sm text-ink">Body</h2>
+        <fieldset className="m-0 flex gap-3 border-0 p-0">
+          <legend className="sr-only">Body view</legend>
+          {(['Write', 'Preview'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={preview === (mode === 'Preview')}
+              onClick={() => setPreview(mode === 'Preview')}
+              className={`label text-[0.6875rem] transition-colors hover:text-accent ${
+                preview === (mode === 'Preview') ? 'text-accent' : 'text-ink-soft'
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </fieldset>
+      </div>
       <p className="label mb-3 text-[0.625rem] text-muted">
         GitHub-flavored Markdown — headings, lists, links, quotes, images.
       </p>
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        rows={20}
-        spellCheck
-        placeholder={'## A subhead\n\nWrite the story here in Markdown…'}
-        className="w-full resize-y border border-ink bg-paper px-3 py-2 font-body text-[1rem] leading-relaxed text-ink outline-none focus:border-accent"
-      />
+      {preview ? (
+        <div className="border border-rule px-4 py-2">
+          <ArticleBody markdown={value} />
+        </div>
+      ) : (
+        <textarea
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          rows={20}
+          spellCheck
+          placeholder={'## A subhead\n\nWrite the story here in Markdown…'}
+          className="w-full resize-y border border-ink bg-paper px-3 py-2 font-body text-[1rem] leading-relaxed text-ink outline-none focus:border-accent"
+        />
+      )}
     </section>
   );
 }
