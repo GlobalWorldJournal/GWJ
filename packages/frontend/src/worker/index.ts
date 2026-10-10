@@ -33,6 +33,7 @@ import { categoryLabel } from '../lib/dictionary';
 import { articleDataScript } from '../lib/serverData';
 import { fetchJson } from './edgeCache';
 import { escapeHtml, firstParagraphText, markdownToHtml } from './markdown';
+import { subscribeWithGoogleTags } from './subscribeWithGoogle';
 
 const SITE_NAME = 'The Global World Journal';
 const DEFAULT_SITE_URL = 'https://globalworldjournal.com';
@@ -525,7 +526,7 @@ async function handleArticle(
   return withHtmlBody(
     shell,
     injectRoot(
-      injectHead(html, metaTags, lang),
+      injectHead(html, `${metaTags}\n    ${subscribeWithGoogleTags(lang)}`, lang),
       articleContentHtml(article, image),
       articleDataScript(article),
     ),
