@@ -1,11 +1,12 @@
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { getArticles } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { ArticleCard } from '../components/ArticleCard';
 import { StatusMessage } from '../components/StatusMessage';
 import { ListSkeleton } from '../components/Skeletons';
 import { NotFound } from './NotFound';
+import { LoadMore } from '../components/LoadMore';
+import { LIST_PAGE_SIZE, usePagedArticles } from '../lib/usePagedArticles';
 
 /** Every story in this edition carrying one tag (linked from an article's topics). */
 export function TagPage() {
@@ -14,15 +15,12 @@ export function TagPage() {
   return <TagView tag={tag} />;
 }
 
-/** How many tagged stories a topic page shows (the API's page size). */
-const TAG_PAGE_SIZE = 50;
-
 function TagView({ tag }: { tag: string }) {
   const { lang, t } = useLang();
-  const { data, isPending, isError, error } = useQuery({
-    queryKey: ['articles', 'tag', tag, lang],
-    queryFn: ({ signal }) => getArticles({ tag, language: lang, limit: TAG_PAGE_SIZE }, signal),
-  });
+  const { articles, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    usePagedArticles(['articles', 'tag', tag, lang], (page, signal) =>
+      getArticles({ tag, language: lang, limit: LIST_PAGE_SIZE, page }, signal),
+    );
 
   if (isPending) return <ListSkeleton />;
   if (isError) {
@@ -39,11 +37,11 @@ function TagView({ tag }: { tag: string }) {
       <h1 className="headline mb-6 border-b-3 border-ink pb-2 text-3xl text-ink">
         {t('taggedTitle', { x: tag })}
       </h1>
-      {data.data.length === 0 ? (
+      {articles.length === 0 ? (
         <StatusMessage title={t('noStories')} />
       ) : (
         <ul className="flex flex-col divide-y divide-rule">
-          {data.data.map((article) => (
+          {articles.map((article) => (
             <li key={article.id} className="py-4 first:pt-0">
               <ArticleCard
                 article={article}
@@ -54,6 +52,11 @@ function TagView({ tag }: { tag: string }) {
           ))}
         </ul>
       )}
+      <LoadMore
+        hasMore={hasNextPage}
+        loading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
     </section>
   );
 }

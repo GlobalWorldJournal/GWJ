@@ -1,66 +1,65 @@
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { authorSlug, findWriterBySlug } from '@gwj/shared-types';
+import { findWriterBySlug, writerAvatarPath, type Writer } from '@gwj/shared-types';
 import { getArticles } from '../lib/api';
 import { useLang } from '../lib/i18n';
+import { writerPortraitUrl } from '../lib/format';
+import { LIST_PAGE_SIZE, usePagedArticles } from '../lib/usePagedArticles';
 import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
+import { LoadMore } from '../components/LoadMore';
 import { StatusMessage } from '../components/StatusMessage';
 import { ListSkeleton } from '../components/Skeletons';
 
 export function AuthorPage() {
   const { slug = '' } = useParams();
-  const { lang, t } = useLang();
+  const { t } = useLang();
   const writer = findWriterBySlug(slug);
-
-  const { data, isPending, isError, error } = useQuery({
-    queryKey: ['articles', 'author', slug, lang],
-    queryFn: ({ signal }) => getArticles({ language: lang, limit: 50 }, signal),
-  });
-
-  if (isPending) {
-    return <ListSkeleton />;
+  if (!writer) {
+    return <StatusMessage title={t('authorNotFound')} detail={t('authorNotFoundDetail')} />;
   }
-  if (isError) {
-    return (
-      <StatusMessage
-        title={t('loadingError')}
-        detail={error instanceof Error ? error.message : undefined}
-      />
+  return <AuthorView writer={writer} />;
+}
+
+/** A writer's profile and every story they wrote in this edition, newest first. */
+function AuthorView({ writer }: { writer: Writer }) {
+  const { lang, t } = useLang();
+  const { articles, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    usePagedArticles(['articles', 'author', writer.name, lang], (page, signal) =>
+      getArticles(
+        { author: writer.name, language: lang, sort: 'latest', limit: LIST_PAGE_SIZE, page },
+        signal,
+      ),
     );
-  }
-
-  const articles = data.data.filter((a) => authorSlug(a.author) === slug);
-  const name = writer?.name ?? articles[0]?.author;
-
-  if (!name) {
-    return <StatusMessage title="Author not found." detail="No writer matches this page." />;
-  }
+  const portrait = writerPortraitUrl(writerAvatarPath(writer.name));
 
   return (
     <div className="mx-auto max-w-3xl">
       <header className="mb-8 border-b-3 border-ink pb-6 text-center">
-        <span
-          aria-hidden
-          className="headline mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-ink/5 text-2xl text-ink"
-        >
-          {name.charAt(0)}
-        </span>
-        <h1 className="headline text-4xl text-ink">{name}</h1>
-        {writer ? (
-          <>
-            <p className="label mt-2 text-[0.6875rem] tracking-[0.12em] text-accent">
-              {writer.title}
-            </p>
-            <p className="mt-3 font-body text-[0.95rem] leading-relaxed text-ink-soft">
-              {name} covers {writer.beats.join(', ')} for The Global World Journal.
-            </p>
-          </>
+        {portrait ? (
+          <img
+            src={portrait}
+            alt=""
+            width={96}
+            height={96}
+            className="mx-auto mb-3 h-24 w-24 rounded-full object-cover"
+          />
         ) : null}
+        <h1 className="headline text-4xl text-ink">{writer.name}</h1>
+        <p className="label mt-2 text-[0.6875rem] tracking-[0.12em] text-accent">{writer.title}</p>
+        <p className="mt-3 font-body text-[0.95rem] leading-relaxed text-ink-soft">
+          {t('authorCovers', { x: writer.name, y: writer.beats.join(', ') })}
+        </p>
       </header>
 
-      {articles.length === 0 ? (
-        <StatusMessage title={t('noStories')} detail={`${name} hasn’t published here yet.`} />
+      {isPending ? (
+        <ListSkeleton />
+      ) : isError ? (
+        <StatusMessage
+          title={t('loadingError')}
+          detail={error instanceof Error ? error.message : undefined}
+        />
+      ) : articles.length === 0 ? (
+        <StatusMessage title={t('noStories')} detail={t('authorNoStories', { x: writer.name })} />
       ) : (
         <div className="flex flex-col divide-y divide-rule">
           {articles.map((article) => (
@@ -75,6 +74,11 @@ export function AuthorPage() {
           ))}
         </div>
       )}
+      <LoadMore
+        hasMore={hasNextPage}
+        loading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
 
       <AdSlot variant="leaderboard" className="mt-10 border-t border-rule pt-8" />
     </div>

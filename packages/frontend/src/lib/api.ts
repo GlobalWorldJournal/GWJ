@@ -136,6 +136,10 @@ export interface ArticlesQuery {
   featured?: boolean;
   /** Only stories carrying this exact tag. */
   tag?: string;
+  /** Only stories by this exact byline. */
+  author?: string;
+  /** `latest`: newest first instead of the front-page (featured) order. */
+  sort?: 'editorial' | 'latest';
   page?: number;
   limit?: number;
 }
@@ -150,6 +154,8 @@ export function getArticles(
       language: query.language,
       featured: query.featured,
       tag: query.tag,
+      author: query.author,
+      sort: query.sort,
       page: query.page,
       limit: query.limit,
     },
