@@ -1,13 +1,11 @@
-import type { AuthTokenPayload } from '../services/authService';
+import type { Principal } from '../auth/principal';
 
 declare global {
   namespace Express {
     interface Request {
-      userId?: string;
-      auth?: AuthTokenPayload;
+      /** The authenticated caller, set by requireAuth. */
+      principal?: Principal;
       validatedQuery?: unknown;
     }
   }
 }
-
-export {};

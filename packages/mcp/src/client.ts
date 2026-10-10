@@ -32,10 +32,18 @@ export class BackendError extends Error {
   }
 }
 
+/**
+ * How this server authenticates to the backend: its own scoped API token
+ * (preferred — the history then shows agent:<name>), or — during the move to
+ * tokens — the admin username/password, exchanged for a JWT.
+ */
+export type BackendCredentials =
+  | { kind: 'token'; token: string }
+  | { kind: 'password'; username: string; password: string };
+
 export interface GwjClientOptions {
   apiBaseUrl: string;
-  adminUsername: string;
-  adminPassword: string;
+  credentials: BackendCredentials;
   /** Injectable for testing; defaults to the global `fetch`. */
   fetch?: typeof fetch;
 }
@@ -66,16 +74,17 @@ export interface UploadImageInput {
 export function createGwjClient(options: GwjClientOptions): GwjClient {
   const baseUrl = options.apiBaseUrl.replace(/\/+$/, '');
   const fetchImpl = options.fetch ?? fetch;
-  let token: string | null = null;
+  const credentials = options.credentials;
+  let token: string | null = credentials.kind === 'token' ? credentials.token : null;
 
   async function login(): Promise<string> {
+    if (credentials.kind === 'token') {
+      throw new BackendError('The API token was refused (revoked or unknown)', 401);
+    }
     const response = await fetchImpl(`${baseUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        username: options.adminUsername,
-        password: options.adminPassword,
-      }),
+      body: JSON.stringify({ username: credentials.username, password: credentials.password }),
     });
     const payload = await readJson(response);
     if (!response.ok) {
@@ -91,8 +100,9 @@ export function createGwjClient(options: GwjClientOptions): GwjClient {
   }
 
   /**
-   * Perform an authenticated request, re-logging in once on a 401 and retrying.
-   * Returns the raw Response (caller decides how to read the body).
+   * Perform an authenticated request. With password credentials a 401 (expired
+   * JWT) logs in again once and retries; an API token does not expire, so its
+   * 401 is final. Returns the raw Response (caller decides how to read the body).
    */
   async function authedRequestRaw(path: string, init: RequestInit = {}): Promise<Response> {
     const send = async (bearer: string): Promise<Response> => {
@@ -102,7 +112,7 @@ export function createGwjClient(options: GwjClientOptions): GwjClient {
     };
 
     let response = await send(await authToken());
-    if (response.status === 401) {
+    if (response.status === 401 && credentials.kind === 'password') {
       token = null;
       response = await send(await login());
     }

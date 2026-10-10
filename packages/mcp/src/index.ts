@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Health } from '@gwj/shared-types';
-import { createGwjClient, type GwjClient } from './client.js';
+import { createGwjClient, type BackendCredentials, type GwjClient } from './client.js';
 import { loadEnv, type Env } from './env.js';
 import { errorFields, logger } from './logger.js';
 import { createMcpServer } from './tools.js';
@@ -132,12 +132,20 @@ export function createApp(env: Env, client: GwjClient): express.Express {
   return app;
 }
 
+/** The API token when configured; otherwise the admin login (transition). */
+function backendCredentials(env: Env): BackendCredentials {
+  if (env.GWJ_API_TOKEN) return { kind: 'token', token: env.GWJ_API_TOKEN };
+  if (env.ADMIN_USERNAME && env.ADMIN_PASSWORD) {
+    return { kind: 'password', username: env.ADMIN_USERNAME, password: env.ADMIN_PASSWORD };
+  }
+  throw new Error('No backend credentials (loadEnv guarantees one kind is set)');
+}
+
 function main(): void {
   const env = loadEnv();
   const client = createGwjClient({
     apiBaseUrl: env.API_BASE_URL,
-    adminUsername: env.ADMIN_USERNAME,
-    adminPassword: env.ADMIN_PASSWORD,
+    credentials: backendCredentials(env),
   });
   const app = createApp(env, client);
   app.listen(env.MCP_PORT, () => {

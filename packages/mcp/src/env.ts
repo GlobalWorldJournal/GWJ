@@ -18,12 +18,23 @@ const EnvSchema = z.object({
     (value) => /^https?:\/\//.test(value),
     'API_BASE_URL must be an absolute http(s) URL',
   ),
-  ADMIN_USERNAME: requiredSecret('ADMIN_USERNAME'),
-  ADMIN_PASSWORD: requiredSecret('ADMIN_PASSWORD'),
+  // This server's own scoped API token (gwj_…). Preferred: without it, the
+  // admin username/password below are used instead.
+  GWJ_API_TOKEN: requiredSecret('GWJ_API_TOKEN').optional(),
+  ADMIN_USERNAME: requiredSecret('ADMIN_USERNAME').optional(),
+  ADMIN_PASSWORD: requiredSecret('ADMIN_PASSWORD').optional(),
   // The git SHA of the running release, stamped into the task definition by the
   // deploy (absent locally). Reported by /healthz.
   GWJ_RELEASE: z.string().trim().min(1).optional(),
 });
+
+const CredentialedEnvSchema = EnvSchema.refine(
+  (env) => Boolean(env.GWJ_API_TOKEN) || Boolean(env.ADMIN_USERNAME && env.ADMIN_PASSWORD),
+  {
+    message: 'Set GWJ_API_TOKEN (preferred) or both ADMIN_USERNAME and ADMIN_PASSWORD',
+    path: ['GWJ_API_TOKEN'],
+  },
+);
 
 export type Env = z.infer<typeof EnvSchema>;
 
@@ -32,7 +43,7 @@ export type Env = z.infer<typeof EnvSchema>;
  * Throws a readable aggregated error when any required value is missing or invalid.
  */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const result = EnvSchema.safeParse(source);
+  const result = CredentialedEnvSchema.safeParse(source);
   if (!result.success) {
     const issues = result.error.issues
       .map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)

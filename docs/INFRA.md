@@ -36,6 +36,9 @@ Both services log JSON lines. The backend tags each request with an `x-request-i
 ## Cloudflare Pages runtime variables
 The SEO worker reads `API_BASE_URL` (`https://api.globalworldjournal.com`) and `SITE_URL` (`https://globalworldjournal.com`) — set in the Pages project → Settings → Environment variables (Production). They are distinct from the build-time `VITE_API_BASE_URL`.
 
+## Agent API tokens
+Agents (the MCP server, automations) authenticate with their own token, not the admin password: scoped (`articles:write`, `articles:publish`, `articles:delete`, `media:upload`, `takedowns`), revocable, stored only as a SHA-256 hash, and recorded as `agent:<name>` in article history. An admin mints one with `POST /api/admin/tokens {"name","scopes"}` (the secret is in that response only), lists them with `GET /api/admin/tokens` and revokes with `POST /api/admin/tokens/:id/revoke`. The MCP server uses `GWJ_API_TOKEN` when set (SSM `/gwj/MCP_API_TOKEN`); without it, it falls back to the admin login.
+
 ## Operations
 - One-shot command in the backend's environment: `AWS_REGION=us-west-2 ECS_CLUSTER=oxy-cluster scripts/ecs-oneshot.sh gwj-backend <label> -- <command…>` (e.g. `bun run src/seed.ts` to create the admin user).
 - Health: `curl https://api.globalworldjournal.com/healthz` · `curl https://api.globalworldjournal.com/readyz` · `curl https://mcp.globalworldjournal.com/healthz`.

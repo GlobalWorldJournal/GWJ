@@ -438,3 +438,16 @@ describe('add_correction', () => {
     expect(client.addCorrection).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('loadEnv credentials', () => {
+  it('accepts an API token alone, or the admin login, and refuses neither', async () => {
+    const { loadEnv } = await import('../env.js');
+    const base = { MCP_TOKEN: 'secret', API_BASE_URL: 'https://api.example.com' };
+    expect(loadEnv({ ...base, GWJ_API_TOKEN: 'gwj_x' }).GWJ_API_TOKEN).toBe('gwj_x');
+    expect(loadEnv({ ...base, ADMIN_USERNAME: 'nate', ADMIN_PASSWORD: 'pw' }).ADMIN_USERNAME).toBe(
+      'nate',
+    );
+    expect(() => loadEnv(base)).toThrow(/GWJ_API_TOKEN/);
+    expect(() => loadEnv({ ...base, ADMIN_USERNAME: 'nate' })).toThrow(/GWJ_API_TOKEN/);
+  });
+});

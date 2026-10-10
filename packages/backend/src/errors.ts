@@ -52,3 +52,11 @@ export class ConflictError extends HttpError {
     this.name = 'ConflictError';
   }
 }
+
+/** 403 Forbidden — authenticated, but not allowed to do this. */
+export class ForbiddenError extends HttpError {
+  constructor(message = 'Forbidden') {
+    super(403, message);
+    this.name = 'ForbiddenError';
+  }
+}

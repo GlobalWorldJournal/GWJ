@@ -61,8 +61,7 @@ function articleResponse(id: string): Response {
 function baseOptions(overrides: Partial<GwjClientOptions>): GwjClientOptions {
   return {
     apiBaseUrl: 'https://api.example.com',
-    adminUsername: 'nate',
-    adminPassword: 'pw',
+    credentials: { kind: 'password', username: 'nate', password: 'pw' },
     ...overrides,
   };
 }
@@ -256,5 +255,21 @@ describe('client.getArticle (admin routes, includes drafts)', () => {
     const fetchImpl = scriptedFetch([]);
     const client = createGwjClient(baseOptions({ fetch: fetchImpl }));
     await expect(client.getArticle({})).rejects.toBeInstanceOf(BackendError);
+  });
+});
+
+describe('client with its own API token', () => {
+  it('sends the token as is (no login) and does not retry a refused token', async () => {
+    const fetchImpl = scriptedFetch([
+      (url, init) => {
+        expect(url).toBe('https://api.example.com/api/admin/articles/a1');
+        expect(new Headers(init?.headers).get('authorization')).toBe('Bearer gwj_agent-secret');
+        return new Response('{"error":"Unknown or revoked API token"}', { status: 401 });
+      },
+    ]);
+    const client = createGwjClient(
+      baseOptions({ fetch: fetchImpl, credentials: { kind: 'token', token: 'gwj_agent-secret' } }),
+    );
+    await expect(client.getArticle({ id: 'a1' })).rejects.toMatchObject({ status: 401 });
   });
 });
