@@ -14,6 +14,8 @@ import {
   UploadResponseSchema,
   ApiErrorSchema,
   TakedownRequestSchema,
+  ApiTokenSchema,
+  CreatedApiTokenSchema,
   PaginatedTakedownRequestsSchema,
   type Article,
   type ArticleRevisionSummary,
@@ -33,6 +35,9 @@ import {
   type TakedownRequestRecord,
   type PaginatedTakedownRequests,
   type TakedownAction,
+  type ApiToken,
+  type CreateApiTokenInput,
+  type CreatedApiToken,
   type TakedownStatus,
   type ActiveAdResponse,
   type AdCampaign,
@@ -228,6 +233,10 @@ export function login(username: string, password: string): Promise<LoginResponse
 export interface AdminArticlesQuery {
   status?: ArticleStatus;
   category?: Category;
+  language?: Language;
+  /** Free text over headline, deck and body. */
+  q?: string;
+  sort?: 'editorial' | 'latest';
   page?: number;
   limit?: number;
 }
@@ -242,6 +251,9 @@ export function getAdminArticles(
     params: {
       status: query.status,
       category: query.category,
+      language: query.language,
+      q: query.q,
+      sort: query.sort,
       page: query.page,
       limit: query.limit,
     },
@@ -484,4 +496,28 @@ export function uploadAdCreative(
  */
 export function beginMentionAuthorization(token: string): Promise<{ url: string }> {
   return request('/api/admin/mention/connect', z.object({ url: z.string() }), { token });
+}
+
+/** Agent API tokens (admin users only): listed without their secrets. */
+export function getApiTokens(token: string, signal?: AbortSignal): Promise<ApiToken[]> {
+  return request('/api/admin/tokens', z.array(ApiTokenSchema), { token, signal });
+}
+
+/** Mint an agent token. The response carries the secret — the only time it is shown. */
+export function createApiToken(
+  token: string,
+  input: CreateApiTokenInput,
+): Promise<CreatedApiToken> {
+  return request('/api/admin/tokens', CreatedApiTokenSchema, {
+    method: 'POST',
+    token,
+    body: input,
+  });
+}
+
+export function revokeApiToken(token: string, id: string): Promise<ApiToken> {
+  return request(`/api/admin/tokens/${encodeURIComponent(id)}/revoke`, ApiTokenSchema, {
+    method: 'POST',
+    token,
+  });
 }

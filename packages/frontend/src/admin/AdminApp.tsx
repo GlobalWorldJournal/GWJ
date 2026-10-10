@@ -9,6 +9,7 @@ import { Dashboard } from './Dashboard';
 import { Editor } from './Editor';
 import { Takedowns } from './Takedowns';
 import { AdCampaigns } from './AdCampaigns';
+import { Tokens } from './Tokens';
 import { NotFound } from '../pages/NotFound';
 import { LanguageProvider } from '../lib/i18n';
 
@@ -107,6 +108,14 @@ export function AdminApp() {
               element={
                 <RequireAuth>
                   <AdCampaigns />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="tokens"
+              element={
+                <RequireAuth>
+                  <Tokens />
                 </RequireAuth>
               }
             />
