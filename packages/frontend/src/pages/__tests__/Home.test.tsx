@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Article } from '@gwj/shared-types';
-import { sortForHome } from '../Home';
+import { isFresh, sortForHome } from '../Home';
 
 function makeArticle(overrides: Partial<Article> = {}): Article {
   return {
@@ -89,5 +89,31 @@ describe('sortForHome', () => {
     sortForHome(original);
 
     expect(original.map((a) => a.id)).toEqual(['first', 'second']);
+  });
+});
+
+describe('isFresh', () => {
+  const now = Date.parse('2026-10-10T15:35:47.000Z');
+
+  it('a story from today is fresh', () => {
+    const today = makeArticle({ publishedAt: '2026-10-10T12:00:00.000Z' });
+    expect(isFresh(today, now)).toBe(true);
+  });
+
+  it('a story from months ago (old seed data) is not fresh, however high its featured rank', () => {
+    const seeded = makeArticle({ publishedAt: '2026-06-23T12:00:00.000Z', featured: 52 });
+    expect(isFresh(seeded, now)).toBe(false);
+  });
+
+  it('a story right at the edge of the window is still fresh; just past it is not', () => {
+    const sevenDaysAgo = makeArticle({ publishedAt: '2026-10-03T15:35:47.000Z' });
+    const eightDaysAgo = makeArticle({ publishedAt: '2026-10-02T15:35:47.000Z' });
+    expect(isFresh(sevenDaysAgo, now)).toBe(true);
+    expect(isFresh(eightDaysAgo, now)).toBe(false);
+  });
+
+  it('falls back to createdAt when publishedAt is null', () => {
+    const recentDraft = makeArticle({ publishedAt: null, createdAt: '2026-10-09T00:00:00.000Z' });
+    expect(isFresh(recentDraft, now)).toBe(true);
   });
 });

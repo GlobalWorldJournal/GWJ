@@ -43,6 +43,15 @@ export function sortForHome(articles: Article[]): Article[] {
   });
 }
 
+/** A section's sparse old stories read as a neglected paper, not "more of the best":
+ * a rail or band only shows what's genuinely current, even if that means showing
+ * fewer than its usual count, or nothing at all. */
+const FRONT_PAGE_WINDOW_MS = 7 * 86_400_000;
+
+export function isFresh(article: Article, now: number): boolean {
+  return now - Date.parse(article.publishedAt ?? article.createdAt) <= FRONT_PAGE_WINDOW_MS;
+}
+
 export function Home() {
   const { lang, t } = useLang();
   const { data, isPending, isError, error } = useHomeArticles(lang);
@@ -64,7 +73,8 @@ export function Home() {
     return <StatusMessage title={t('noStories')} />;
   }
 
-  const opinion = all.filter((a) => a.category === 'Opinion');
+  const now = Date.now();
+  const opinion = all.filter((a) => a.category === 'Opinion' && isFresh(a, now));
   const news = all.filter((a) => a.category !== 'Opinion');
 
   const lead = news[0] ?? all[0];
@@ -173,8 +183,10 @@ function SectionBands({
   lang: Language;
   t: Translate;
 }) {
+  const now = Date.now();
+  const fresh = articles.filter((a) => isFresh(a, now));
   const sections = CATEGORIES.filter((c) => c !== 'Opinion').filter((c) =>
-    articles.some((a) => a.category === c),
+    fresh.some((a) => a.category === c),
   );
   const STEP = 2;
   const [visible, setVisible] = useState(STEP);
@@ -198,7 +210,7 @@ function SectionBands({
   return (
     <div className="mt-12 flex flex-col gap-10">
       {sections.slice(0, visible).map((category, idx) => {
-        const inCategory = articles.filter((a) => a.category === category).slice(0, 5);
+        const inCategory = fresh.filter((a) => a.category === category).slice(0, 5);
         return (
           <Fragment key={category}>
             <CategorySection name={category} articles={inCategory} lang={lang} t={t} />
