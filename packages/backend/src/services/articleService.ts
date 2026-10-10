@@ -5,6 +5,7 @@ import {
   type ArticleListQuery,
   type ArticleUpdate,
   type PaginatedArticles,
+  type PopularArticlesQuery,
   type ArticleRevision,
   type ArticleRevisionSummary,
   type ArticleStatus,
@@ -41,7 +42,10 @@ import {
 import { BadRequestError, ConflictError, NotFoundError } from '../errors';
 import { errorFields, logger } from '../logger';
 import { enqueueJobs } from '../channels/jobRepository';
+import { findMostViewed, recordView, utcDay } from '../db/repositories/viewRepository';
 import type { ChannelJobAction } from '../db/schema/channelJobs';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Fallback slug stem when a title slugifies to an empty string (e.g. all symbols). */
 const FALLBACK_SLUG = 'article';
@@ -366,6 +370,10 @@ export interface ArticleService {
    * distributed posts are updated to drop the image too.
    */
   removeHeroImage(id: string, actor?: string): Promise<Article>;
+  /** Count a reader's view of a published article (anything else counts nothing). */
+  recordView(id: string, at?: Date): Promise<void>;
+  /** An edition's most viewed published stories over the last `days` (UTC, today included). */
+  popular(query: PopularArticlesQuery, now?: Date): Promise<Article[]>;
   /** Publish every draft whose schedule has come; returns the ids it published. */
   publishDue(now?: Date): Promise<string[]>;
 }
@@ -552,6 +560,16 @@ export const articleService: ArticleService = {
   async removeHeroImage(id, actor = SYSTEM_ACTOR) {
     const { after } = await mutateArticle(id, actor, async () => ({ heroImage: null }));
     return withTranslations(after, false);
+  },
+
+  async recordView(id, at = new Date()) {
+    if (isRecordId(id)) await recordView(id, utcDay(at));
+  },
+
+  async popular(query, now = new Date()) {
+    const since = new Date(now.getTime() - (query.days - 1) * DAY_MS);
+    const rows = await findMostViewed(query.language, utcDay(since), query.limit);
+    return rows.map(rowToArticle);
   },
 
   async publishDue(now = new Date()) {

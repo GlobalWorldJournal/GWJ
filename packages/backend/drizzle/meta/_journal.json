@@ -99,6 +99,13 @@
       "when": 1791709943395,
       "tag": "0013_friendly_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791837559917,
+      "tag": "0014_article_views",
+      "breakpoints": true
     }
   ]
 }

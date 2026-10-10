@@ -7,6 +7,7 @@ import {
   ArticleSchema,
   PaginatedArticlesSchema,
   PaginatedPublicArticlesSchema,
+  PopularArticlesSchema,
   PublicArticleSchema,
   CategoryDocSchema,
   LoginResponseSchema,
@@ -18,6 +19,7 @@ import {
   type ArticleRevisionSummary,
   type PaginatedArticles,
   type PaginatedPublicArticles,
+  type PopularArticles,
   type PublicArticle,
   type CategoryDoc,
   type LoginResponse,
@@ -175,6 +177,29 @@ export function getArticles(
 
 export function getArticle(slug: string, signal?: AbortSignal): Promise<PublicArticle> {
   return request(`/api/articles/${encodeURIComponent(slug)}`, PublicArticleSchema, { signal });
+}
+
+/** An edition's most read stories over the last couple of days, most read first. */
+export function getPopularArticles(
+  language: Language,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<PopularArticles> {
+  return request('/api/articles/popular', PopularArticlesSchema, {
+    params: { language, limit },
+    signal,
+  });
+}
+
+/**
+ * Tell the paper a reader opened an article, for Most Popular. A beacon: it
+ * never delays the page, survives navigating away, and carries nothing about
+ * the reader. A view that fails to send is simply not counted.
+ */
+export function reportArticleView(articleId: string): void {
+  const url = buildUrl(`/api/articles/${encodeURIComponent(articleId)}/view`);
+  if (typeof navigator.sendBeacon === 'function' && navigator.sendBeacon(url)) return;
+  fetch(url, { method: 'POST', keepalive: true }).catch(() => undefined);
 }
 
 export function getCategories(signal?: AbortSignal): Promise<CategoryDoc[]> {
