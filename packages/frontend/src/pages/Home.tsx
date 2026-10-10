@@ -17,6 +17,7 @@ import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
 import { BalancedColumns, type BalancedItem } from '../components/BalancedColumns';
 import { MostPopular } from '../components/MostPopular';
+import { mostPopularRail, usePopularArticles } from '../lib/popular';
 import { StatusMessage } from '../components/StatusMessage';
 import { HomeSkeleton } from '../components/Skeletons';
 
@@ -24,6 +25,9 @@ import { HomeSkeleton } from '../components/Skeletons';
  * global query client's refetchOnWindowFocus is off, so without this the front page
  * never changes until the reader manually reloads. */
 const HOME_REFETCH_MS = 3 * 60_000;
+
+/** Stories in the Most Popular rail. */
+const POPULAR_SIZE = 6;
 
 function useHomeArticles(lang: Language) {
   return useQuery({
@@ -62,6 +66,7 @@ export function isFresh(article: Article, now: number): boolean {
 export function Home() {
   const { lang, t } = useLang();
   const { data, isPending, isError } = useHomeArticles(lang);
+  const popular = usePopularArticles(lang, POPULAR_SIZE);
   usePageMeta(homeMeta(lang));
 
   if (isPending) {
@@ -89,7 +94,12 @@ export function Home() {
   const leftList = rest.slice(3, 6);
   const leadBullets = rest.slice(6, 10);
   const centerMore = rest.slice(10, 14); // fills the center column below the lead
-  const mostPopular = all.slice(0, 6); // "Most Popular" module fills the rail
+  // The most read stories, topped up with current ones only (like every rail).
+  const mostPopular = mostPopularRail(
+    popular.data?.data ?? [],
+    all.filter((a) => isFresh(a, now)),
+    POPULAR_SIZE,
+  );
 
   return (
     <div>
