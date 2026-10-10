@@ -338,6 +338,36 @@ describe('MCP request log', () => {
   });
 });
 
+describe('MCP HTTP hardening', () => {
+  it('sends security headers and cuts off a client after repeated failed authentications', async () => {
+    const { loadEnv } = await import('../env.js');
+    const env = loadEnv({
+      MCP_TOKEN: 'secret',
+      API_BASE_URL: 'https://api.example.com',
+      ADMIN_USERNAME: 'nate',
+      ADMIN_PASSWORD: 'pw',
+    });
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const server = createApp(env, mockClient()).listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const url = `http://127.0.0.1:${port}/mcp`;
+      const attempt = () =>
+        fetch(url, { method: 'POST', headers: { authorization: 'Bearer wrong' } });
+
+      const first = await attempt();
+      expect(first.status).toBe(401);
+      expect(first.headers.get('x-content-type-options')).toBe('nosniff');
+      for (let i = 1; i < 20; i += 1) expect((await attempt()).status).toBe(401);
+      const refused = await attempt();
+      expect(refused.status).toBe(429);
+      expect(await refused.json()).toMatchObject({ error: { code: -32029 } });
+    } finally {
+      server.close();
+    }
+  });
+});
+
 describe('link_translation', () => {
   it('links an article into another story and returns it with its editions', async () => {
     const client = mockClient();

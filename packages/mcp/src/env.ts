@@ -23,6 +23,9 @@ const EnvSchema = z.object({
   GWJ_API_TOKEN: requiredSecret('GWJ_API_TOKEN').optional(),
   ADMIN_USERNAME: requiredSecret('ADMIN_USERNAME').optional(),
   ADMIN_PASSWORD: requiredSecret('ADMIN_PASSWORD').optional(),
+  // Proxies in front of this server (the ALB): `req.ip` is then the real client,
+  // which the failed-authentication limiter keys on.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(1),
   // The git SHA of the running release, stamped into the task definition by the
   // deploy (absent locally). Reported by /healthz.
   GWJ_RELEASE: z.string().trim().min(1).optional(),
