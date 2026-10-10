@@ -8,6 +8,9 @@ import { LanguageProvider } from '../../lib/i18n';
 const getArticle = vi.fn<(slug: string, signal?: AbortSignal) => Promise<Article>>();
 const getArticles =
   vi.fn<(query?: Record<string, unknown>, signal?: AbortSignal) => Promise<PaginatedArticles>>();
+const getPopularArticles =
+  vi.fn<(language: string, limit: number) => Promise<{ data: Article[] }>>();
+const reportArticleView = vi.fn<(articleId: string) => void>();
 
 vi.mock('../../lib/api', async () => {
   const actual = await vi.importActual<typeof import('../../lib/api')>('../../lib/api');
@@ -16,6 +19,8 @@ vi.mock('../../lib/api', async () => {
     getArticle: (slug: string, signal?: AbortSignal) => getArticle(slug, signal),
     getArticles: (query?: Record<string, unknown>, signal?: AbortSignal) =>
       getArticles(query, signal),
+    getPopularArticles: (language: string, limit: number) => getPopularArticles(language, limit),
+    reportArticleView: (articleId: string) => reportArticleView(articleId),
   };
 });
 
@@ -69,6 +74,8 @@ describe('ArticlePage', () => {
   beforeEach(() => {
     getArticle.mockReset();
     getArticles.mockReset();
+    getPopularArticles.mockReset();
+    getPopularArticles.mockResolvedValue({ data: [] });
   });
   afterEach(() => {
     vi.clearAllMocks();
@@ -99,6 +106,29 @@ describe('ArticlePage', () => {
     expect(
       await screen.findByRole('heading', { name: 'More from Jane Reporter' }),
     ).toBeInTheDocument();
+  });
+
+  it('Most Popular leads with the most read stories, and the view is reported once', async () => {
+    // Its own id: a story is reported once per visit, across every test in this file.
+    const main = makeArticle({ id: 'popular-main' });
+    const latest = makeArticle({ id: 'new', slug: 'newest', title: 'Newest Story' });
+    const read = makeArticle({ id: 'read', slug: 'most-read', title: 'Most Read Story' });
+    getArticle.mockResolvedValue(main);
+    getArticles.mockResolvedValue(paginate([main, latest]));
+    // The ranking includes the story on screen: it is left out of its own rail.
+    getPopularArticles.mockResolvedValue({ data: [main, read] });
+
+    renderPage();
+
+    const rail = (await screen.findByRole('heading', { name: 'Most Popular' })).closest('section');
+    await waitFor(() =>
+      expect(
+        Array.from(rail?.querySelectorAll('li') ?? []).map((item) => item.textContent),
+      ).toEqual(['1Most Read Story', '2Newest Story']),
+    );
+    expect(getPopularArticles).toHaveBeenCalledWith('en', 7);
+    expect(reportArticleView).toHaveBeenCalledTimes(1);
+    expect(reportArticleView).toHaveBeenCalledWith('popular-main');
   });
 
   it('passes the active edition language when fetching rail/related articles', async () => {
@@ -137,6 +167,7 @@ describe('ArticlePage reader extras', () => {
     getArticle.mockReset();
     getArticles.mockReset();
     getArticles.mockResolvedValue(paginate([]));
+    getPopularArticles.mockResolvedValue({ data: [] });
   });
 
   it('shows reading time, the update time, corrections, topics and sharing', async () => {

@@ -18,6 +18,7 @@ import { readingMinutes } from '../lib/format';
 import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
 import { MostPopular } from '../components/MostPopular';
+import { mostPopularRail, usePopularArticles, useReportView } from '../lib/popular';
 import { StatusMessage } from '../components/StatusMessage';
 import { ArticleSkeleton } from '../components/Skeletons';
 import { NotFound } from './NotFound';
@@ -73,6 +74,9 @@ export function ArticlePage() {
   // are always called; the queries self-gate via `enabled`/derived inputs.
   const editionQuery = useEditionArticles(lang);
   const categoryQuery = useCategoryArticles(data?.category, lang);
+  // One more than the rail holds: the story being read is left out of it.
+  const popularQuery = usePopularArticles(lang, POPULAR_LIMIT + 1);
+  useReportView(data?.id);
 
   if (isPending) {
     return <ArticleSkeleton />;
@@ -99,8 +103,13 @@ export function ArticlePage() {
   const editionPool = editionQuery.data?.data ?? [];
   const categoryPool = categoryQuery.data?.data ?? [];
 
-  // Most Popular: top stories in this edition, excluding the current article.
-  const mostPopular = editionPool.filter((a) => a.id !== article.id).slice(0, POPULAR_LIMIT);
+  // Most Popular: the edition's most read stories, excluding the current article.
+  const mostPopular = mostPopularRail(
+    popularQuery.data?.data ?? [],
+    editionPool,
+    POPULAR_LIMIT,
+    article.id,
+  );
 
   // "More in {category}": same category + edition, current article excluded. If
   // the category is thin, top up with other recent edition stories so the row

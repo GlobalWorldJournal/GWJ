@@ -349,3 +349,56 @@ describe('articleService.list — sort', () => {
     ).toEqual([fresh.id, lead.id]);
   });
 });
+
+describe('articleService — views and Most Popular', () => {
+  const at = (iso: string) => new Date(iso);
+
+  it('ranks an edition by views over the window; drafts and unknown ids count nothing', async () => {
+    const quiet = await articleService.create(baseInput({ title: 'Quiet', status: 'published' }));
+    const busy = await articleService.create(baseInput({ title: 'Busy', status: 'published' }));
+    const spanish = await articleService.create(
+      baseInput({ title: 'Noticia', language: 'es', status: 'published' }),
+    );
+    const draft = await articleService.create(baseInput({ title: 'Draft' }));
+
+    const today = at('2026-10-10T12:00:00Z');
+    await articleService.recordView(quiet.id, today);
+    for (let i = 0; i < 3; i += 1) await articleService.recordView(busy.id, today);
+    await articleService.recordView(spanish.id, today);
+    await articleService.recordView(draft.id, today);
+    await articleService.recordView('f'.repeat(24), today);
+    await articleService.recordView('not-an-id', today);
+
+    const popular = await articleService.popular({ language: 'en', days: 1, limit: 6 }, today);
+    expect(popular.map((a) => a.title)).toEqual(['Busy', 'Quiet']);
+    const es = await articleService.popular({ language: 'es', days: 1, limit: 6 }, today);
+    expect(es.map((a) => a.title)).toEqual(['Noticia']);
+  });
+
+  it('only counts days inside the window, and stops ranking an unpublished story', async () => {
+    const old = await articleService.create(baseInput({ title: 'Old news', status: 'published' }));
+    const fresh = await articleService.create(baseInput({ title: 'Fresh', status: 'published' }));
+    for (let i = 0; i < 5; i += 1)
+      await articleService.recordView(old.id, at('2026-10-07T12:00:00Z'));
+    await articleService.recordView(fresh.id, at('2026-10-09T23:59:00Z'));
+
+    const now = at('2026-10-10T08:00:00Z');
+    expect(
+      (await articleService.popular({ language: 'en', days: 2, limit: 6 }, now)).map(
+        (a) => a.title,
+      ),
+    ).toEqual(['Fresh']);
+    expect(
+      (await articleService.popular({ language: 'en', days: 7, limit: 6 }, now)).map(
+        (a) => a.title,
+      ),
+    ).toEqual(['Old news', 'Fresh']);
+
+    await articleService.unpublish(old.id);
+    expect(
+      (await articleService.popular({ language: 'en', days: 7, limit: 6 }, now)).map(
+        (a) => a.title,
+      ),
+    ).toEqual(['Fresh']);
+  });
+});
