@@ -78,6 +78,13 @@
       "when": 1791659149016,
       "tag": "0010_api_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791659462002,
+      "tag": "0011_channel_jobs",
+      "breakpoints": true
     }
   ]
 }

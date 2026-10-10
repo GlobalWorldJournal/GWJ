@@ -259,12 +259,21 @@ export function noteId(identity: ActorIdentity, articleId: string): string {
   return `${identity.actorId}/articles/${articleId}/note`;
 }
 
+/**
+ * AS2 `id` of the Note DELIVERED for one publication of an article (`deliveryId`
+ * is the distribution job that published it). Each publication is its own Note:
+ * once a Note is deleted (the story unpublished or taken down), Mastodon keeps
+ * a tombstone for its id and would silently drop a re-Create of the same id.
+ */
+export function publicationNoteId(
+  identity: ActorIdentity,
+  articleId: string,
+  deliveryId: number,
+): string {
+  return `${identity.actorId}/articles/${articleId}/notes/${deliveryId}`;
+}
+
 /** AS2 `id` for the Create activity wrapping an article's Note. */
 export function createActivityId(identity: ActorIdentity, articleId: string): string {
   return `${identity.actorId}/articles/${articleId}/create`;
-}
-
-/** AS2 `id` for an edition's Announce (boost) of an article's Note. */
-export function announceActivityId(identity: ActorIdentity, articleId: string): string {
-  return `${identity.actorId}/articles/${articleId}/announce`;
 }

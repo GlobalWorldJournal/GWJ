@@ -4,6 +4,7 @@ import { loadEnv } from './env';
 import { connectDb, disconnectDb } from './db/client';
 import { buildApp } from './app';
 import { startScheduler } from './services/scheduler';
+import { startOutboxWorker } from './channels/outbox';
 import { errorFields, logger } from './logger';
 
 export { createApp, buildApp } from './app';
@@ -28,15 +29,16 @@ async function bootstrap(): Promise<void> {
   const env = loadEnv();
   // Refuses to start on a schema missing a pre-deploy migration (see connectDb).
   await connectDb(env.DATABASE_URL);
-  // Channel publishing (Mastodon + Telegram) is wired by buildApp and fans out on
-  // the next published article.
-  const { app, activityPub, stopChannels } = buildApp(env);
+  // buildApp registers the distribution channels (Mastodon + Telegram); this
+  // process also works their outbox, like every backend task.
+  const { app, activityPub, channels, stopChannels } = buildApp(env);
   logger.info('activitypub ready', {
     domain: activityPub.registry.domain,
     actors: activityPub.registry.all.length,
   });
 
   const stopScheduler = startScheduler();
+  const stopOutbox = startOutboxWorker(channels);
 
   const server = app.listen(env.PORT, () => {
     logger.info('gwj backend listening', { port: env.PORT });
@@ -45,6 +47,7 @@ async function bootstrap(): Promise<void> {
   const shutdown = (signal: string): void => {
     logger.info('shutting down', { signal });
     stopScheduler();
+    stopOutbox();
     stopChannels();
     server.close(() => {
       void disconnectDb().finally(() => process.exit(0));

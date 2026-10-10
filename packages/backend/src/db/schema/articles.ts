@@ -80,8 +80,8 @@ export const articles = pgTable(
     publishedAt: timestamp({ withTimezone: true, mode: 'date' }),
     /**
      * When the article first went live. Never cleared (unpublish only clears
-     * `publishedAt`), so it freezes the slug and makes the publish fan-out
-     * (fediverse, Telegram) fire exactly once per article.
+     * `publishedAt`), so it freezes the slug, restores the original date on a
+     * re-publish, and tells a delete whether anything was ever distributed.
      */
     firstPublishedAt: timestamp({ withTimezone: true, mode: 'date' }),
     /** A draft set to go live at this time (the scheduler publishes it). */

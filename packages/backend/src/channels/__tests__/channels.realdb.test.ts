@@ -5,13 +5,25 @@ import { loadEnv, resetEnvCache, type Env } from '../../env';
 import type { ActivityPubModule } from '../../activitypub';
 import { mastodonChannel } from '../mastodonChannel';
 import { telegramChannels } from '../telegramChannel';
-import { startChannelPublishing } from '../registry';
-import { channelPostsFor } from '../channelPosts';
+import { registerChannels } from '../registry';
+import { channelPostsFor, recordChannelPost } from '../channelPosts';
+import { claimDueJobs, enqueueJobs, jobsFor } from '../jobRepository';
+import { backoffMs, MAX_ATTEMPTS, processDueJobs, startOutboxWorker } from '../outbox';
 import type { PublishChannel } from '../types';
 import { articleService } from '../../services/articleService';
+import { getDb } from '../../db/client';
 import { useTestDatabase, type TestDatabase } from '../../test/postgres';
 
 const DOMAIN = 'globalworldjournal.com';
+/** Telegram's reply to a successful send: the message it posted. */
+function sentReply(): Response {
+  return new Response(JSON.stringify({ ok: true, result: { message_id: 1, chat: { id: -1 } } }), {
+    status: 200,
+  });
+}
+
+/** The delivery context of a direct channel call (no outbox job behind it). */
+const DELIVERY = { deliveryId: 1 };
 
 let testDb: TestDatabase;
 
@@ -57,6 +69,7 @@ function makeEnv(overrides: Record<string, string> = {}): Env {
   process.env.FEDIVERSE_DOMAIN = DOMAIN;
   delete process.env.TELEGRAM_BOT_TOKEN;
   delete process.env.TELEGRAM_CHANNEL;
+  delete process.env.TELEGRAM_CHANNEL_ES;
   for (const [key, value] of Object.entries(overrides)) {
     process.env[key] = value;
   }
@@ -64,40 +77,57 @@ function makeEnv(overrides: Record<string, string> = {}): Env {
   return loadEnv();
 }
 
-/** A spy channel for registry tests. */
+interface SpyChannel extends PublishChannel {
+  published: Article[];
+  updated: { article: Article; ref: Record<string, unknown> }[];
+  retracted: Record<string, unknown>[];
+  deliveryIds: number[];
+}
+
+/** A recording channel; `failPublish` makes its first N publishes reject. */
 function spyChannel(
   name: string,
   opts: {
     enabled?: boolean;
     languages?: Language[] | 'all';
-    throws?: boolean;
+    failPublish?: number;
     ref?: Record<string, unknown>;
-    retractThrows?: boolean;
+    canUpdate?: boolean;
   } = {},
-): PublishChannel & { calls: Article[]; retracted: Record<string, unknown>[] } {
-  const calls: Article[] = [];
-  const retracted: Record<string, unknown>[] = [];
+): SpyChannel {
   const languages = opts.languages ?? 'all';
-  return {
+  let failures = opts.failPublish ?? 0;
+  const channel: SpyChannel = {
     name,
     platform: 'telegram',
-    calls,
-    retracted,
+    published: [],
+    updated: [],
+    retracted: [],
+    deliveryIds: [],
     servesLanguage: (lang) => languages === 'all' || languages.includes(lang),
     isEnabled: () => opts.enabled ?? true,
-    async publish(article) {
-      calls.push(article);
-      if (opts.throws) throw new Error(`${name} boom`);
+    async publish(article, { deliveryId }) {
+      channel.published.push(article);
+      channel.deliveryIds.push(deliveryId);
+      if (failures > 0) {
+        failures -= 1;
+        throw new Error(`${name} boom`);
+      }
       return opts.ref;
     },
     async retract(ref) {
-      if (opts.retractThrows) throw new Error(`${name} retract boom`);
-      retracted.push(ref);
+      channel.retracted.push(ref);
     },
   };
+  if (opts.canUpdate !== false) {
+    channel.update = async (article, ref) => {
+      channel.updated.push({ article, ref });
+    };
+  }
+  return channel;
 }
 
-/** Create + publish an article so the article-published hook fires for real. Returns it (its id drives retraction tests). */
+/** Create + publish an article through the service (which queues its distribution). */
 async function publishArticle(overrides: Partial<ArticleInput> = {}): Promise<Article> {
   const draft = await articleService.create({
     title: 'Markets Rally Today',
@@ -114,15 +144,18 @@ async function publishArticle(overrides: Partial<ArticleInput> = {}): Promise<Ar
   return articleService.publish(draft.id);
 }
 
-/** Let queued microtasks (the registry's best-effort fan-out) settle. */
-/**
- * Give fire-and-forget work a moment before asserting that something did NOT
- * happen. A positive expectation never uses this: it waits for its condition
- * with `vi.waitFor`, so a slow machine cannot make it flaky.
- */
-async function flush(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 20));
+/** Work the outbox until nothing is due at `now` (later jobs wait for earlier ones). */
+async function drain(channels: readonly PublishChannel[], now: Date = new Date()): Promise<void> {
+  for (let pass = 0; pass < 20; pass += 1) {
+    if ((await processDueJobs(channels, now)) === 0) return;
+  }
+  throw new Error('outbox did not drain');
 }
+
+const summary = (jobs: Awaited<ReturnType<typeof jobsFor>>) =>
+  jobs.map((job) => `${job.channel}:${job.action}:${job.status}`);
+
+let unregister: () => void = () => undefined;
 
 beforeAll(async () => {
   testDb = await useTestDatabase();
@@ -133,6 +166,8 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  unregister();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -140,164 +175,291 @@ afterAll(async () => {
   await testDb.drop();
 });
 
-describe('channel registry routing', () => {
-  it('fans out to every enabled channel that serves the language and skips disabled ones', async () => {
-    const enabledAll = spyChannel('enabled-all', { enabled: true });
-    const disabled = spyChannel('disabled', { enabled: false });
-    const stop = startChannelPublishing([enabledAll, disabled]);
-
-    await publishArticle({ language: 'en' });
-    await vi.waitFor(() => expect(enabledAll.calls).toHaveLength(1));
-    expect(enabledAll.calls[0]?.language).toBe('en');
-    expect(disabled.calls).toHaveLength(0);
-    stop();
-  });
-
-  it('routes by language: only channels whose servesLanguage matches receive the article', async () => {
+describe('distribution planning', () => {
+  it('queues a job per enabled channel serving the edition, in the publish transaction', async () => {
+    const all = spyChannel('all');
     const enOnly = spyChannel('en-only', { languages: ['en'] });
     const esOnly = spyChannel('es-only', { languages: ['es'] });
-    const all = spyChannel('all', { languages: 'all' });
-    const stop = startChannelPublishing([enOnly, esOnly, all]);
+    const disabled = spyChannel('disabled', { enabled: false });
+    unregister = registerChannels([all, enOnly, esOnly, disabled]);
 
-    await publishArticle({ title: 'English Story', language: 'en' });
-    await publishArticle({ title: 'Spanish Story', language: 'es' });
-    await vi.waitFor(() => {
-      expect(enOnly.calls.map((a) => a.title)).toEqual(['English Story']);
-      expect(esOnly.calls.map((a) => a.title)).toEqual(['Spanish Story']);
-      expect(all.calls.map((a) => a.title).sort()).toEqual(['English Story', 'Spanish Story']);
-    });
-    stop();
+    const article = await publishArticle({ language: 'en' });
+    expect(summary(await jobsFor(article.id))).toEqual([
+      'all:publish:pending',
+      'en-only:publish:pending',
+    ]);
   });
 
-  it('isolates a throwing channel: others still receive the article (allSettled)', async () => {
-    const boom = spyChannel('boom', { throws: true });
-    const ok = spyChannel('ok');
-    const stop = startChannelPublishing([boom, ok]);
-
-    await publishArticle({ title: 'Resilient Story' });
-    await vi.waitFor(() => {
-      expect(boom.calls).toHaveLength(1);
-      expect(ok.calls).toHaveLength(1);
-    });
-    expect(ok.calls[0]?.title).toBe('Resilient Story');
-    stop();
-  });
-
-  it('stop() unsubscribes: no further fan-out after stopping', async () => {
+  it('a draft, a re-publish of a live story and an invisible edit queue nothing', async () => {
     const ch = spyChannel('ch');
-    const stop = startChannelPublishing([ch]);
-    stop();
-
-    await publishArticle({ title: 'After Stop' });
-    await flush();
-
-    expect(ch.calls).toHaveLength(0);
-  });
-});
-
-describe('channel retraction (unpublish / delete)', () => {
-  it('records a channel post when publish returns a ref, and retracts + clears it on unpublish', async () => {
-    const ch = spyChannel('ch', { ref: { messageId: 42 } });
-    const stop = startChannelPublishing([ch]);
-
-    const article = await publishArticle({ title: 'To Be Unpublished' });
-    await vi.waitFor(async () => expect(await channelPostsFor(article.id)).toHaveLength(1));
-
-    await articleService.unpublish(article.id);
-
-    await vi.waitFor(async () => {
-      expect(ch.retracted).toEqual([{ messageId: 42 }]);
-      expect(await channelPostsFor(article.id)).toHaveLength(0);
-    });
-    stop();
-  });
-
-  it('retracts on delete too, looked up before the row is gone', async () => {
-    const ch = spyChannel('ch', { ref: { messageId: 7 } });
-    const stop = startChannelPublishing([ch]);
-
-    const article = await publishArticle({ title: 'To Be Deleted' });
-    await vi.waitFor(async () => expect(await channelPostsFor(article.id)).toHaveLength(1));
-
-    await articleService.remove(article.id);
-
-    await vi.waitFor(() => expect(ch.retracted).toEqual([{ messageId: 7 }]));
-    stop();
-  });
-
-  it('a channel that returns nothing from publish is never recorded, so unpublish has nothing to retract', async () => {
-    const ch = spyChannel('ch'); // no `ref` option → publish resolves undefined
-    const stop = startChannelPublishing([ch]);
-
-    const article = await publishArticle({ title: 'No Ref Channel' });
-    await flush();
-    expect(await channelPostsFor(article.id)).toHaveLength(0);
-
-    await articleService.unpublish(article.id);
-    await flush();
-
-    expect(ch.retracted).toHaveLength(0);
-    stop();
-  });
-
-  it('unpublishing an article that was never published retracts nothing (no channel post was ever recorded)', async () => {
-    const ch = spyChannel('ch', { ref: { messageId: 1 } });
-    const stop = startChannelPublishing([ch]);
+    unregister = registerChannels([ch]);
 
     const draft = await articleService.create({
-      title: 'Never Published',
+      title: 'Quiet',
       category: CATEGORIES[0],
       language: 'en',
       author: 'Eleanor Vance',
-      body: '# Draft\n\nNot live.',
+      body: 'Body.',
       status: 'draft',
       featured: 0,
       tags: [],
       seo: {},
     });
-    await articleService.unpublish(draft.id);
-    await flush();
+    await articleService.update(draft.id, { deck: 'Draft edits are not news' });
+    expect(await jobsFor(draft.id)).toEqual([]);
 
-    expect(ch.retracted).toHaveLength(0);
-    stop();
+    await articleService.publish(draft.id);
+    await articleService.publish(draft.id);
+    await articleService.update(draft.id, { featured: 1, tags: ['markets'] });
+    expect(summary(await jobsFor(draft.id))).toEqual(['ch:publish:pending']);
   });
 
-  it('isolates a throwing retract: the post is still cleared, and it does not affect another channel', async () => {
-    const boom = spyChannel('boom', { ref: { messageId: 1 }, retractThrows: true });
-    const ok = spyChannel('ok', { ref: { messageId: 2 } });
-    const stop = startChannelPublishing([boom, ok]);
+  it('a visible edit queues an update only for channels that can update', async () => {
+    const editable = spyChannel('editable');
+    const fixed = spyChannel('fixed', { canUpdate: false });
+    unregister = registerChannels([editable, fixed]);
 
-    const article = await publishArticle({ title: 'Partial Retract Failure' });
-    await vi.waitFor(async () => expect(await channelPostsFor(article.id)).toHaveLength(2));
+    const article = await publishArticle();
+    await articleService.update(article.id, { title: 'Markets Rally, Corrected' });
+    expect(summary(await jobsFor(article.id))).toEqual([
+      'editable:publish:pending',
+      'fixed:publish:pending',
+      'editable:update:pending',
+    ]);
+  });
 
+  it('moving a live story to another edition retracts it there and publishes it here', async () => {
+    const en = spyChannel('en', { languages: ['en'], ref: { post: 'en' } });
+    const es = spyChannel('es', { languages: ['es'], ref: { post: 'es' } });
+    unregister = registerChannels([en, es]);
+
+    const article = await publishArticle({ language: 'en' });
+    await drain([en, es]);
+    await articleService.update(article.id, { language: 'es' });
+    await drain([en, es]);
+
+    expect(en.published.map((a) => a.language)).toEqual(['en']);
+    expect(en.retracted).toEqual([{ post: 'en' }]);
+    expect(es.published.map((a) => a.language)).toEqual(['es']);
+    expect((await channelPostsFor(article.id)).map((p) => p.channel)).toEqual(['es']);
+  });
+
+  it('after unregistering, changes are no longer queued', async () => {
+    unregister = registerChannels([spyChannel('ch')]);
+    unregister();
+    const article = await publishArticle();
+    expect(await jobsFor(article.id)).toEqual([]);
+  });
+});
+
+describe('outbox worker', () => {
+  it('publishes, records the post, and completes the job', async () => {
+    const ch = spyChannel('ch', { ref: { messageId: 42 } });
+    unregister = registerChannels([ch]);
+
+    const article = await publishArticle({ title: 'Delivered' });
+    await drain([ch]);
+
+    expect(ch.published.map((a) => a.title)).toEqual(['Delivered']);
+    const [job] = await jobsFor(article.id);
+    expect(ch.deliveryIds).toEqual([job?.id]);
+    expect(summary(await jobsFor(article.id))).toEqual(['ch:publish:done']);
+    expect((await channelPostsFor(article.id)).map((p) => p.ref)).toEqual([{ messageId: 42 }]);
+  });
+
+  it('updates a delivered post with the article as it is now', async () => {
+    const ch = spyChannel('ch', { ref: { messageId: 42 } });
+    unregister = registerChannels([ch]);
+
+    const article = await publishArticle();
+    await drain([ch]);
+    await articleService.update(article.id, { deck: 'Correction: the index rose 2%, not 3%.' });
+    await drain([ch]);
+
+    expect(ch.updated).toEqual([
+      {
+        article: expect.objectContaining({ deck: 'Correction: the index rose 2%, not 3%.' }),
+        ref: { messageId: 42 },
+      },
+    ]);
+  });
+
+  it('unpublish retracts the post; a later re-publish is a fresh delivery', async () => {
+    const ch = spyChannel('ch', { ref: { messageId: 42 } });
+    unregister = registerChannels([ch]);
+
+    const article = await publishArticle();
+    await drain([ch]);
     await articleService.unpublish(article.id);
+    await drain([ch]);
+    expect(ch.retracted).toEqual([{ messageId: 42 }]);
+    expect(await channelPostsFor(article.id)).toEqual([]);
 
-    await vi.waitFor(async () => {
-      expect(ok.retracted).toEqual([{ messageId: 2 }]);
-      expect(await channelPostsFor(article.id)).toHaveLength(0);
-    });
+    await articleService.publish(article.id);
+    await drain([ch]);
+    expect(ch.published).toHaveLength(2);
+    expect(new Set(ch.deliveryIds).size).toBe(2);
+    expect(await channelPostsFor(article.id)).toHaveLength(1);
+  });
+
+  it('delete retracts the post after the article row is gone', async () => {
+    const ch = spyChannel('ch', { ref: { messageId: 7 } });
+    unregister = registerChannels([ch]);
+
+    const article = await publishArticle();
+    await drain([ch]);
+    await articleService.remove(article.id);
+    await drain([ch]);
+
+    expect(ch.retracted).toEqual([{ messageId: 7 }]);
+    expect(await channelPostsFor(article.id)).toEqual([]);
+  });
+
+  it('a story unpublished before its delivery ran is never posted at all', async () => {
+    const ch = spyChannel('ch', { ref: { messageId: 1 } });
+    unregister = registerChannels([ch]);
+
+    const article = await publishArticle();
+    await articleService.unpublish(article.id);
+    await drain([ch]);
+
+    expect(ch.published).toEqual([]);
+    expect(ch.retracted).toEqual([]);
+    expect(summary(await jobsFor(article.id))).toEqual(['ch:publish:done', 'ch:retract:done']);
+  });
+
+  it('a publish job whose post is already recorded does not post again', async () => {
+    const ch = spyChannel('ch', { ref: { messageId: 1 } });
+    const article = await publishArticle();
+    await recordChannelPost(article.id, 'ch', { messageId: 1 });
+    await enqueueJobs(getDb(), [{ articleId: article.id, channel: 'ch', action: 'publish' }]);
+    await drain([ch]);
+
+    expect(ch.published).toEqual([]);
+  });
+
+  it('retries a failing channel with backoff, without holding up the others', async () => {
+    const flaky = spyChannel('flaky', { failPublish: 1, ref: { messageId: 9 } });
+    const ok = spyChannel('ok');
+    unregister = registerChannels([flaky, ok]);
+
+    const article = await publishArticle();
+    const now = new Date();
+    await drain([flaky, ok], now);
+    expect(ok.published).toHaveLength(1);
+    const [failed] = (await jobsFor(article.id)).filter((job) => job.channel === 'flaky');
+    expect(failed).toMatchObject({ status: 'pending', attempts: 1, lastError: 'flaky boom' });
+    expect(failed?.nextAttemptAt.getTime()).toBe(now.getTime() + backoffMs(1));
+
+    // Not due yet; then due.
+    await drain([flaky, ok], new Date(now.getTime() + backoffMs(1) - 1));
+    expect(flaky.published).toHaveLength(1);
+    await drain([flaky, ok], new Date(now.getTime() + backoffMs(1)));
+    expect(flaky.published).toHaveLength(2);
+    expect(summary(await jobsFor(article.id))).toEqual(['flaky:publish:done', 'ok:publish:done']);
+  });
+
+  it('a later job for the same channel waits for an earlier one still being retried', async () => {
+    const flaky = spyChannel('flaky', { failPublish: 1, ref: { messageId: 9 } });
+    unregister = registerChannels([flaky]);
+
+    const article = await publishArticle();
+    const now = new Date();
+    await drain([flaky], now);
+    await articleService.unpublish(article.id);
+    await drain([flaky], new Date(now.getTime() + 1));
+    // The retraction did not overtake the publish it undoes.
+    expect(flaky.retracted).toEqual([]);
+    expect(summary(await jobsFor(article.id))).toEqual([
+      'flaky:publish:pending',
+      'flaky:retract:pending',
+    ]);
+
+    await drain([flaky], new Date(now.getTime() + backoffMs(1)));
+    expect(summary(await jobsFor(article.id))).toEqual([
+      'flaky:publish:done',
+      'flaky:retract:done',
+    ]);
+    // The story was already a draft again: nothing was posted, nothing retracted.
+    expect(flaky.published).toHaveLength(1);
+    expect(flaky.retracted).toEqual([]);
+  });
+
+  it(`gives up after ${MAX_ATTEMPTS} attempts`, async () => {
+    const broken = spyChannel('broken', { failPublish: MAX_ATTEMPTS });
+    unregister = registerChannels([broken]);
+
+    const article = await publishArticle();
+    let now = new Date();
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      await drain([broken], now);
+      now = new Date(now.getTime() + backoffMs(attempt));
+    }
+    expect(broken.published).toHaveLength(MAX_ATTEMPTS);
+    const [job] = await jobsFor(article.id);
+    expect(job).toMatchObject({ status: 'failed', attempts: MAX_ATTEMPTS });
+    await drain([broken], new Date(now.getTime() + backoffMs(MAX_ATTEMPTS)));
+    expect(broken.published).toHaveLength(MAX_ATTEMPTS);
+  });
+
+  it('fails a job for a channel this process does not have', async () => {
+    unregister = registerChannels([spyChannel('gone')]);
+    const article = await publishArticle();
+    await drain([]);
+    expect(summary(await jobsFor(article.id))).toEqual(['gone:publish:failed']);
+  });
+
+  it('a leased job is not handed out again until its lease expires', async () => {
+    unregister = registerChannels([spyChannel('ch')]);
+    await publishArticle();
+    const now = new Date();
+    const leaseMs = 60_000;
+
+    expect(await claimDueJobs(now, 10, leaseMs)).toHaveLength(1);
+    expect(await claimDueJobs(now, 10, leaseMs)).toHaveLength(0);
+    const [again] = await claimDueJobs(new Date(now.getTime() + leaseMs), 10, leaseMs);
+    expect(again?.attempts).toBe(2);
+  });
+
+  it('startOutboxWorker works the queue on its interval and stops', async () => {
+    const ch = spyChannel('ch');
+    unregister = registerChannels([ch]);
+    await publishArticle();
+
+    const stop = startOutboxWorker([ch], 10);
+    await vi.waitFor(() => expect(ch.published).toHaveLength(1));
     stop();
   });
 });
 
 describe('mastodon channel', () => {
-  it('delegates publish to the AP module deliverArticle and serves all languages', async () => {
-    const deliverArticle = vi
-      .fn<(article: Article) => Promise<void>>()
-      .mockResolvedValue(undefined);
-    const apModule = { deliverArticle } as unknown as ActivityPubModule;
-    const channel = mastodonChannel(apModule);
+  it('federates through the AP module and records the delivered Note', async () => {
+    const note = { noteId: 'https://gwj.test/users/news/articles/a1/notes/5', author: 'news' };
+    const deliverArticle = vi.fn<ActivityPubModule['deliverArticle']>().mockResolvedValue(note);
+    const updateArticle = vi.fn<ActivityPubModule['updateArticle']>().mockResolvedValue();
+    const deleteArticle = vi.fn<ActivityPubModule['deleteArticle']>().mockResolvedValue();
+    const channel = mastodonChannel({
+      deliverArticle,
+      updateArticle,
+      deleteArticle,
+    } as unknown as ActivityPubModule);
 
     expect(channel.platform).toBe('mastodon');
     expect(channel.isEnabled()).toBe(true);
-    expect(channel.servesLanguage('en')).toBe(true);
-    expect(channel.servesLanguage('es')).toBe(true);
-    expect(channel.servesLanguage('fr')).toBe(true);
+    expect(['en', 'es', 'fr'].every((lang) => channel.servesLanguage(lang as Language))).toBe(true);
 
     const article = makeArticle({ language: 'es' });
-    await channel.publish(article);
-    expect(deliverArticle).toHaveBeenCalledTimes(1);
-    expect(deliverArticle).toHaveBeenCalledWith(article);
+    const ref = await channel.publish(article, { deliveryId: 5 });
+    expect(deliverArticle).toHaveBeenCalledWith(article, 5);
+    expect(ref).toEqual(note);
+
+    await channel.update?.(article, { ...note });
+    expect(updateArticle).toHaveBeenCalledWith(article, note);
+    await channel.retract?.({ ...note });
+    expect(deleteArticle).toHaveBeenCalledWith(note);
+
+    await channel.retract?.({ messageId: 1 });
+    expect(deleteArticle).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -314,15 +476,13 @@ describe('telegram channel', () => {
     expect(tg.servesLanguage('en')).toBe(true);
     expect(tg.servesLanguage('es')).toBe(false);
 
-    await tg.publish(makeArticle());
+    await tg.publish(makeArticle(), DELIVERY);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('with a token + hero image: sends sendPhoto with the right chat_id, HTML caption and en URL', async () => {
     const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123', TELEGRAM_CHANNEL: '@GWJOfficial' });
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(sentReply());
     const tg = telegramChannels(env)[0];
     if (!tg) throw new Error('telegram channel missing');
 
@@ -334,6 +494,7 @@ describe('telegram channel', () => {
         deck: 'Stocks surged.',
         heroImage: { url: 'https://cdn.example.test/articles/hero.jpg', alt: 'floor' },
       }),
+      DELIVERY,
     );
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -355,13 +516,11 @@ describe('telegram channel', () => {
 
   it('falls back to sendMessage when there is no hero image', async () => {
     const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(sentReply());
     const tg = telegramChannels(env)[0];
     if (!tg) throw new Error('telegram channel missing');
 
-    await tg.publish(makeArticle({ language: 'en', heroImage: undefined }));
+    await tg.publish(makeArticle({ language: 'en', heroImage: undefined }), DELIVERY);
 
     const call = fetchSpy.mock.calls[0];
     if (!call) throw new Error('fetch not called');
@@ -382,11 +541,11 @@ describe('telegram channel', () => {
     const tg = telegramChannels(env)[0];
     if (!tg) throw new Error('telegram channel missing');
 
-    await tg.publish(makeArticle({ language: 'es', slug: 'hola-mundo' }));
+    await tg.publish(makeArticle({ language: 'es', slug: 'hola-mundo' }), DELIVERY);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('publish reads { chatId, messageId } out of a real sendPhoto reply, so it can be retracted later', async () => {
+  it('publish records { chatId, messageId, kind } from a real sendPhoto reply, to edit or retract it later', async () => {
     const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123', TELEGRAM_CHANNEL: '@GWJOfficial' });
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
@@ -402,18 +561,96 @@ describe('telegram channel', () => {
         language: 'en',
         heroImage: { url: 'https://cdn.example.test/hero.jpg', alt: '' },
       }),
+      DELIVERY,
     );
-    expect(ref).toEqual({ chatId: -1001234, messageId: 555 });
+    expect(ref).toEqual({ chatId: -1001234, messageId: 555, kind: 'photo' });
   });
 
-  it('publish resolves no ref when the reply has no usable result (so nothing gets recorded for later retraction)', async () => {
+  it('publish rejects (so the job is retried) on a reply without a message or a non-OK reply', async () => {
     const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const tg = telegramChannels(env)[0];
     if (!tg) throw new Error('telegram channel missing');
+    const article = makeArticle({ language: 'en', heroImage: undefined });
 
-    const ref = await tg.publish(makeArticle({ language: 'en', heroImage: undefined }));
-    expect(ref).toBeUndefined();
+    fetchSpy.mockResolvedValueOnce(new Response('{"ok":true}', { status: 200 }));
+    await expect(tg.publish(article, DELIVERY)).rejects.toThrow(/no message in the reply/);
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        '{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 5"}',
+        {
+          status: 429,
+        },
+      ),
+    );
+    await expect(tg.publish(article, DELIVERY)).rejects.toThrow(/HTTP 429 Too Many Requests/);
+    fetchSpy.mockRejectedValueOnce(new Error('network down'));
+    await expect(tg.publish(article, DELIVERY)).rejects.toThrow(/network down/);
+  });
+
+  it('update edits the post in place: text, photo and caption, or caption only', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => new Response('{"ok":true,"result":{}}', { status: 200 }));
+    const tg = telegramChannels(env)[0];
+    if (!tg?.update) throw new Error('telegram channel missing update');
+    const hero = { url: 'https://cdn.example.test/new.jpg', alt: '' };
+    const sent = () =>
+      fetchSpy.mock.calls.map(([url, init]) => ({
+        method: String(url).split('/').pop(),
+        body: JSON.parse(String((init as RequestInit).body)),
+      }));
+
+    await tg.update(makeArticle({ title: 'Fixed' }), { chatId: -1, messageId: 1, kind: 'text' });
+    await tg.update(makeArticle({ title: 'Fixed', heroImage: hero }), {
+      chatId: -1,
+      messageId: 2,
+      kind: 'photo',
+    });
+    await tg.update(makeArticle({ title: 'Fixed' }), { chatId: -1, messageId: 3, kind: 'photo' });
+
+    expect(sent().map((call) => call.method)).toEqual([
+      'editMessageText',
+      'editMessageMedia',
+      'editMessageCaption',
+    ]);
+    const [text, media, caption] = sent();
+    expect(text?.body).toMatchObject({ chat_id: -1, message_id: 1, parse_mode: 'HTML' });
+    expect(text?.body.text).toContain('<b>Fixed</b>');
+    expect(media?.body.media).toMatchObject({ type: 'photo', media: hero.url, parse_mode: 'HTML' });
+    expect(caption?.body.caption).toContain('<b>Fixed</b>');
+  });
+
+  it('update leaves a post recorded before posts carried their kind as posted', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const tg = telegramChannels(env)[0];
+    if (!tg?.update) throw new Error('telegram channel missing update');
+
+    await tg.update(makeArticle(), { chatId: -1, messageId: 1 });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('treats a post already gone or already up to date as done', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
+    const refusal = (description: string) =>
+      new Response(JSON.stringify({ ok: false, error_code: 400, description }), { status: 400 });
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(refusal('Bad Request: message to delete not found'))
+      .mockResolvedValueOnce(
+        refusal(
+          'Bad Request: message is not modified: specified new message content is exactly the same',
+        ),
+      )
+      .mockResolvedValueOnce(refusal('Bad Request: not enough rights to delete a message'));
+    const tg = telegramChannels(env)[0];
+    if (!tg?.retract || !tg.update) throw new Error('telegram channel incomplete');
+    const ref = { chatId: -1, messageId: 1, kind: 'text' };
+
+    await expect(tg.retract(ref)).resolves.toBeUndefined();
+    await expect(tg.update(makeArticle(), ref)).resolves.toBeUndefined();
+    await expect(tg.retract(ref)).rejects.toThrow(/not enough rights/);
   });
 
   it('retract calls deleteMessage with the exact chat_id and message_id from the ref', async () => {
@@ -447,31 +684,25 @@ describe('telegram channel', () => {
   });
 });
 
-describe('telegram channel — language routing through the registry', () => {
+describe('telegram channel — language routing through the outbox', () => {
   it('an en article sends only to the English channel; an es article only to the Spanish one', async () => {
     const env = makeEnv({
       TELEGRAM_BOT_TOKEN: 'BOT123',
       TELEGRAM_CHANNEL: '@GWJOfficial',
       TELEGRAM_CHANNEL_ES: '@gwj_ES',
     });
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => sentReply());
     // Only the Telegram channels (no Mastodon) so fetch calls map 1:1 to Telegram posts.
-    const stop = startChannelPublishing(telegramChannels(env));
+    const channels = telegramChannels(env);
+    unregister = registerChannels(channels);
 
     await publishArticle({ title: 'English Story', language: 'en' });
     await publishArticle({ title: 'Spanish Story', language: 'es' });
+    await drain(channels);
 
-    // One send per edition, each to its own channel — never the other's. Wait
-    // for both, then confirm nothing extra shows up a moment later.
-    const telegramCalls = () =>
-      fetchSpy.mock.calls.filter(([url]) => String(url).startsWith('https://api.telegram.org/'));
-    await vi.waitFor(() => expect(telegramCalls()).toHaveLength(2));
-    await flush();
-    expect(telegramCalls()).toHaveLength(2);
-
-    const bodies = telegramCalls().map(([, init]) =>
+    // One send per edition, each to its own channel — never the other's.
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const bodies = fetchSpy.mock.calls.map(([, init]) =>
       JSON.parse(String((init as RequestInit | undefined)?.body)),
     );
     const english = bodies.find((b) => (b.caption ?? b.text)?.includes('English Story'));
@@ -484,6 +715,5 @@ describe('telegram channel — language routing through the registry', () => {
     expect(spanish?.caption ?? spanish?.text).toContain(
       'Read: https://globalworldjournal.com/es/article/spanish-story',
     );
-    stop();
   });
 });

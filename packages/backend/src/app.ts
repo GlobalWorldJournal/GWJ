@@ -8,14 +8,16 @@ import { createPublicRouter } from './routes/public';
 import { createAuthRouter } from './routes/auth';
 import { createAdminRouter } from './routes/admin';
 import { createUploadService, type UploadService } from './services/uploadService';
-import { type RemoteImageOptions } from './services/remoteImageService';
+import type { RemoteImageOptions } from './services/remoteImageService';
 import { sql } from 'drizzle-orm';
 import { createErrorHandler, notFoundHandler } from './middleware/error';
 import { requestLog } from './middleware/requestLog';
 import { getDb } from './db/client';
 import { errorFields, logger } from './logger';
 import { createActivityPub, type ActivityPubModule, type ActivityPubOptions } from './activitypub';
-import { startChannels } from './channels';
+import { buildChannels } from './channels';
+import { registerChannels } from './channels/registry';
+import type { PublishChannel } from './channels/types';
 
 const RATE_WINDOW_MS = 15 * 60 * 1000;
 const PUBLIC_MAX = 300;
@@ -33,14 +35,16 @@ export interface CreateAppOptions {
   remoteImage?: RemoteImageOptions;
 }
 
-/** The Express app, the ActivityPub module, and the channel publishing handle. */
+/** The Express app, the ActivityPub module, and the distribution channels. */
 export interface BuiltApp {
   app: Express;
   activityPub: ActivityPubModule;
+  /** The distribution channels article changes are queued for (the outbox works them). */
+  channels: readonly PublishChannel[];
   /**
-   * Stop distribution-channel publishing (unsubscribe from article-published
-   * transitions). Call at graceful shutdown, and in tests that build multiple app
-   * instances so a stale listener doesn't fan out across instances.
+   * Stop queueing distribution jobs for these channels. Call at graceful
+   * shutdown, and in tests that build multiple app instances so a stale planner
+   * doesn't queue jobs for another instance's channels.
    */
   stopChannels(): void;
 }
@@ -52,10 +56,10 @@ export interface BuiltApp {
  * upload service. The caller connects the pool first (`connectDb`); actor signing
  * keys are then resolved lazily on first use.
  *
- * It also starts distribution-channel publishing (Mastodon + Telegram): the channel
- * registry owns the single article-published subscription and routes each published
- * article to every enabled channel that serves its edition. Stop it via
- * {@link BuiltApp.stopChannels}.
+ * It also registers the distribution channels (Mastodon + Telegram): from then on
+ * every article change queues its distribution jobs for the enabled channels
+ * serving its edition. The jobs are worked by the outbox worker, which the server
+ * entry point starts (channels/outbox.ts). Stop it via {@link BuiltApp.stopChannels}.
  */
 export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   const app = express();
@@ -133,9 +137,9 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   const activityPub = createActivityPub(env, options.activityPub);
   app.use(federationLimiter, activityPub.router);
 
-  // The channel registry owns the single article-published subscription and fans
-  // each published article out to the Mastodon + Telegram channels by edition.
-  const stopChannels = startChannels(env, activityPub);
+  // Article changes queue their distribution to these channels, by edition.
+  const channels = buildChannels(env, activityPub);
+  const stopChannels = registerChannels(channels);
 
   app.use(express.json({ limit: '1mb' }));
 
@@ -154,7 +158,7 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   app.use(notFoundHandler);
   app.use(createErrorHandler(env.NODE_ENV === 'development'));
 
-  return { app, activityPub, stopChannels };
+  return { app, activityPub, channels, stopChannels };
 }
 
 /**

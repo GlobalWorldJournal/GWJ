@@ -383,8 +383,8 @@ export async function updateArticle(
   return row;
 }
 
-export async function deleteArticle(id: string): Promise<boolean> {
-  const rows = await getDb()
+export async function deleteArticle(id: string, executor: Executor = getDb()): Promise<boolean> {
+  const rows = await executor
     .delete(articles)
     .where(eq(articles.id, id))
     .returning({ id: articles.id });

@@ -3,18 +3,15 @@ import { bigint, index, jsonb, pgTable, text, timestamp, unique } from 'drizzle-
 /**
  * One row per article successfully delivered to one distribution channel
  * (`channel`, e.g. `"telegram:en"` — a {@link import('../../channels/types').PublishChannel}'s
- * `name`). Recorded so a later retraction (the article is unpublished or deleted)
- * can find and remove the right destination post.
+ * `name`). Recorded so a later update or retraction (an edit, an unpublish, a
+ * delete) can find the right destination post; removed once it is retracted.
  *
- * `ref` is opaque, channel-specific retraction data — Telegram stores
- * `{ chatId, messageId }`, the two fields `deleteMessage` needs. A channel that
- * can't retract (Mastodon, WhatsApp today) never gets a row here at all.
+ * `ref` is opaque, channel-specific data — Telegram stores `{ chatId, messageId,
+ * kind }`, Mastodon the delivered Note `{ noteId, author, announcer }`.
  *
- * Deliberately NO foreign key to `articles`, same reasoning as
- * `takedown_requests`: the registry looks these rows up and retracts them BEFORE
- * an article delete completes (`services/articleService.ts`'s `remove`), not via
- * a DB-level cascade — a cascade would remove the bookkeeping before the
- * application ever got to call Telegram's API.
+ * Deliberately NO foreign key to `articles`, same reasoning as `channel_jobs`:
+ * the retraction of a deleted article runs after its row is gone, and a cascade
+ * would remove the bookkeeping it needs.
  */
 export const articleChannelPosts = pgTable(
   'article_channel_posts',

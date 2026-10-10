@@ -40,64 +40,95 @@ import {
 } from '../db/repositories/revisionRepository';
 import { BadRequestError, ConflictError, NotFoundError } from '../errors';
 import { errorFields, logger } from '../logger';
+import { enqueueJobs } from '../channels/jobRepository';
+import type { ChannelJobAction } from '../db/schema/channelJobs';
 
 /** Fallback slug stem when a title slugifies to an empty string (e.g. all symbols). */
 const FALLBACK_SLUG = 'article';
 
 /**
- * A listener notified when an article transitions INTO the published state — i.e.
- * a fresh publish, not a re-save of an already-published article. ActivityPub
- * delivery subscribes to this so federation stays decoupled: the dependency points
- * AP → articleService, never the reverse. Listeners must not throw; they own their
- * own error handling and must never block or fail the publish response.
+ * Which distribution channels (fediverse, Telegram, …) should act on an
+ * article change. Registered by the channels module at startup, so the
+ * dependency points channels → articleService, never the reverse; without one
+ * (tests, scripts) changes are simply not distributed.
  */
-export type ArticlePublishedListener = (article: Article) => void;
+export type DeliveryPlanner = (language: Language, action: ChannelJobAction) => string[];
 
-const publishedListeners: ArticlePublishedListener[] = [];
+let deliveryPlanner: DeliveryPlanner | null = null;
 
-/** Register a listener for article-published transitions. Returns an unsubscribe fn. */
-export function onArticlePublished(listener: ArticlePublishedListener): () => void {
-  publishedListeners.push(listener);
+/** Register the planner (channels module, at startup). Returns an unregister fn. */
+export function setDeliveryPlanner(planner: DeliveryPlanner): () => void {
+  deliveryPlanner = planner;
   return () => {
-    const index = publishedListeners.indexOf(listener);
-    if (index >= 0) publishedListeners.splice(index, 1);
+    if (deliveryPlanner === planner) deliveryPlanner = null;
   };
 }
 
-/** Notify all registered listeners that an article just became published. */
-function emitArticlePublished(article: Article): void {
-  for (const listener of publishedListeners) {
-    listener(article);
-  }
+/** The article fields a distributed post shows: a change to one is worth an update. */
+const DISTRIBUTED_FIELDS = [
+  'title',
+  'deck',
+  'kicker',
+  'body',
+  'heroImage',
+  'slug',
+  'corrections',
+] as const;
+
+type DistributionState = Pick<
+  ArticleRow,
+  'status' | 'language' | (typeof DISTRIBUTED_FIELDS)[number]
+>;
+
+/** One distribution step: what to do to the article's posts in one edition's channels. */
+interface DistributionStep {
+  language: Language;
+  action: ChannelJobAction;
 }
 
 /**
- * A listener notified when an article stops being publicly visible: unpublished
- * back to draft, or deleted outright. Channel delivery (Telegram) subscribes to
- * this to retract whatever it posted, the same decoupled-dependency shape as
- * {@link ArticlePublishedListener}. Only the id is passed — a deleted article has
- * no row left to read, and retraction only ever needs the id to look up what was
- * delivered. Listeners must not throw; they own their own error handling and must
- * never block or fail the unpublish/delete response.
+ * What an article change means for its distributed posts: going live
+ * publishes, leaving public view retracts, a visible change to a live story
+ * updates, and moving a live story to another edition retracts it from the
+ * old edition's channels and publishes it to the new one's. Everything else
+ * (drafts, internal fields) is not distributed.
  */
-export type ArticleRetractedListener = (articleId: string) => void;
-
-const retractedListeners: ArticleRetractedListener[] = [];
-
-/** Register a listener for article-retracted transitions. Returns an unsubscribe fn. */
-export function onArticleRetracted(listener: ArticleRetractedListener): () => void {
-  retractedListeners.push(listener);
-  return () => {
-    const index = retractedListeners.indexOf(listener);
-    if (index >= 0) retractedListeners.splice(index, 1);
-  };
+function distributionPlan(
+  before: DistributionState | null,
+  after: DistributionState,
+): DistributionStep[] {
+  const wasLive = before?.status === 'published';
+  const isLive = after.status === 'published';
+  if (!before || !wasLive) return isLive ? [{ language: after.language, action: 'publish' }] : [];
+  if (!isLive) return [{ language: before.language, action: 'retract' }];
+  if (before.language !== after.language) {
+    return [
+      { language: before.language, action: 'retract' },
+      { language: after.language, action: 'publish' },
+    ];
+  }
+  const changed = DISTRIBUTED_FIELDS.some((field) => !sameValue(before[field], after[field]));
+  return changed ? [{ language: after.language, action: 'update' }] : [];
 }
 
-/** Notify all registered listeners that an article just stopped being public. */
-function emitArticleRetracted(articleId: string): void {
-  for (const listener of retractedListeners) {
-    listener(articleId);
-  }
+/**
+ * Queue the distribution steps for an article — in the caller's transaction,
+ * so a committed change is always distributed and a rolled-back one never is.
+ * The outbox worker (channels/outbox.ts) does the actual work.
+ */
+async function enqueueDistribution(
+  tx: Executor,
+  articleId: string,
+  steps: readonly DistributionStep[],
+): Promise<void> {
+  const planner = deliveryPlanner;
+  if (!planner) return;
+  await enqueueJobs(
+    tx,
+    steps.flatMap(({ language, action }) =>
+      planner(language, action).map((channel) => ({ articleId, channel, action })),
+    ),
+  );
 }
 
 /**
@@ -169,14 +200,6 @@ function assertSchedulable(scheduledAt: string | null | undefined, status: Artic
       },
     );
   }
-}
-
-/**
- * The publish fan-out (fediverse, Telegram) fires exactly once per article: on its
- * FIRST transition into published. Unpublish → re-publish is not news again.
- */
-function isFirstPublish(before: Pick<ArticleRow, 'firstPublishedAt'>, after: ArticleRow): boolean {
-  return before.firstPublishedAt === null && after.status === 'published';
 }
 
 /**
@@ -286,9 +309,10 @@ async function mutateArticle(
       }
     }
     if (Object.keys(changes).length === 0) return { before: current, after: current };
-    // History: the state this change replaces, in the same transaction.
+    // History and distribution, in the same transaction as the change itself.
     await insertRevision(tx, id, snapshotOf(current), actor);
     const after = await updateArticle(tx, id, { ...changes, updatedAt: new Date() });
+    await enqueueDistribution(tx, id, distributionPlan(current, after));
     return { before: current, after };
   });
 }
@@ -385,45 +409,46 @@ export const articleService: ArticleService = {
 
   async create(input) {
     assertSchedulable(input.scheduledAt, input.status);
-    const db = getDb();
     const now = new Date();
     const id = newRecordId(now);
-    const row = await insertArticle(db, {
-      id,
-      // Its own story unless declared an edition of an existing one.
-      translationGroupId: input.translationOf
-        ? await translationGroupFor(db, input.translationOf, input.language, id)
-        : id,
-      slug: input.slug
-        ? await claimSlug(db, input.slug)
-        : await generateUniqueSlug(db, input.title),
-      title: input.title,
-      deck: input.deck,
-      kicker: input.kicker,
-      category: input.category,
-      language: input.language,
-      author: input.author,
-      body: input.body,
-      heroImage: input.heroImage,
-      status: input.status,
-      featured: input.featured,
-      tags: input.tags,
-      seo: input.seo,
-      source: input.source,
-      publishedAt: input.status === 'published' ? now : null,
-      firstPublishedAt: input.status === 'published' ? now : null,
-      scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
-      createdAt: now,
-      updatedAt: now,
+    const row = await getDb().transaction(async (db) => {
+      const inserted = await insertArticle(db, {
+        id,
+        // Its own story unless declared an edition of an existing one.
+        translationGroupId: input.translationOf
+          ? await translationGroupFor(db, input.translationOf, input.language, id)
+          : id,
+        slug: input.slug
+          ? await claimSlug(db, input.slug)
+          : await generateUniqueSlug(db, input.title),
+        title: input.title,
+        deck: input.deck,
+        kicker: input.kicker,
+        category: input.category,
+        language: input.language,
+        author: input.author,
+        body: input.body,
+        heroImage: input.heroImage,
+        status: input.status,
+        featured: input.featured,
+        tags: input.tags,
+        seo: input.seo,
+        source: input.source,
+        publishedAt: input.status === 'published' ? now : null,
+        firstPublishedAt: input.status === 'published' ? now : null,
+        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      // A story created directly in the published state is distributed at once.
+      await enqueueDistribution(db, inserted.id, distributionPlan(null, inserted));
+      return inserted;
     });
-    const article = rowToArticle(row);
-    // A story created directly in the published state federates immediately.
-    if (article.status === 'published') emitArticlePublished(article);
-    return article;
+    return rowToArticle(row);
   },
 
   async update(id, patch, actor = SYSTEM_ACTOR) {
-    const { before, after } = await mutateArticle(id, actor, async (current, tx) => {
+    const { after } = await mutateArticle(id, actor, async (current, tx) => {
       const changes: Partial<NewArticleRow> = {
         title: patch.title,
         deck: patch.deck,
@@ -486,28 +511,24 @@ export const articleService: ArticleService = {
       }
       return changes;
     });
-    const article = rowToArticle(after);
-    if (isFirstPublish(before, after)) emitArticlePublished(article);
-    return article;
+    return rowToArticle(after);
   },
 
   async publish(id, actor = SYSTEM_ACTOR) {
-    const { before, after } = await mutateArticle(id, actor, async (current) =>
+    const { after } = await mutateArticle(id, actor, async (current) =>
       current.status === 'published' ? {} : publishStamps(current, new Date()),
     );
-    const article = rowToArticle(after);
-    if (isFirstPublish(before, after)) emitArticlePublished(article);
-    return article;
+    return rowToArticle(after);
   },
 
   async unpublish(id, actor = SYSTEM_ACTOR) {
     // `firstPublishedAt` is kept: the slug stays frozen and a later re-publish
-    // restores the original date without re-announcing the story.
-    const { before, after } = await mutateArticle(id, actor, async () => ({
+    // restores the original date. The distributed posts are retracted (queued
+    // by mutateArticle) and published again if the story goes live again.
+    const { after } = await mutateArticle(id, actor, async () => ({
       status: 'draft',
       publishedAt: null,
     }));
-    if (before.status === 'published') emitArticleRetracted(id);
     return rowToArticle(after);
   },
 
@@ -528,13 +549,12 @@ export const articleService: ArticleService = {
       try {
         // Re-checked under the row lock: a schedule cancelled or moved since the
         // lookup is respected, and two backend tasks running this at once publish
-        // (and fan out) each article exactly once.
+        // (and queue its distribution) exactly once.
         const { before, after } = await mutateArticle(id, SCHEDULER_ACTOR, async (current) =>
           current.status === 'draft' && current.scheduledAt !== null && current.scheduledAt <= now
             ? publishStamps(current, now)
             : {},
         );
-        if (isFirstPublish(before, after)) emitArticlePublished(rowToArticle(after));
         if (after.status === 'published' && before.status !== 'published') published.push(id);
       } catch (err) {
         logger.error('scheduled publish failed', { articleId: id, ...errorFields(err) });
@@ -584,11 +604,17 @@ export const articleService: ArticleService = {
   },
 
   async remove(id) {
-    if (!isRecordId(id) || !(await deleteArticle(id))) throw new NotFoundError('Article not found');
-    // After the row is gone, not before: retraction only needs the id, and a
-    // listener that failed to look anything up would retry forever against an
-    // article that no longer exists either way.
-    emitArticleRetracted(id);
+    if (!isRecordId(id)) throw new NotFoundError('Article not found');
+    await getDb().transaction(async (tx) => {
+      const current = await findArticleByIdForUpdate(tx, id);
+      if (!current) throw new NotFoundError('Article not found');
+      await deleteArticle(id, tx);
+      // Whatever was ever distributed is taken down: retraction needs only the
+      // id and the recorded posts, not the deleted row.
+      if (current.firstPublishedAt !== null) {
+        await enqueueDistribution(tx, id, [{ language: current.language, action: 'retract' }]);
+      }
+    });
   },
 
   async search(q, query) {

@@ -2,7 +2,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { CATEGORIES, type ArticleInput } from '@gwj/shared-types';
+import { CATEGORIES, type Article, type ArticleInput } from '@gwj/shared-types';
 import { loadEnv, resetEnvCache, type Env } from '../../env';
 import { buildApp, type BuiltApp } from '../../app';
 import { and, count, eq, type SQL } from 'drizzle-orm';
@@ -10,6 +10,7 @@ import { getDb } from '../../db/client';
 import { followers } from '../../db/schema/followers';
 import { useTestDatabase, type TestDatabase } from '../../test/postgres';
 import { articleService } from '../../services/articleService';
+import { processDueJobs } from '../../channels/outbox';
 import { signRequest, computeDigest } from '../httpSignature';
 import { clearRemoteActorCache } from '../remoteActor';
 import type { ActorKeyPair } from '../keyService';
@@ -107,7 +108,16 @@ function setTestEnv(): Env {
   return loadEnv();
 }
 
-async function seedPublished(overrides: Partial<ArticleInput> = {}): Promise<void> {
+/** Work the distribution outbox until nothing is due (the publish → federation step). */
+async function drainOutbox(): Promise<void> {
+  // Later jobs for an article wait for earlier ones: keep passing until idle.
+  let ran: number;
+  do {
+    ran = await processDueJobs(built.channels);
+  } while (ran > 0);
+}
+
+async function seedPublished(overrides: Partial<ArticleInput> = {}): Promise<Article> {
   const draft = await articleService.create({
     title: 'Markets Rally Today',
     category: CATEGORIES[2],
@@ -122,7 +132,9 @@ async function seedPublished(overrides: Partial<ArticleInput> = {}): Promise<voi
     heroImage: { url: `${CDN_BASE}/articles/hero.jpg`, alt: 'Trading floor' },
     ...overrides,
   });
-  await articleService.publish(draft.id);
+  const article = await articleService.publish(draft.id);
+  await drainOutbox();
+  return article;
 }
 
 /** Count follower rows matching an optional local actor / remote actor. */
@@ -561,7 +573,7 @@ describe('ActivityPub publish delivery — writer Create + edition Announce', ()
     });
 
     await seedPublished({ title: 'Federated Headline', language: 'en', author: WRITER_NAME });
-    await vi.waitFor(() => expect(outboundPosts.length).toBeGreaterThanOrEqual(2));
+    expect(outboundPosts).toHaveLength(2);
 
     // Writer delivers a Create to its follower, signed by the writer.
     const createDelivery = outboundPosts.find((p) => p.url === writerInbox);
@@ -595,7 +607,7 @@ describe('ActivityPub publish delivery — writer Create + edition Announce', ()
     });
 
     await seedPublished({ title: 'Wire Report', language: 'en', author: 'Reuters Staff' });
-    await vi.waitFor(() => expect(outboundPosts.length).toBeGreaterThanOrEqual(1));
+    expect(outboundPosts).toHaveLength(1);
 
     const delivery = outboundPosts.find((p) => p.url === editionInbox);
     expect(delivery).toBeDefined();
@@ -614,9 +626,88 @@ describe('ActivityPub publish delivery — writer Create + edition Announce', ()
 
   it('publish with no followers is a no-op (no outbound delivery)', async () => {
     await seedPublished({ title: 'Lonely Story', author: WRITER_NAME });
-    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(
       outboundPosts.filter((p) => (p.init.method ?? 'GET').toUpperCase() === 'POST'),
     ).toHaveLength(0);
+  });
+
+  describe('ActivityPub edit and retraction — Update / Delete of the delivered Note', () => {
+    const writerInbox = 'https://remote.example/users/wfollower/inbox';
+    const editionInbox = 'https://remote.example/users/efollower/inbox';
+
+    beforeEach(async () => {
+      await insertFollower({
+        actorUsername: WRITER_USERNAME,
+        actorId: 'https://remote.example/users/wfollower',
+        inbox: writerInbox,
+        followedAt: new Date(),
+      });
+      await insertFollower({
+        actorUsername: NEWS,
+        actorId: 'https://remote.example/users/efollower',
+        inbox: editionInbox,
+        followedAt: new Date(),
+      });
+    });
+
+    const delivered = (type: string) =>
+      outboundPosts
+        .map((post) => ({ url: post.url, body: JSON.parse((post.init.body as string) ?? '{}') }))
+        .filter((post) => post.body.type === type);
+
+    it('a visible edit sends the writer-signed Update of the same Note to writer and edition followers', async () => {
+      const article = await seedPublished({ title: 'First Take', author: WRITER_NAME });
+      const [create] = delivered('Create');
+      const noteId = create?.body.object.id;
+      expect(noteId).toMatch(new RegExp(`^${writerId}/articles/${article.id}/notes/\\d+$`));
+
+      await articleService.update(article.id, { title: 'Second Take' });
+      await drainOutbox();
+
+      const updates = delivered('Update');
+      expect(updates.map((u) => u.url).sort()).toEqual([editionInbox, writerInbox].sort());
+      const update = updates[0]?.body;
+      expect(update.actor).toBe(writerId);
+      expect(update.object.id).toBe(noteId);
+      expect(update.object.content).toContain('Second Take');
+      expect(update.object.updated).toBeDefined();
+    });
+
+    it('unpublish sends a Delete (Tombstone) of the Note; re-publishing federates a NEW Note', async () => {
+      const article = await seedPublished({ title: 'Pulled Story', author: WRITER_NAME });
+      const firstNote = delivered('Create')[0]?.body.object.id;
+
+      await articleService.unpublish(article.id);
+      await drainOutbox();
+      const deletes = delivered('Delete');
+      expect(deletes.map((d) => d.url).sort()).toEqual([editionInbox, writerInbox].sort());
+      expect(deletes[0]?.body).toMatchObject({
+        actor: writerId,
+        object: { id: firstNote, type: 'Tombstone' },
+      });
+
+      await articleService.publish(article.id);
+      await drainOutbox();
+      const creates = delivered('Create');
+      expect(creates).toHaveLength(2);
+      // A tombstoned id would be ignored by Mastodon: the new publication is a new Note.
+      expect(creates[1]?.body.object.id).not.toBe(firstNote);
+      expect(delivered('Announce')[1]?.body.object).toBe(creates[1]?.body.object.id);
+    });
+
+    it('deleting a published article sends the Delete too', async () => {
+      const article = await seedPublished({ title: 'Deleted Story', author: 'Reuters Staff' });
+      const note = delivered('Create')[0]?.body.object.id;
+
+      await articleService.remove(article.id);
+      await drainOutbox();
+
+      const [deletion] = delivered('Delete');
+      expect(deletion?.url).toBe(editionInbox);
+      expect(deletion?.body).toMatchObject({
+        actor: newsId,
+        object: { id: note, type: 'Tombstone' },
+      });
+    });
   });
 });
