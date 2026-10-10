@@ -1,4 +1,4 @@
-import { isValidObjectId } from 'mongoose'
+import { isDeepStrictEqual } from 'node:util'
 import {
   type Article,
   type ArticleInput,
@@ -7,7 +7,22 @@ import {
   type PaginatedArticles,
   slugify,
 } from '@gwj/shared-types'
-import { ArticleModel, articleToDTO, type ArticleDoc } from '../models/Article'
+import { getDb } from '../db/client'
+import { isRecordId, newRecordId } from '../db/ids'
+import {
+  deleteArticle,
+  findArticleById,
+  findArticleByIdForUpdate,
+  findArticleBySlug,
+  insertArticle,
+  isSlugTaken,
+  listArticles,
+  rowToArticle,
+  updateArticle,
+  type ArticleFilter,
+  type Executor,
+} from '../db/repositories/articleRepository'
+import type { ArticleRow, NewArticleRow } from '../db/schema/articles'
 import { NotFoundError } from '../errors'
 
 /** Fallback slug stem when a title slugifies to an empty string (e.g. all symbols). */
@@ -41,33 +56,25 @@ function emitArticlePublished(article: Article): void {
 }
 
 /**
- * Generate a slug unique across the collection. Starts from the title's slug and
- * appends `-2`, `-3`, … until no existing document claims it. An optional
- * `excludeId` lets updates keep checking against everyone *but themselves*.
+ * Generate a slug unique across the table. Starts from the title's slug and
+ * appends `-2`, `-3`, … until no OTHER article claims it. The `articles_slug_unique`
+ * constraint remains the authority: a concurrent writer that wins the race makes
+ * this insert fail with 23505, which the error handler answers as 409.
  */
-async function generateUniqueSlug(title: string, excludeId?: string): Promise<string> {
+async function generateUniqueSlug(executor: Executor, title: string, excludeId?: string): Promise<string> {
   const base = slugify(title) || FALLBACK_SLUG
   let candidate = base
   let suffix = 2
-  for (;;) {
-    const existing = await ArticleModel.findOne({ slug: candidate }).select('_id').lean()
-    if (!existing || (excludeId && existing._id.toString() === excludeId)) return candidate
+  while (await isSlugTaken(executor, candidate, excludeId)) {
     candidate = `${base}-${suffix}`
     suffix += 1
   }
+  return candidate
 }
 
-async function findDocById(id: string): Promise<ArticleDoc> {
-  // A malformed id is a resource that does not exist (404), not a server error.
-  if (!isValidObjectId(id)) throw new NotFoundError('Article not found')
-  const doc = await ArticleModel.findById(id)
-  if (!doc) throw new NotFoundError('Article not found')
-  return doc
-}
-
-function buildPaginated(docs: ArticleDoc[], total: number, page: number, limit: number): PaginatedArticles {
+function buildPaginated(rows: ArticleRow[], total: number, page: number, limit: number): PaginatedArticles {
   return {
-    data: docs.map((d) => articleToDTO(d)),
+    data: rows.map(rowToArticle),
     pagination: {
       page,
       limit,
@@ -75,6 +82,48 @@ function buildPaginated(docs: ArticleDoc[], total: number, page: number, limit: 
       totalPages: total === 0 ? 0 : Math.ceil(total / limit),
     },
   }
+}
+
+/**
+ * Compare the way Mongoose decided a path was modified: by value. A JSON round
+ * trip drops `undefined` keys first, so `{ url, caption: undefined }` from a patch
+ * equals the stored `{ url }`.
+ */
+function sameValue(a: unknown, b: unknown): boolean {
+  const normalize = (v: unknown): unknown => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)))
+  if (a instanceof Date || b instanceof Date) {
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime()
+  }
+  return isDeepStrictEqual(normalize(a), normalize(b))
+}
+
+/**
+ * Run a read-modify-write on one article inside a transaction with the row locked
+ * (`SELECT … FOR UPDATE`), so two concurrent publishes cannot both observe "draft"
+ * and both fan out. Only columns whose value actually changes are written, and
+ * `updated_at` moves only when something did — a re-save of identical values was
+ * a no-op `save()` under Mongoose and stays one here.
+ */
+async function mutateArticle(
+  id: string,
+  apply: (current: ArticleRow, tx: Executor) => Promise<Partial<NewArticleRow>>,
+): Promise<{ before: ArticleRow; after: ArticleRow }> {
+  if (!isRecordId(id)) throw new NotFoundError('Article not found')
+  return getDb().transaction(async (tx) => {
+    const current = await findArticleByIdForUpdate(tx, id)
+    if (!current) throw new NotFoundError('Article not found')
+    const proposed = await apply(current, tx)
+    const changes: Partial<NewArticleRow> = {}
+    for (const [key, value] of Object.entries(proposed) as [keyof NewArticleRow, unknown][]) {
+      if (value === undefined) continue
+      if (!sameValue(value, current[key as keyof ArticleRow])) {
+        Object.assign(changes, { [key]: value })
+      }
+    }
+    if (Object.keys(changes).length === 0) return { before: current, after: current }
+    const after = await updateArticle(tx, id, { ...changes, updatedAt: new Date() })
+    return { before: current, after }
+  })
 }
 
 /** Options controlling whether a listing is restricted to published articles. */
@@ -105,7 +154,7 @@ export interface ArticleService {
 
 export const articleService: ArticleService = {
   async list(query, options) {
-    const filter: Record<string, unknown> = {}
+    const filter: ArticleFilter = {}
     if (query.status) {
       filter.status = query.status
     } else if (!options?.includeAll) {
@@ -114,116 +163,119 @@ export const articleService: ArticleService = {
     }
     if (query.category) filter.category = query.category
     if (query.language) filter.language = query.language
-    if (query.featured) filter.featured = { $gt: 0 }
-    if (options?.author) filter.author = options.author
+    if (query.featured) filter.featuredOnly = true
+    if (options?.author !== undefined) filter.author = options.author
 
-    // Free-text search (title/deck/body via the text index). Lets the admin/MCP
-    // check for an EXISTING similar story before writing a new one — incl. drafts
-    // on the admin path — so the newsroom does not publish duplicates.
+    // Free-text search (title/deck). Lets the admin/MCP check for an EXISTING
+    // similar story before writing a new one — incl. drafts on the admin path —
+    // so the newsroom does not publish duplicates.
     const q = query.q?.trim()
-    if (q) filter.$text = { $search: q }
+    if (q) filter.q = q
 
-    const total = await ArticleModel.countDocuments(filter)
-    const docs = await ArticleModel.find(filter)
-      .sort(q ? { score: { $meta: 'textScore' }, publishedAt: -1 } : { featured: -1, publishedAt: -1, createdAt: -1 })
-      .skip((query.page - 1) * query.limit)
-      .limit(query.limit)
-    return buildPaginated(docs, total, query.page, query.limit)
+    const { rows, total } = await listArticles(filter, query.page, query.limit)
+    return buildPaginated(rows, total, query.page, query.limit)
   },
 
   async getBySlug(slug, options) {
-    const filter = options?.includeDrafts ? { slug } : { slug, status: 'published' }
-    const doc = await ArticleModel.findOne(filter)
-    if (!doc) throw new NotFoundError('Article not found')
-    return articleToDTO(doc)
+    const row = await findArticleBySlug(slug, !options?.includeDrafts)
+    if (!row) throw new NotFoundError('Article not found')
+    return rowToArticle(row)
   },
 
   async getById(id) {
-    const doc = await findDocById(id)
-    return articleToDTO(doc)
+    // A malformed id is a resource that does not exist (404), not a server error.
+    const row = isRecordId(id) ? await findArticleById(id) : null
+    if (!row) throw new NotFoundError('Article not found')
+    return rowToArticle(row)
   },
 
   async create(input) {
-    const slug = await generateUniqueSlug(input.title)
-    const publishedAt = input.status === 'published' ? new Date() : null
-    const doc = await ArticleModel.create({ ...input, slug, publishedAt })
-    const article = articleToDTO(doc)
+    const db = getDb()
+    const now = new Date()
+    const row = await insertArticle(db, {
+      id: newRecordId(now),
+      slug: await generateUniqueSlug(db, input.title),
+      title: input.title,
+      deck: input.deck,
+      kicker: input.kicker,
+      category: input.category,
+      language: input.language,
+      author: input.author,
+      body: input.body,
+      heroImage: input.heroImage,
+      status: input.status,
+      featured: input.featured,
+      tags: input.tags,
+      seo: input.seo,
+      source: input.source,
+      publishedAt: input.status === 'published' ? now : null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const article = rowToArticle(row)
     // A story created directly in the published state federates immediately.
     if (article.status === 'published') emitArticlePublished(article)
     return article
   },
 
   async update(id, patch) {
-    const doc = await findDocById(id)
-    const wasPublished = doc.status === 'published'
-    if (patch.title !== undefined && patch.title !== doc.title) {
-      doc.slug = await generateUniqueSlug(patch.title, id)
-    }
-    // Assign only the fields present in the partial patch.
-    if (patch.title !== undefined) doc.title = patch.title
-    if (patch.deck !== undefined) doc.deck = patch.deck
-    if (patch.kicker !== undefined) doc.kicker = patch.kicker
-    if (patch.category !== undefined) doc.category = patch.category
-    if (patch.language !== undefined) doc.language = patch.language
-    if (patch.author !== undefined) doc.author = patch.author
-    if (patch.body !== undefined) doc.body = patch.body
-    if (patch.heroImage !== undefined) doc.heroImage = patch.heroImage
-    if (patch.featured !== undefined) doc.featured = patch.featured
-    if (patch.tags !== undefined) doc.tags = patch.tags
-    if (patch.seo !== undefined) doc.seo = patch.seo
-    if (patch.source !== undefined) doc.source = patch.source
-    if (patch.status !== undefined) {
-      doc.status = patch.status
-      if (patch.status === 'published' && !doc.publishedAt) doc.publishedAt = new Date()
-      if (patch.status === 'draft') doc.publishedAt = null
-    }
-    await doc.save()
-    const article = articleToDTO(doc)
+    const { before, after } = await mutateArticle(id, async (current, tx) => {
+      const changes: Partial<NewArticleRow> = {
+        title: patch.title,
+        deck: patch.deck,
+        kicker: patch.kicker,
+        category: patch.category,
+        language: patch.language,
+        author: patch.author,
+        body: patch.body,
+        heroImage: patch.heroImage,
+        featured: patch.featured,
+        tags: patch.tags,
+        seo: patch.seo,
+        source: patch.source,
+      }
+      if (patch.title !== undefined && patch.title !== current.title) {
+        changes.slug = await generateUniqueSlug(tx, patch.title, id)
+      }
+      if (patch.status !== undefined) {
+        changes.status = patch.status
+        if (patch.status === 'published' && !current.publishedAt) changes.publishedAt = new Date()
+        if (patch.status === 'draft') changes.publishedAt = null
+      }
+      return changes
+    })
+    const article = rowToArticle(after)
     // Fan out only on the draft→published transition, not on edits to an already
     // published story, so followers aren't re-notified for every correction.
-    if (!wasPublished && article.status === 'published') emitArticlePublished(article)
+    if (before.status !== 'published' && article.status === 'published') emitArticlePublished(article)
     return article
   },
 
   async publish(id) {
-    const doc = await findDocById(id)
-    const wasPublished = doc.status === 'published'
-    doc.status = 'published'
-    // Preserve the original publish time on re-publish; only stamp it the first time.
-    if (!doc.publishedAt) doc.publishedAt = new Date()
-    await doc.save()
-    const article = articleToDTO(doc)
-    if (!wasPublished) emitArticlePublished(article)
+    const { before, after } = await mutateArticle(id, async (current) => ({
+      status: 'published',
+      // Preserve the original publish time on re-publish; only stamp it the first time.
+      publishedAt: current.publishedAt ?? new Date(),
+    }))
+    const article = rowToArticle(after)
+    if (before.status !== 'published') emitArticlePublished(article)
     return article
   },
 
   async unpublish(id) {
-    const doc = await findDocById(id)
-    doc.status = 'draft'
-    doc.publishedAt = null
-    await doc.save()
-    return articleToDTO(doc)
+    const { after } = await mutateArticle(id, async () => ({ status: 'draft', publishedAt: null }))
+    return rowToArticle(after)
   },
 
   async remove(id) {
-    if (!isValidObjectId(id)) throw new NotFoundError('Article not found')
-    const result = await ArticleModel.findByIdAndDelete(id)
-    if (!result) throw new NotFoundError('Article not found')
+    if (!isRecordId(id) || !(await deleteArticle(id))) throw new NotFoundError('Article not found')
   },
 
   async search(q, query) {
-    const filter: Record<string, unknown> = {
-      status: query.status ?? 'published',
-      $text: { $search: q },
-    }
+    const filter: ArticleFilter = { status: query.status ?? 'published', q }
     if (query.category) filter.category = query.category
     if (query.language) filter.language = query.language
-
-    const total = await ArticleModel.countDocuments(filter)
-    const docs = await ArticleModel.find(filter)
-      .sort({ score: { $meta: 'textScore' }, publishedAt: -1 })
-      .skip((query.page - 1) * query.limit)
-      .limit(query.limit)
-    return buildPaginated(docs, total, query.page, query.limit)
+    const { rows, total } = await listArticles(filter, query.page, query.limit)
+    return buildPaginated(rows, total, query.page, query.limit)
   },
 }

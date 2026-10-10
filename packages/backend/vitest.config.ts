@@ -4,8 +4,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    // mongodb-memory-server may download its mongod binary on first run.
-    testTimeout: 60000,
-    hookTimeout: 120000,
+    // `*.realdb.test.ts` files each create, migrate and drop their own database on
+    // the server named by TEST_POSTGRES_URL (see src/test/postgres.ts).
+    testTimeout: 30000,
+    hookTimeout: 60000,
   },
 })
