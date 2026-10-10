@@ -2,12 +2,16 @@ import type { InboundActivity } from '@gwj/shared-types';
 import { InboundActivitySchema } from '@gwj/shared-types';
 import {
   assertDigestMatches,
-  assertFreshDate,
+  assertFreshRequest,
   parseSignatureHeader,
   verifySignature,
   type VerifyRequestInput,
 } from './httpSignature';
-import { fetchRemoteActor, type FederationFetchOptions } from './remoteActor';
+import {
+  fetchRemoteActor,
+  RemoteActorFetchError,
+  type FederationFetchOptions,
+} from './remoteActor';
 import { buildAcceptActivity } from './documents';
 import { followerService } from './followerService';
 import type { DeliveryService } from './deliveryService';
@@ -34,13 +38,6 @@ export interface InboxHandleInput extends VerifyRequestInput {
    * resolved from the activity's `object`.
    */
   targetActor?: ActorIdentity;
-}
-
-/** Extract the `keyId` from a request's Signature header, or null. */
-function keyIdFromSignature(signatureHeader: string | undefined): string | null {
-  if (!signatureHeader) return null;
-  const params = parseSignatureHeader(signatureHeader);
-  return params.keyId ?? null;
 }
 
 /**
@@ -71,16 +68,18 @@ export function createInboxService(deps: InboxServiceDeps): InboxService {
         headers[name.toLowerCase()] = Array.isArray(value) ? value.join(', ') : value;
       }
 
-      // 1. Freshness: reject stale/missing Date to blunt replay.
-      const dateError = assertFreshDate(headers.date);
-      if (dateError) return { status: 401, reason: dateError };
+      const signature = headers.signature ? parseSignatureHeader(headers.signature) : {};
+
+      // 1. Freshness: reject a stale or undated request to blunt replay.
+      const freshnessError = assertFreshRequest(headers.date, signature);
+      if (freshnessError) return { status: 401, reason: freshnessError };
 
       // 2. Body integrity: the Digest header must match the raw body.
       const digestError = assertDigestMatches(headers.digest, input.rawBody);
       if (digestError) return { status: 401, reason: digestError };
 
       // 3. Locate the signing key by fetching the remote actor named in keyId.
-      const keyId = keyIdFromSignature(headers.signature);
+      const keyId = signature.keyId;
       if (!keyId) return { status: 401, reason: 'Missing or unparseable Signature keyId' };
 
       let publicKeyPem: string;
@@ -98,6 +97,9 @@ export function createInboxService(deps: InboxServiceDeps): InboxService {
         signerActorId = remote.id;
         signerKeyOwner = remote.publicKey.owner;
       } catch (err) {
+        if (err instanceof RemoteActorFetchError && GONE_STATUSES.has(err.status)) {
+          return handleGoneSigner(input.rawBody, err.actorUrl);
+        }
         const reason = err instanceof Error ? err.message : 'Could not fetch signing actor';
         logger.warn('activitypub inbox: failed to fetch signer', { keyId, reason });
         return { status: 401, reason: 'Could not resolve signing key' };
@@ -140,6 +142,32 @@ export function createInboxService(deps: InboxServiceDeps): InboxService {
       return dispatch(parsed.data, input.targetActor, deps);
     },
   };
+}
+
+/** What a remote server answers for an actor that no longer exists. */
+const GONE_STATUSES: ReadonlySet<number> = new Set([404, 410]);
+
+/**
+ * A request signed by an actor whose own server says it is gone (404/410). Its
+ * key is gone too, so the signature cannot be checked — but for the one
+ * activity such an actor sends, the Delete of itself, the origin's answer is
+ * the proof: the actor is removed from every local actor it followed, whoever
+ * sent the request, since a live actor's server would not answer 404/410.
+ * Anything else from a gone actor is refused.
+ */
+async function handleGoneSigner(rawBody: Buffer, signerUrl: string): Promise<InboxResult> {
+  const parsed = InboundActivitySchema.safeParse(parseBody(rawBody));
+  if (
+    parsed.success &&
+    parsed.data.type === 'Delete' &&
+    parsed.data.actor === signerUrl &&
+    objectId(parsed.data.object) === signerUrl
+  ) {
+    const removed = await followerService.removeEverywhere(signerUrl);
+    logger.info('activitypub follower removed (actor gone)', { follower: signerUrl, removed });
+    return { status: 202, reason: 'Delete processed' };
+  }
+  return { status: 401, reason: 'Signing actor is gone' };
 }
 
 /** Parse the raw body to JSON; returns null on failure (caller rejects as 400). */
