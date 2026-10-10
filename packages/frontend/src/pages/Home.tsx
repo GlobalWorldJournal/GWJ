@@ -17,10 +17,16 @@ import { MostPopular } from '../components/MostPopular';
 import { StatusMessage } from '../components/StatusMessage';
 import { HomeSkeleton } from '../components/Skeletons';
 
+/** Refetch while the tab is open: the newsroom publishes every few minutes, and the
+ * global query client's refetchOnWindowFocus is off, so without this the front page
+ * never changes until the reader manually reloads. */
+const HOME_REFETCH_MS = 3 * 60_000;
+
 function useHomeArticles(lang: Language) {
   return useQuery({
     queryKey: ['articles', 'home', lang],
     queryFn: ({ signal }) => getArticles({ language: lang, limit: 50 }, signal),
+    refetchInterval: HOME_REFETCH_MS,
   });
 }
 
