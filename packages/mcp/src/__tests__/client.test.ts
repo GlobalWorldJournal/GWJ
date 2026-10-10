@@ -1,7 +1,5 @@
-import type { LookupAddress } from 'node:dns'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BackendError, createGwjClient, type GwjClientOptions } from '../client.js'
-import { SsrfError } from '../ssrfGuard.js'
 import { makeTruncatedPng, makeValidPng } from './imageFixtures.js'
 
 /** A real, complete PNG large enough to pass the validator's min-dimension gate. */
@@ -9,12 +7,10 @@ const VALID_PNG = makeValidPng(800, 700)
 /** A PNG truncated mid-IDAT (no IEND) — the corruption that shipped. */
 const TRUNCATED_PNG = makeTruncatedPng(800, 700)
 
-const PUBLIC_RESOLVER = async (): Promise<LookupAddress[]> => [{ address: '93.184.216.34', family: 4 }]
-const LOOPBACK_RESOLVER = async (): Promise<LookupAddress[]> => [{ address: '127.0.0.1', family: 4 }]
 
 type FetchInput = Parameters<typeof fetch>[0]
 type FetchInit = Parameters<typeof fetch>[1]
-type FetchHandler = (url: string, init?: FetchInit) => Response
+type FetchHandler = (url: string, init?: FetchInit) => Response | Promise<Response>
 
 /** Minimal fetch double whose responses are scripted per call. */
 function scriptedFetch(handlers: FetchHandler[]): typeof fetch {
@@ -32,18 +28,6 @@ function loginResponse(): Response {
     JSON.stringify({ token: 'jwt-token', user: { username: 'nate', role: 'admin' } }),
     { status: 200, headers: { 'content-type': 'application/json' } },
   )
-}
-
-/** Respond with raw bytes and a content-type (defaults to PNG). */
-function imageResponse(
-  body: Uint8Array,
-  extraHeaders: Record<string, string> = {},
-  contentType = 'image/png',
-): Response {
-  return new Response(body, {
-    status: 200,
-    headers: { 'content-type': contentType, ...extraHeaders },
-  })
 }
 
 function uploadResponse(): Response {
@@ -80,127 +64,58 @@ function baseOptions(overrides: Partial<GwjClientOptions>): GwjClientOptions {
     apiBaseUrl: 'https://api.example.com',
     adminUsername: 'nate',
     adminPassword: 'pw',
-    resolveDns: PUBLIC_RESOLVER,
     ...overrides,
   }
 }
 
-describe('client.uploadImage url branch (SSRF-hardened)', () => {
+describe('client.uploadImage', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  // Note: uploadImage fetches the remote image FIRST (resolveImageBytes), then
-  // logs in lazily, then POSTs the upload. So the call order is [image, login, upload].
-
-  it('blocks a url whose host resolves to loopback (never reaches fetch)', async () => {
-    // The SSRF guard rejects before any network egress → fetch must never be called.
-    const fetchImpl = scriptedFetch([])
-    const client = createGwjClient(baseOptions({ fetch: fetchImpl, resolveDns: LOOPBACK_RESOLVER }))
-    await expect(
-      client.uploadImage({ url: 'https://evil.example.com/x.jpg', filename: 'x.jpg' }),
-    ).rejects.toBeInstanceOf(SsrfError)
-  })
-
-  it('rejects a 3xx redirect instead of following it', async () => {
+  it('hands a remote URL to the backend (which downloads it behind its SSRF guard); MCP never fetches it', async () => {
     const fetchImpl = scriptedFetch([
-      (_url, init) => {
-        expect(init?.redirect).toBe('manual')
-        return new Response(null, { status: 302, headers: { location: 'https://internal/' } })
-      },
-    ])
-    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
-    await expect(
-      client.uploadImage({ url: 'https://cdn.example.com/x.jpg', filename: 'x.jpg' }),
-    ).rejects.toMatchObject({ message: expect.stringMatching(/redirect/i) })
-  })
-
-  it('rejects a non-image content-type', async () => {
-    const fetchImpl = scriptedFetch([
-      () => new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } }),
-    ])
-    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
-    await expect(
-      client.uploadImage({ url: 'https://cdn.example.com/x.jpg', filename: 'x.jpg' }),
-    ).rejects.toMatchObject({ message: expect.stringMatching(/did not return an image/i) })
-  })
-
-  it('rejects an image larger than 10 MB (declared content-length)', async () => {
-    const fetchImpl = scriptedFetch([
-      () => imageResponse(new Uint8Array(8), { 'content-length': String(11 * 1024 * 1024) }),
-    ])
-    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
-    await expect(
-      client.uploadImage({ url: 'https://cdn.example.com/x.png', filename: 'x.png' }),
-    ).rejects.toMatchObject({ message: expect.stringMatching(/10 MB/i) })
-  })
-
-  it('rejects an image larger than 10 MB (actual body even without content-length)', async () => {
-    const fetchImpl = scriptedFetch([() => imageResponse(new Uint8Array(11 * 1024 * 1024))])
-    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
-    await expect(
-      client.uploadImage({ url: 'https://cdn.example.com/x.png', filename: 'x.png' }),
-    ).rejects.toMatchObject({ message: expect.stringMatching(/10 MB/i) })
-  })
-
-  it('rejects a truncated download (received bytes ≠ Content-Length)', async () => {
-    // Server promises the full image size but the body arrives short — exactly
-    // the partial-download failure that produced truncated hero images.
-    const fetchImpl = scriptedFetch([
-      () =>
-        imageResponse(TRUNCATED_PNG, { 'content-length': String(VALID_PNG.byteLength) }),
-    ])
-    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
-    await expect(
-      client.uploadImage({ url: 'https://cdn.example.com/x.png', filename: 'x.png' }),
-    ).rejects.toMatchObject({ message: expect.stringMatching(/truncated download/i) })
-  })
-
-  it('rejects a structurally corrupt image even when fully downloaded', async () => {
-    // Content-Length matches the (short) body, so the truncation check passes,
-    // but the bytes are not a complete PNG → the structural validator rejects it.
-    const fetchImpl = scriptedFetch([() => imageResponse(TRUNCATED_PNG)])
-    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
-    await expect(
-      client.uploadImage({ url: 'https://cdn.example.com/x.png', filename: 'x.png' }),
-    ).rejects.toMatchObject({ status: 422, message: expect.stringMatching(/not usable/i) })
-  })
-
-  it('uploads a valid public image and returns the CDN url', async () => {
-    const fetchImpl = scriptedFetch([
-      () => imageResponse(VALID_PNG),
       () => loginResponse(),
       (url, init) => {
-        expect(url).toBe('https://api.example.com/api/admin/upload')
+        expect(url).toBe('https://api.example.com/api/admin/upload/from-url')
         expect(init?.method).toBe('POST')
+        expect(JSON.parse(String(init?.body))).toEqual({ url: 'https://cdn.example.com/x.png', filename: 'x.png' })
         return uploadResponse()
       },
     ])
     const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
-    const result = await client.uploadImage({
-      url: 'https://cdn.example.com/x.png',
-      filename: 'x.png',
-      alt: 'a photo',
-    })
+    const result = await client.uploadImage({ url: 'https://cdn.example.com/x.png', filename: 'x.png' })
     expect(result.url).toBe('https://cdn.example.com/articles/abc-hero.jpg')
   })
 
-  it('uploads from base64 without any DNS resolution', async () => {
+  it('surfaces the backend refusing an unusable source as a BackendError with its status', async () => {
     const fetchImpl = scriptedFetch([
       () => loginResponse(),
-      (url) => {
+      () =>
+        new Response(JSON.stringify({ error: 'Source URL did not return an image', details: { reason: 'not-image' } }), {
+          status: 422,
+          headers: { 'content-type': 'application/json' },
+        }),
+    ])
+    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
+    await expect(client.uploadImage({ url: 'https://cdn.example.com/x.html', filename: 'x.png' })).rejects.toMatchObject({
+      status: 422,
+      message: 'Source URL did not return an image',
+    })
+  })
+
+  it('uploads base64 under the format detected from its bytes', async () => {
+    const fetchImpl = scriptedFetch([
+      () => loginResponse(),
+      (url, init) => {
         expect(url).toBe('https://api.example.com/api/admin/upload')
+        const file = (init?.body as FormData).get('file')
+        expect(file).toBeInstanceOf(Blob)
+        expect((file as Blob).type).toBe('image/png')
         return uploadResponse()
       },
     ])
-    const client = createGwjClient(
-      baseOptions({
-        fetch: fetchImpl,
-        resolveDns: async () => {
-          throw new Error('DNS must not be used for base64 uploads')
-        },
-      }),
-    )
+    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
     const png = Buffer.from(VALID_PNG).toString('base64')
-    const result = await client.uploadImage({ base64: png, filename: 'x.png' })
+    const result = await client.uploadImage({ base64: `data:image/jpeg;base64,${png}`, filename: 'x.jpg' })
     expect(result.url).toBe('https://cdn.example.com/articles/abc-hero.jpg')
   })
 
@@ -216,9 +131,35 @@ describe('client.uploadImage url branch (SSRF-hardened)', () => {
   })
 
   it('reports a missing source as a BackendError', async () => {
-    const fetchImpl = scriptedFetch([() => loginResponse()])
+    const fetchImpl = scriptedFetch([])
     const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
     await expect(client.uploadImage({ filename: 'x.png' })).rejects.toBeInstanceOf(BackendError)
+  })
+})
+
+describe('client.listArticles', () => {
+  it('forwards every filter, including language and featured=false', async () => {
+    const fetchImpl = scriptedFetch([
+      () => loginResponse(),
+      (url) => {
+        const params = new URL(url).searchParams
+        expect(Object.fromEntries(params)).toEqual({
+          language: 'es',
+          featured: 'false',
+          status: 'published',
+          q: 'otan',
+          page: '1',
+          limit: '20',
+        })
+        return new Response(JSON.stringify({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      },
+    ])
+    const client = createGwjClient(baseOptions({ fetch: fetchImpl }))
+    const result = await client.listArticles({ language: 'es', featured: false, status: 'published', q: 'otan' })
+    expect(result.data).toEqual([])
   })
 })
 

@@ -62,7 +62,8 @@ const ArticleIdShape = { id: z.string().min(1).describe('Article id') }
  * backend, which still requires an author.
  */
 const CreateArticleShape = {
-  ...ArticleInputSchema.shape,
+  // `status` is driven by `draft` below, so the two can never disagree.
+  ...ArticleInputSchema.omit({ status: true }).shape,
   author: z
     .string()
     .min(1)
@@ -81,9 +82,12 @@ const UpdateArticleShape = {
 
 const UploadImageShape = {
   filename: z.string().min(1).describe('Target filename, e.g. "hero.jpg"'),
-  alt: z.string().optional().describe('Alt text for the image'),
   base64: z.string().optional().describe('Base64-encoded image data (data URI prefix allowed)'),
-  url: z.string().url().optional().describe('Remote image URL to fetch and re-upload'),
+  url: z
+    .string()
+    .url()
+    .optional()
+    .describe('Remote https image URL; the server downloads it, validates it and copies it to our CDN'),
 }
 
 /**
@@ -95,7 +99,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'list_articles',
     {
       description:
-        'List or SEARCH articles (including drafts). Pass `q` to full-text search titles/decks/bodies — ALWAYS do this before create_article to check whether a similar story already exists and avoid publishing a duplicate. Also supports category/status/featured filters and pagination.',
+        'List or SEARCH articles (including drafts). Pass `q` to full-text search titles and decks — ALWAYS do this before create_article to check whether a similar story already exists and avoid publishing a duplicate. Also supports language/category/status/featured filters and pagination.',
       inputSchema: ArticleListQuerySchema.shape,
     },
     (args) => guard(async () => jsonResult(await client.listArticles(args))),
@@ -120,11 +124,11 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     (args) => {
       const { draft, ...rest } = args
       const author = rest.author ?? pickWriter(rest.category, rest.title).name
-      return guard(async () => {
-        const created = await client.createArticle({ ...rest, author })
-        if (draft) return jsonResult(created)
-        return jsonResult(await client.publishArticle(created.id))
-      })
+      // One request creates the article directly in its final state: a failure
+      // can never leave an orphan draft that a retry would then duplicate.
+      return guard(async () =>
+        jsonResult(await client.createArticle({ ...rest, author, status: draft ? 'draft' : 'published' })),
+      )
     },
   )
 
@@ -171,7 +175,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'upload_image',
     {
       description:
-        'Upload an image from base64 data or a remote URL to media storage. Returns the CDN url.',
+        'Copy an image to our CDN from a remote URL (preferred) or base64 data. It is validated first: a 422 means the source is unusable (not an image, truncated, too small or too large) — try another source. Returns the CDN url. Alt text belongs on the article (heroImage.alt or the Markdown image), not here.',
       inputSchema: UploadImageShape,
     },
     (args) => guard(async () => jsonResult(await client.uploadImage(args))),

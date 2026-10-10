@@ -56,7 +56,14 @@ const validArticle = () => ({
 beforeAll(async () => {
   testDb = await useTestDatabase()
   const env = setTestEnv()
-  app = createApp(env, { uploadService: fakeUploadService })
+  app = createApp(env, {
+    uploadService: fakeUploadService,
+    // Every remote image "download" serves a valid PNG from a public address.
+    remoteImage: {
+      fetch: async () => new Response(validPngBuffer(), { status: 200, headers: { 'content-type': 'image/png' } }),
+      resolveDns: async () => [{ address: '93.184.216.34', family: 4 }],
+    },
+  })
 })
 
 beforeEach(async () => {
@@ -388,6 +395,29 @@ describe('GWJ API', () => {
         .attach('file', tooSmallPngBuffer(), { filename: 'tiny.png', contentType: 'image/png' })
       expect(res.status).toBe(422)
       expect(res.body.details).toMatchObject({ reason: 'too-small' })
+    })
+
+    it('POST /upload/from-url copies a remote image onto the CDN', async () => {
+      const token = await loginToken()
+      const res = await request(app)
+        .post('/api/admin/upload/from-url')
+        .set('authorization', `Bearer ${token}`)
+        .send({ url: 'https://images.example.com/news/rig.png' })
+      expect(res.status).toBe(201)
+      expect(res.body).toEqual({ url: 'https://cdn.example.test/articles/rig.png' })
+    })
+
+    it('POST /upload/from-url requires a token and a valid url', async () => {
+      const anonymous = await request(app)
+        .post('/api/admin/upload/from-url')
+        .send({ url: 'https://images.example.com/rig.png' })
+      expect(anonymous.status).toBe(401)
+
+      const invalid = await request(app)
+        .post('/api/admin/upload/from-url')
+        .set('authorization', `Bearer ${await loginToken()}`)
+        .send({ url: 'not a url' })
+      expect(invalid.status).toBe(400)
     })
 
     it('rejects an upload with no file (400)', async () => {

@@ -13,12 +13,8 @@ import {
   type PaginatedArticles,
   type UploadResponse,
 } from '@gwj/shared-types'
-import { MAX_IMAGE_BYTES, validateImageBuffer } from '@gwj/shared-types/image-validation'
+import { validateImageBuffer } from '@gwj/shared-types/image-validation'
 import { z } from 'zod'
-import { assertSafeRemoteUrl, type AssertSafeRemoteUrlOptions } from './ssrfGuard.js'
-
-/** Maximum size (bytes) for an image fetched from a remote URL. */
-const MAX_REMOTE_IMAGE_BYTES = MAX_IMAGE_BYTES
 
 /** Thrown when the backend returns a non-2xx response. */
 export class BackendError extends Error {
@@ -38,8 +34,6 @@ export interface GwjClientOptions {
   adminPassword: string
   /** Injectable for testing; defaults to the global `fetch`. */
   fetch?: typeof fetch
-  /** Injectable DNS resolver for the SSRF guard; defaults to node:dns/promises. */
-  resolveDns?: AssertSafeRemoteUrlOptions['resolve']
 }
 
 /** A typed client to the GWJ backend admin API. */
@@ -57,37 +51,13 @@ export interface GwjClient {
 
 export interface UploadImageInput {
   filename: string
-  alt?: string
   base64?: string
   url?: string
-}
-
-/** Guess a content type from a filename extension for multipart uploads. */
-function contentTypeFromFilename(filename: string): string {
-  const ext = filename.slice(filename.lastIndexOf('.') + 1).toLowerCase()
-  switch (ext) {
-    case 'png':
-      return 'image/png'
-    case 'jpg':
-    case 'jpeg':
-      return 'image/jpeg'
-    case 'gif':
-      return 'image/gif'
-    case 'webp':
-      return 'image/webp'
-    case 'avif':
-      return 'image/avif'
-    case 'svg':
-      return 'image/svg+xml'
-    default:
-      return 'application/octet-stream'
-  }
 }
 
 export function createGwjClient(options: GwjClientOptions): GwjClient {
   const baseUrl = options.apiBaseUrl.replace(/\/+$/, '')
   const fetchImpl = options.fetch ?? fetch
-  const resolveDns = options.resolveDns
   let token: string | null = null
 
   async function login(): Promise<string> {
@@ -163,14 +133,12 @@ export function createGwjClient(options: GwjClientOptions): GwjClient {
 
   return {
     async listArticles(query) {
-      const parsedQuery = ArticleListQuerySchema.parse(query)
+      // Forward EVERY parsed filter, so a field added to the schema can never be
+      // silently dropped here again (as `language` once was).
       const search = new URLSearchParams()
-      if (parsedQuery.category) search.set('category', parsedQuery.category)
-      if (parsedQuery.status) search.set('status', parsedQuery.status)
-      if (parsedQuery.featured !== undefined) search.set('featured', String(parsedQuery.featured))
-      if (parsedQuery.q) search.set('q', parsedQuery.q)
-      search.set('page', String(parsedQuery.page))
-      search.set('limit', String(parsedQuery.limit))
+      for (const [key, value] of Object.entries(ArticleListQuerySchema.parse(query))) {
+        if (value !== undefined) search.set(key, String(value))
+      }
       const payload = await authedRequest(`/api/admin/articles?${search.toString()}`)
       return PaginatedArticlesSchema.parse(payload)
     },
@@ -237,40 +205,30 @@ export function createGwjClient(options: GwjClientOptions): GwjClient {
     },
 
     async uploadImage(input) {
-      const bytes = await resolveImageBytes(input, fetchImpl, resolveDns)
-
-      // Validate the bytes are a COMPLETE, decodable image of a supported type
-      // and size BEFORE uploading. This is the "soft skip" the product wants:
-      // throwing a clear error lets the calling agent move on to the next source
-      // instead of publishing an article with a corrupt/blank hero image. The
-      // backend validates again authoritatively; this gives the agent a faster,
-      // local, more descriptive failure.
-      const declaredMime = contentTypeFromFilename(input.filename)
-      const validation = validateImageBuffer(new Uint8Array(bytes), {
-        // Only enforce the declared MIME when the filename maps to a known image
-        // type; an unknown extension shouldn't force a mismatch against the real
-        // (validated) format. Width/height floors use the shared defaults.
-        declaredMime: declaredMime.startsWith('image/') ? declaredMime : undefined,
-        maxBytes: MAX_REMOTE_IMAGE_BYTES,
-      })
-      if (!validation.ok) {
-        throw new BackendError(
-          `Source image is not usable (${validation.reason}): ${validation.message}`,
-          422,
-        )
+      // A remote image is downloaded by the BACKEND, behind its SSRF guard, a
+      // timeout and a streaming size cap; this service never fetches arbitrary URLs.
+      if (input.url) {
+        const payload = await authedRequest('/api/admin/upload/from-url', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ url: input.url, filename: input.filename }),
+        })
+        return UploadResponseSchema.parse(payload)
       }
-
-      const form = new FormData()
-      form.set(
-        'file',
-        // Upload under the format we actually verified so the server's declared
-        // content type matches the bytes.
-        new Blob([bytes], { type: validation.mime }),
-        input.filename,
-      )
-      if (input.alt) form.set('alt', input.alt)
-      const payload = await authedRequest('/api/admin/upload', { method: 'POST', body: form })
-      return UploadResponseSchema.parse(payload)
+      if (input.base64) {
+        const bytes = Buffer.from(input.base64.replace(/^data:[^;]+;base64,/, ''), 'base64')
+        // Name the real format (from the bytes, not the filename) so the upload's
+        // declared type matches; a bad payload fails here with the precise reason.
+        const validation = validateImageBuffer(bytes)
+        if (!validation.ok) {
+          throw new BackendError(`Image is not usable (${validation.reason}): ${validation.message}`, 422)
+        }
+        const form = new FormData()
+        form.set('file', new Blob([bytes], { type: validation.mime }), input.filename)
+        const payload = await authedRequest('/api/admin/upload', { method: 'POST', body: form })
+        return UploadResponseSchema.parse(payload)
+      }
+      throw new BackendError('upload_image requires either `url` or `base64`', 400)
     },
 
     async listCategories() {
@@ -278,63 +236,6 @@ export function createGwjClient(options: GwjClientOptions): GwjClient {
       return z.array(CategoryDocSchema).parse(payload)
     },
   }
-}
-
-/** Resolve the raw image bytes (as an ArrayBuffer) from either base64 or a remote URL. */
-async function resolveImageBytes(
-  input: UploadImageInput,
-  fetchImpl: typeof fetch,
-  resolveDns: AssertSafeRemoteUrlOptions['resolve'],
-): Promise<ArrayBuffer> {
-  if (input.base64) {
-    const cleaned = input.base64.replace(/^data:[^;]+;base64,/, '')
-    const buffer = Buffer.from(cleaned, 'base64')
-    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
-  }
-  if (input.url) {
-    // SSRF guard: validate scheme + resolved IP before any network egress.
-    const safeUrl = await assertSafeRemoteUrl(input.url, { resolve: resolveDns })
-    // Do NOT follow redirects — a 3xx to an internal host would bypass the guard.
-    const response = await fetchImpl(safeUrl.toString(), { redirect: 'manual' })
-    if (response.status >= 300 && response.status < 400) {
-      throw new BackendError('Remote image URL responded with a redirect, which is not allowed', 400)
-    }
-    if (!response.ok) {
-      throw new BackendError(
-        `Failed to fetch image from url (${response.status})`,
-        response.status,
-      )
-    }
-    const contentType = response.headers.get('content-type') ?? ''
-    if (!/^image\//i.test(contentType)) {
-      throw new BackendError(
-        `Remote URL did not return an image (content-type: ${contentType || 'none'})`,
-        400,
-      )
-    }
-    const contentLengthHeader = response.headers.get('content-length')
-    const declaredLength = Number(contentLengthHeader ?? '')
-    const hasDeclaredLength = contentLengthHeader !== null && Number.isFinite(declaredLength)
-    if (hasDeclaredLength && declaredLength > MAX_REMOTE_IMAGE_BYTES) {
-      throw new BackendError('Remote image exceeds the 10 MB size limit', 400)
-    }
-    // Read the ENTIRE body, then verify we received exactly as many bytes as the
-    // server promised. A short read here is the root cause of the truncated
-    // images that shipped: the partial bytes were stored without ever checking
-    // they matched Content-Length.
-    const body = await response.arrayBuffer()
-    if (hasDeclaredLength && body.byteLength !== declaredLength) {
-      throw new BackendError(
-        `Truncated download: received ${body.byteLength} bytes but Content-Length declared ${declaredLength}`,
-        400,
-      )
-    }
-    if (body.byteLength > MAX_REMOTE_IMAGE_BYTES) {
-      throw new BackendError('Remote image exceeds the 10 MB size limit', 400)
-    }
-    return body
-  }
-  throw new BackendError('upload_image requires either `base64` or `url`', 400)
 }
 
 async function readJson(response: Response): Promise<unknown> {

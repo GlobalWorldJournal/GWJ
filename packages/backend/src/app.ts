@@ -7,6 +7,7 @@ import { createPublicRouter } from './routes/public'
 import { createAuthRouter } from './routes/auth'
 import { createAdminRouter } from './routes/admin'
 import { createUploadService, type UploadService } from './services/uploadService'
+import { type RemoteImageOptions } from './services/remoteImageService'
 import { createErrorHandler, notFoundHandler } from './middleware/error'
 import { createActivityPub, type ActivityPubModule, type ActivityPubOptions } from './activitypub'
 import { startChannels } from './channels'
@@ -23,6 +24,8 @@ export interface CreateAppOptions {
   uploadService?: UploadService
   /** Options forwarded to the ActivityPub module (test seams for key/fetch). */
   activityPub?: ActivityPubOptions
+  /** Test seams (fetch, DNS) for downloading remote images in `upload/from-url`. */
+  remoteImage?: RemoteImageOptions
 }
 
 /** The Express app, the ActivityPub module, and the channel publishing handle. */
@@ -98,7 +101,7 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   // Specific mounts first so their dedicated limiters apply without the public
   // limiter also counting the request.
   app.use('/api/auth', authLimiter, createAuthRouter(env.JWT_SECRET))
-  app.use('/api/admin', adminLimiter, createAdminRouter(env.JWT_SECRET, uploadService))
+  app.use('/api/admin', adminLimiter, createAdminRouter(env.JWT_SECRET, uploadService, options.remoteImage))
   app.use('/api', publicLimiter, createPublicRouter())
 
   app.use(notFoundHandler)

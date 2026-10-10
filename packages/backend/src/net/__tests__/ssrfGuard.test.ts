@@ -1,6 +1,6 @@
 import type { LookupAddress } from 'node:dns'
 import { describe, expect, it } from 'vitest'
-import { assertSafeRemoteUrl, isUnsafeAddress, SsrfError } from '../ssrfGuard.js'
+import { assertSafeRemoteUrl, isUnsafeAddress, SsrfError } from '../ssrfGuard'
 
 /** Build an injectable resolver that always returns the given addresses. */
 function resolverFor(...addresses: string[]): (hostname: string) => Promise<LookupAddress[]> {
@@ -25,6 +25,8 @@ describe('isUnsafeAddress', () => {
     'fd12:3456::1', // unique-local
     '::ffff:127.0.0.1', // IPv4-mapped loopback
     '::ffff:169.254.169.254', // IPv4-mapped metadata
+    '100.64.0.1', // CGNAT shared address space
+    '100.127.255.255', // CGNAT upper bound
   ])('flags %s as unsafe', (address) => {
     expect(isUnsafeAddress(address)).toBe(true)
   })
