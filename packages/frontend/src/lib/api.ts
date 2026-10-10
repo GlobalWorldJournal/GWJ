@@ -2,6 +2,8 @@ import { z } from 'zod'
 import {
   ArticleSchema,
   PaginatedArticlesSchema,
+  PaginatedPublicArticlesSchema,
+  PublicArticleSchema,
   CategoryDocSchema,
   LoginResponseSchema,
   UploadResponseSchema,
@@ -10,6 +12,8 @@ import {
   PaginatedTakedownRequestsSchema,
   type Article,
   type PaginatedArticles,
+  type PaginatedPublicArticles,
+  type PublicArticle,
   type CategoryDoc,
   type LoginResponse,
   type UploadResponse,
@@ -129,8 +133,8 @@ export interface ArticlesQuery {
   limit?: number
 }
 
-export function getArticles(query: ArticlesQuery = {}, signal?: AbortSignal): Promise<PaginatedArticles> {
-  return request('/api/articles', PaginatedArticlesSchema, {
+export function getArticles(query: ArticlesQuery = {}, signal?: AbortSignal): Promise<PaginatedPublicArticles> {
+  return request('/api/articles', PaginatedPublicArticlesSchema, {
     params: {
       category: query.category,
       language: query.language,
@@ -142,8 +146,8 @@ export function getArticles(query: ArticlesQuery = {}, signal?: AbortSignal): Pr
   })
 }
 
-export function getArticle(slug: string, signal?: AbortSignal): Promise<Article> {
-  return request(`/api/articles/${encodeURIComponent(slug)}`, ArticleSchema, { signal })
+export function getArticle(slug: string, signal?: AbortSignal): Promise<PublicArticle> {
+  return request(`/api/articles/${encodeURIComponent(slug)}`, PublicArticleSchema, { signal })
 }
 
 export function getCategories(signal?: AbortSignal): Promise<CategoryDoc[]> {
@@ -155,8 +159,8 @@ export function searchArticles(
   page = 1,
   language?: Language,
   signal?: AbortSignal,
-): Promise<PaginatedArticles> {
-  return request('/api/search', PaginatedArticlesSchema, { params: { q, page, language }, signal })
+): Promise<PaginatedPublicArticles> {
+  return request('/api/search', PaginatedPublicArticlesSchema, { params: { q, page, language }, signal })
 }
 
 export function login(username: string, password: string): Promise<LoginResponse> {

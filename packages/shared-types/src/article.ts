@@ -111,6 +111,13 @@ export const ArticleSchema = ArticleInputSchema.extend({
 export type Article = z.infer<typeof ArticleSchema>
 
 /**
+ * The article as the PUBLIC API serves it to readers: everything except the
+ * internal `source` provenance, which is for the newsroom and admins only.
+ */
+export const PublicArticleSchema = ArticleSchema.omit({ source: true })
+export type PublicArticle = z.infer<typeof PublicArticleSchema>
+
+/**
  * Convert a title into a URL-safe slug.
  * Lowercases, strips diacritics, drops non-alphanumerics, collapses dashes.
  */

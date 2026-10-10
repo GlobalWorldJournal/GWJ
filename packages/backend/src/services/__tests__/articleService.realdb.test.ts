@@ -246,9 +246,11 @@ describe('articleService.search — Mongo $text semantics on tsvector', () => {
     expect(result.data.map((a) => a.id)).toEqual([strong, weak])
   })
 
-  it('public search excludes drafts unless a status is requested; list(q) includes drafts on the admin path', async () => {
+  it('public search and list exclude drafts even when a status is requested; admin list(q) includes them', async () => {
     const draft = await articleService.create(baseInput({ title: 'Secret merger draft' }))
     expect((await articleService.search('merger', baseQuery())).data).toEqual([])
+    expect((await articleService.search('merger', baseQuery({ status: 'draft' }))).data).toEqual([])
+    expect((await articleService.list(baseQuery({ q: 'merger', status: 'draft' }))).data).toEqual([])
     expect((await articleService.list(baseQuery({ q: 'merger' }), { includeAll: true })).data.map((a) => a.id)).toEqual([
       draft.id,
     ])

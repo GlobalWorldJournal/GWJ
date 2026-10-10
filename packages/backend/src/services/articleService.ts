@@ -128,7 +128,10 @@ async function mutateArticle(
 
 /** Options controlling whether a listing is restricted to published articles. */
 export interface ListOptions {
-  /** When true, no implicit `status: 'published'` filter is applied (admin path). */
+  /**
+   * When true, drafts are visible and `query.status` is honoured (admin path).
+   * Otherwise the listing is ALWAYS published-only, whatever status was asked for.
+   */
   includeAll?: boolean
   /** Restrict to a single exact author (the ActivityPub writer-outbox path). */
   author?: string
@@ -155,11 +158,12 @@ export interface ArticleService {
 export const articleService: ArticleService = {
   async list(query, options) {
     const filter: ArticleFilter = {}
-    if (query.status) {
-      filter.status = query.status
-    } else if (!options?.includeAll) {
-      // A public listing with no explicit status must only ever surface published work.
+    if (!options?.includeAll) {
+      // A public listing only ever surfaces published work — a requested status is
+      // ignored here, so `?status=draft` can never leak an unpublished story.
       filter.status = 'published'
+    } else if (query.status) {
+      filter.status = query.status
     }
     if (query.category) filter.category = query.category
     if (query.language) filter.language = query.language
@@ -272,7 +276,8 @@ export const articleService: ArticleService = {
   },
 
   async search(q, query) {
-    const filter: ArticleFilter = { status: query.status ?? 'published', q }
+    // Public search: published work only, whatever status the caller asked for.
+    const filter: ArticleFilter = { status: 'published', q }
     if (query.category) filter.category = query.category
     if (query.language) filter.language = query.language
     const { rows, total } = await listArticles(filter, query.page, query.limit)

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { CategorySchema } from './category'
 import { LanguageSchema } from './language'
-import { ArticleSchema, ArticleStatusSchema } from './article'
+import { ArticleSchema, ArticleStatusSchema, PublicArticleSchema } from './article'
 
 export const LoginInputSchema = z.object({
   username: z.string().min(1),
@@ -15,17 +15,34 @@ export const LoginResponseSchema = z.object({
 })
 export type LoginResponse = z.infer<typeof LoginResponseSchema>
 
+/**
+ * A boolean query parameter. `z.coerce.boolean()` would read the string "false"
+ * as `true` (any non-empty string is truthy), so only the literal strings
+ * "true"/"false" — or a real boolean from an in-process caller — are accepted.
+ */
+const QueryBooleanSchema = z.union([
+  z.boolean(),
+  z.enum(['true', 'false']).transform((value) => value === 'true'),
+])
+
 /** Query params for listing articles (coerced from strings). */
 export const ArticleListQuerySchema = z.object({
   category: CategorySchema.optional(),
   language: LanguageSchema.optional(),
-  featured: z.coerce.boolean().optional(),
+  featured: QueryBooleanSchema.optional(),
   status: ArticleStatusSchema.optional(),
   q: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 })
 export type ArticleListQuery = z.infer<typeof ArticleListQuerySchema>
+
+/**
+ * Query params the PUBLIC listing/search accept. No `status`: readers only ever
+ * see published work, so a `?status=draft` is dropped (unknown keys are stripped).
+ */
+export const PublicArticleListQuerySchema = ArticleListQuerySchema.omit({ status: true })
+export type PublicArticleListQuery = z.infer<typeof PublicArticleListQuerySchema>
 
 export const PaginationSchema = z.object({
   page: z.number().int(),
@@ -40,6 +57,13 @@ export const PaginatedArticlesSchema = z.object({
   pagination: PaginationSchema,
 })
 export type PaginatedArticles = z.infer<typeof PaginatedArticlesSchema>
+
+/** A page of articles as the public API serves it (no internal provenance). */
+export const PaginatedPublicArticlesSchema = z.object({
+  data: z.array(PublicArticleSchema),
+  pagination: PaginationSchema,
+})
+export type PaginatedPublicArticles = z.infer<typeof PaginatedPublicArticlesSchema>
 
 export const UploadResponseSchema = z.object({ url: z.string().url() })
 export type UploadResponse = z.infer<typeof UploadResponseSchema>
