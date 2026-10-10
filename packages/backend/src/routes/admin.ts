@@ -5,6 +5,7 @@ import {
   ArticleListQuerySchema,
   ArticleUpdateSchema,
   CorrectionInputSchema,
+  CreateApiTokenInputSchema,
   TakedownActionSchema,
   TakedownListQuerySchema,
   UploadFromUrlInputSchema,
@@ -12,6 +13,7 @@ import {
   type ArticleListQuery,
   type ArticleUpdate,
   type CorrectionInput,
+  type CreateApiTokenInput,
   type TakedownAction,
   type TakedownListQuery,
   type UploadFromUrlInput,
@@ -21,22 +23,24 @@ import { articleService } from '../services/articleService';
 import { takedownService } from '../services/takedownService';
 import { type UploadService } from '../services/uploadService';
 import { fetchRemoteImage, type RemoteImageOptions } from '../services/remoteImageService';
-import { requireAuth } from '../middleware/auth';
+import {
+  assertScope,
+  principalOf,
+  requireAuth,
+  requireScope,
+  requireUser,
+} from '../middleware/auth';
+import { actorName } from '../auth/principal';
+import { apiTokenService } from '../services/apiTokenService';
 import { validate } from '../middleware/validate';
 import { requireParam } from '../middleware/params';
-import {
-  BadRequestError,
-  NotFoundError,
-  UnauthorizedError,
-  UnprocessableEntityError,
-} from '../errors';
+import { BadRequestError, NotFoundError, UnprocessableEntityError } from '../errors';
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-/** Who is making this change, for the article history (set by requireAuth). */
+/** Who is making this change, for the article history (an admin, or agent:<name>). */
 function actorOf(req: Request): string {
-  if (!req.auth) throw new UnauthorizedError('Missing authenticated user');
-  return req.auth.username;
+  return actorName(principalOf(req));
 }
 
 /** A revision id path parameter; anything but a positive integer is a 404. */
@@ -76,7 +80,10 @@ export function createAdminRouter(
   );
 
   router.post('/articles', validate(ArticleInputSchema), async (req: Request, res: Response) => {
-    const article = await articleService.create(req.body as ArticleInput);
+    const input = req.body as ArticleInput;
+    assertScope(req, 'articles:write');
+    if (input.status === 'published') assertScope(req, 'articles:publish');
+    const article = await articleService.create(input);
     res.status(201).json(article);
   });
 
@@ -97,34 +104,46 @@ export function createAdminRouter(
   router.patch(
     '/articles/:id',
     validate(ArticleUpdateSchema),
+    requireScope('articles:write'),
     async (req: Request, res: Response) => {
-      const article = await articleService.update(
-        requireParam(req, 'id'),
-        req.body as ArticleUpdate,
-        actorOf(req),
-      );
+      const patch = req.body as ArticleUpdate;
+      if (patch.status === 'published') assertScope(req, 'articles:publish');
+      const article = await articleService.update(requireParam(req, 'id'), patch, actorOf(req));
       res.json(article);
     },
   );
 
-  router.delete('/articles/:id', async (req: Request, res: Response) => {
-    await articleService.remove(requireParam(req, 'id'));
-    res.status(204).end();
-  });
+  router.delete(
+    '/articles/:id',
+    requireScope('articles:delete'),
+    async (req: Request, res: Response) => {
+      await articleService.remove(requireParam(req, 'id'));
+      res.status(204).end();
+    },
+  );
 
-  router.post('/articles/:id/publish', async (req: Request, res: Response) => {
-    const article = await articleService.publish(requireParam(req, 'id'), actorOf(req));
-    res.json(article);
-  });
+  router.post(
+    '/articles/:id/publish',
+    requireScope('articles:publish'),
+    async (req: Request, res: Response) => {
+      const article = await articleService.publish(requireParam(req, 'id'), actorOf(req));
+      res.json(article);
+    },
+  );
 
-  router.post('/articles/:id/unpublish', async (req: Request, res: Response) => {
-    const article = await articleService.unpublish(requireParam(req, 'id'), actorOf(req));
-    res.json(article);
-  });
+  router.post(
+    '/articles/:id/unpublish',
+    requireScope('articles:publish'),
+    async (req: Request, res: Response) => {
+      const article = await articleService.unpublish(requireParam(req, 'id'), actorOf(req));
+      res.json(article);
+    },
+  );
 
   router.post(
     '/articles/:id/corrections',
     validate(CorrectionInputSchema),
+    requireScope('articles:write'),
     async (req: Request, res: Response) => {
       const { text } = req.body as CorrectionInput;
       res.json(await articleService.addCorrection(requireParam(req, 'id'), text, actorOf(req)));
@@ -141,6 +160,7 @@ export function createAdminRouter(
 
   router.post(
     '/articles/:id/revisions/:revisionId/restore',
+    requireScope('articles:write'),
     async (req: Request, res: Response) => {
       const article = await articleService.restoreRevision(
         requireParam(req, 'id'),
@@ -151,30 +171,36 @@ export function createAdminRouter(
     },
   );
 
-  router.post('/upload', upload.single('file'), async (req: Request, res: Response) => {
-    const file = req.file;
-    if (!file) throw new BadRequestError('No file uploaded (expected field "file")');
+  router.post(
+    '/upload',
+    requireScope('media:upload'),
+    upload.single('file'),
+    async (req: Request, res: Response) => {
+      const file = req.file;
+      if (!file) throw new BadRequestError('No file uploaded (expected field "file")');
 
-    // Validate at the request boundary so a bad upload gets an actionable 422
-    // (the agent/admin can re-source the image) before any S3 work. The upload
-    // service validates again as the authoritative last line of defense.
-    // Defaults enforce the canonical min width/height and byte cap.
-    const validation = validateImageBuffer(file.buffer, { declaredMime: file.mimetype });
-    if (!validation.ok) {
-      throw new UnprocessableEntityError(`Rejected image upload: ${validation.message}`, {
-        reason: validation.reason,
-      });
-    }
+      // Validate at the request boundary so a bad upload gets an actionable 422
+      // (the agent/admin can re-source the image) before any S3 work. The upload
+      // service validates again as the authoritative last line of defense.
+      // Defaults enforce the canonical min width/height and byte cap.
+      const validation = validateImageBuffer(file.buffer, { declaredMime: file.mimetype });
+      if (!validation.ok) {
+        throw new UnprocessableEntityError(`Rejected image upload: ${validation.message}`, {
+          reason: validation.reason,
+        });
+      }
 
-    const result = await uploadService.uploadImage(file.buffer, file.originalname, file.mimetype);
-    res.status(201).json(result);
-  });
+      const result = await uploadService.uploadImage(file.buffer, file.originalname, file.mimetype);
+      res.status(201).json(result);
+    },
+  );
 
   // Copy a remote image (e.g. a source's og:image) onto our CDN. The download
   // happens HERE, behind the SSRF guard, a timeout and a streaming size cap, so
   // no other service needs to fetch arbitrary URLs.
   router.post(
     '/upload/from-url',
+    requireScope('media:upload'),
     validate(UploadFromUrlInputSchema),
     async (req: Request, res: Response) => {
       const input = req.body as UploadFromUrlInput;
@@ -184,6 +210,8 @@ export function createAdminRouter(
     },
   );
 
+  // Requests carry requesters' names and emails: agents need the scope even to read.
+  router.use('/takedown-requests', requireScope('takedowns'));
   router.get(
     '/takedown-requests',
     validate(TakedownListQuerySchema, 'query'),
@@ -210,6 +238,22 @@ export function createAdminRouter(
       res.json(record);
     },
   );
+
+  // Agent credentials are managed by people only, never by an agent.
+  router.get('/tokens', requireUser(), async (_req: Request, res: Response) => {
+    res.json(await apiTokenService.list());
+  });
+  router.post(
+    '/tokens',
+    requireUser(),
+    validate(CreateApiTokenInputSchema),
+    async (req: Request, res: Response) => {
+      res.status(201).json(await apiTokenService.create(req.body as CreateApiTokenInput));
+    },
+  );
+  router.post('/tokens/:id/revoke', requireUser(), async (req: Request, res: Response) => {
+    res.json(await apiTokenService.revoke(requireParam(req, 'id')));
+  });
 
   return router;
 }

@@ -432,6 +432,94 @@ describe('GWJ API', () => {
     ]);
   });
 
+  describe('agent API tokens', () => {
+    async function mintToken(scopes: string[], name = 'newsroom-agent') {
+      const res = await request(app)
+        .post('/api/admin/tokens')
+        .set('authorization', `Bearer ${await loginToken()}`)
+        .send({ name, scopes });
+      expect(res.status).toBe(201);
+      expect(res.body.token).toMatch(/^gwj_/);
+      return res.body as { id: string; token: string };
+    }
+
+    it('an agent acts within its scopes and is recorded as agent:<name>', async () => {
+      const { token } = await mintToken(['articles:write', 'articles:publish', 'media:upload']);
+      const agent = { authorization: `Bearer ${token}` };
+
+      const created = await request(app)
+        .post('/api/admin/articles')
+        .set(agent)
+        .send({ ...validArticle(), title: 'Filed by the agent', status: 'published' });
+      expect(created.status).toBe(201);
+      await request(app)
+        .patch(`/api/admin/articles/${created.body.id}`)
+        .set(agent)
+        .send({ deck: 'Tightened deck' })
+        .expect(200);
+      const history = await request(app)
+        .get(`/api/admin/articles/${created.body.id}/revisions`)
+        .set(agent);
+      expect(history.body[0].actor).toBe('agent:newsroom-agent');
+
+      // Not granted: deleting, takedowns, and managing tokens (people only).
+      expect(
+        (await request(app).delete(`/api/admin/articles/${created.body.id}`).set(agent)).status,
+      ).toBe(403);
+      expect((await request(app).get('/api/admin/takedown-requests').set(agent)).status).toBe(403);
+      expect((await request(app).get('/api/admin/tokens').set(agent)).status).toBe(403);
+    });
+
+    it('publishing needs the publish scope, also when creating straight to published', async () => {
+      const { token } = await mintToken(['articles:write'], 'drafts-only');
+      const agent = { authorization: `Bearer ${token}` };
+      const live = await request(app)
+        .post('/api/admin/articles')
+        .set(agent)
+        .send({ ...validArticle(), status: 'published' });
+      expect(live.status).toBe(403);
+      const draft = await request(app).post('/api/admin/articles').set(agent).send(validArticle());
+      expect(draft.status).toBe(201);
+      const publish = await request(app)
+        .post(`/api/admin/articles/${draft.body.id}/publish`)
+        .set(agent);
+      expect(publish.status).toBe(403);
+    });
+
+    it('a revoked or unknown token is refused; tokens are listed without their secret', async () => {
+      const { id, token } = await mintToken(['articles:write']);
+      const admin = { authorization: `Bearer ${await loginToken()}` };
+      const listed = await request(app).get('/api/admin/tokens').set(admin);
+      expect(listed.body).toEqual([
+        expect.objectContaining({ id, name: 'newsroom-agent', revokedAt: null }),
+      ]);
+      expect(JSON.stringify(listed.body)).not.toContain(token);
+
+      await request(app).post(`/api/admin/tokens/${id}/revoke`).set(admin).expect(200);
+      const refused = await request(app)
+        .get('/api/admin/articles')
+        .set('authorization', `Bearer ${token}`);
+      expect(refused.status).toBe(401);
+      const forged = await request(app)
+        .get('/api/admin/articles')
+        .set('authorization', 'Bearer gwj_forged');
+      expect(forged.status).toBe(401);
+    });
+  });
+
+  it('login fails the same way for an unknown user as for a wrong password', async () => {
+    const unknown = await request(app)
+      .post('/api/auth/login')
+      .set('x-forwarded-for', '198.51.100.77')
+      .send({ username: 'nobody', password: 'whatever' });
+    const wrong = await request(app)
+      .post('/api/auth/login')
+      .set('x-forwarded-for', '198.51.100.78')
+      .send({ username: ADMIN_USERNAME, password: 'whatever' });
+    expect(unknown.status).toBe(401);
+    expect(unknown.body).toEqual(wrong.body);
+  });
+
   it('GET /api/categories returns the 7 fixed categories', async () => {
     const res = await request(app).get('/api/categories');
     expect(res.status).toBe(200);

@@ -7,6 +7,13 @@ import { users } from '../db/schema/users';
 import { UnauthorizedError } from '../errors';
 
 const TOKEN_TTL: SignOptions['expiresIn'] = '12h';
+/**
+ * Compared against when the username does not exist, so a login for an unknown
+ * user costs the same bcrypt work as one with a wrong password: response time
+ * never reveals which usernames exist. (The bcrypt hash of a random value nobody
+ * knows; same cost factor as real password hashes.)
+ */
+const UNKNOWN_USER_HASH = '$2a$12$pp2OQReNU8JWMiY9FpCD5uS.Flsq/xYbfFgYEKGA8N1h3kmPmLqhi';
 
 export interface AuthTokenPayload {
   sub: string;
@@ -28,11 +35,8 @@ function isPayload(value: unknown): value is AuthTokenPayload {
 export const authService: AuthService = {
   async login(username, password, jwtSecret) {
     const [user] = await getDb().select().from(users).where(eq(users.username, username)).limit(1);
-    // Compare even on a missing user is unnecessary here; bcrypt.compare on a
-    // bogus hash would still differentiate. We fail uniformly with 401.
-    if (!user) throw new UnauthorizedError('Invalid credentials');
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) throw new UnauthorizedError('Invalid credentials');
+    const ok = await bcrypt.compare(password, user?.passwordHash ?? UNKNOWN_USER_HASH);
+    if (!user || !ok) throw new UnauthorizedError('Invalid credentials');
 
     const payload: AuthTokenPayload = {
       sub: user.id,

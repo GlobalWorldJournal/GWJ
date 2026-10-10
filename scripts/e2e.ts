@@ -71,8 +71,7 @@ const apiBaseUrl = `http://127.0.0.1:${PORT}`;
 try {
   const client = createGwjClient({
     apiBaseUrl,
-    adminUsername: 'nate',
-    adminPassword: 'e2e-admin-password',
+    credentials: { kind: 'password', username: 'nate', password: 'e2e-admin-password' },
   });
 
   const categories = await client.listCategories();
