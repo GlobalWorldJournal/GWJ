@@ -5,6 +5,7 @@ import {
   type ArticleListQuery,
   type ArticleUpdate,
   type PaginatedArticles,
+  type Seo,
   slugify,
 } from '@gwj/shared-types'
 import { getDb } from '../db/client'
@@ -17,13 +18,15 @@ import {
   insertArticle,
   isSlugTaken,
   listArticles,
+  recordSlugChange,
+  findRedirectSlug,
   rowToArticle,
   updateArticle,
   type ArticleFilter,
   type Executor,
 } from '../db/repositories/articleRepository'
 import type { ArticleRow, NewArticleRow } from '../db/schema/articles'
-import { NotFoundError } from '../errors'
+import { ConflictError, NotFoundError } from '../errors'
 
 /** Fallback slug stem when a title slugifies to an empty string (e.g. all symbols). */
 const FALLBACK_SLUG = 'article'
@@ -70,6 +73,45 @@ async function generateUniqueSlug(executor: Executor, title: string, excludeId?:
     suffix += 1
   }
   return candidate
+}
+
+/** Claim an explicitly requested slug, or fail with 409 if another article holds or reserves it. */
+async function claimSlug(executor: Executor, slug: string, articleId?: string): Promise<string> {
+  if (await isSlugTaken(executor, slug, articleId)) {
+    throw new ConflictError('Slug already in use', { slug })
+  }
+  return slug
+}
+
+/**
+ * Merge an SEO patch over the stored values: a key the patch omits is kept (an
+ * agent setting only `metaTitle` must not wipe `metaDescription`), and a key set
+ * to the empty string is cleared.
+ */
+function mergeSeo(current: Seo, patch: Seo): Seo {
+  const merged: Seo = { ...current, ...patch }
+  for (const key of Object.keys(merged) as (keyof Seo)[]) {
+    if (merged[key] === undefined || merged[key] === '') delete merged[key]
+  }
+  return merged
+}
+
+/**
+ * The publish timestamps for a transition INTO published. A re-publish restores
+ * the original date rather than re-dating the story to "now" (which reordered the
+ * front page), and `firstPublishedAt` is stamped exactly once.
+ */
+function publishStamps(current: Pick<ArticleRow, 'firstPublishedAt'>, now: Date): Partial<NewArticleRow> {
+  const first = current.firstPublishedAt ?? now
+  return { status: 'published', publishedAt: first, firstPublishedAt: first }
+}
+
+/**
+ * The publish fan-out (fediverse, Telegram) fires exactly once per article: on its
+ * FIRST transition into published. Unpublish → re-publish is not news again.
+ */
+function isFirstPublish(before: Pick<ArticleRow, 'firstPublishedAt'>, after: ArticleRow): boolean {
+  return before.firstPublishedAt === null && after.status === 'published'
 }
 
 function buildPaginated(rows: ArticleRow[], total: number, page: number, limit: number): PaginatedArticles {
@@ -153,6 +195,8 @@ export interface ArticleService {
   unpublish(id: string): Promise<Article>
   remove(id: string): Promise<void>
   search(q: string, query: ArticleListQuery): Promise<PaginatedArticles>
+  /** The current slug of the PUBLISHED article that used to live at `oldSlug`. */
+  findRedirectSlug(oldSlug: string): Promise<string | null>
 }
 
 export const articleService: ArticleService = {
@@ -198,7 +242,7 @@ export const articleService: ArticleService = {
     const now = new Date()
     const row = await insertArticle(db, {
       id: newRecordId(now),
-      slug: await generateUniqueSlug(db, input.title),
+      slug: input.slug ? await claimSlug(db, input.slug) : await generateUniqueSlug(db, input.title),
       title: input.title,
       deck: input.deck,
       kicker: input.kicker,
@@ -213,6 +257,7 @@ export const articleService: ArticleService = {
       seo: input.seo,
       source: input.source,
       publishedAt: input.status === 'published' ? now : null,
+      firstPublishedAt: input.status === 'published' ? now : null,
       createdAt: now,
       updatedAt: now,
     })
@@ -235,40 +280,55 @@ export const articleService: ArticleService = {
         heroImage: patch.heroImage,
         featured: patch.featured,
         tags: patch.tags,
-        seo: patch.seo,
+        seo: patch.seo ? mergeSeo(current.seo, patch.seo) : undefined,
         source: patch.source,
       }
-      if (patch.title !== undefined && patch.title !== current.title) {
-        changes.slug = await generateUniqueSlug(tx, patch.title, id)
+
+      // Slugs are frozen once an article has ever been live, so links shared on
+      // the fediverse, Telegram and search engines never break. Before that the
+      // slug follows the title. An explicit slug change is always honoured, and a
+      // previously public slug keeps redirecting to the new one.
+      const everPublished = current.firstPublishedAt !== null || current.status === 'published'
+      let nextSlug: string | undefined
+      if (patch.slug !== undefined && patch.slug !== current.slug) {
+        nextSlug = await claimSlug(tx, patch.slug, id)
+      } else if (patch.slug === undefined && !everPublished && patch.title !== undefined && patch.title !== current.title) {
+        nextSlug = await generateUniqueSlug(tx, patch.title, id)
       }
-      if (patch.status !== undefined) {
-        changes.status = patch.status
-        if (patch.status === 'published' && !current.publishedAt) changes.publishedAt = new Date()
-        if (patch.status === 'draft') changes.publishedAt = null
+      if (nextSlug !== undefined) {
+        changes.slug = nextSlug
+        if (everPublished) await recordSlugChange(tx, id, current.slug, nextSlug)
+      }
+
+      if (patch.status !== undefined && patch.status !== current.status) {
+        if (patch.status === 'published') Object.assign(changes, publishStamps(current, new Date()))
+        else Object.assign(changes, { status: patch.status, publishedAt: null })
       }
       return changes
     })
     const article = rowToArticle(after)
-    // Fan out only on the draft→published transition, not on edits to an already
-    // published story, so followers aren't re-notified for every correction.
-    if (before.status !== 'published' && article.status === 'published') emitArticlePublished(article)
+    if (isFirstPublish(before, after)) emitArticlePublished(article)
     return article
   },
 
   async publish(id) {
-    const { before, after } = await mutateArticle(id, async (current) => ({
-      status: 'published',
-      // Preserve the original publish time on re-publish; only stamp it the first time.
-      publishedAt: current.publishedAt ?? new Date(),
-    }))
+    const { before, after } = await mutateArticle(id, async (current) =>
+      current.status === 'published' ? {} : publishStamps(current, new Date()),
+    )
     const article = rowToArticle(after)
-    if (before.status !== 'published') emitArticlePublished(article)
+    if (isFirstPublish(before, after)) emitArticlePublished(article)
     return article
   },
 
   async unpublish(id) {
+    // `firstPublishedAt` is kept: the slug stays frozen and a later re-publish
+    // restores the original date without re-announcing the story.
     const { after } = await mutateArticle(id, async () => ({ status: 'draft', publishedAt: null }))
     return rowToArticle(after)
+  },
+
+  async findRedirectSlug(oldSlug) {
+    return findRedirectSlug(oldSlug)
   },
 
   async remove(id) {

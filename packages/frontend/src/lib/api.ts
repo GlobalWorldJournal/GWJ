@@ -194,6 +194,11 @@ export function getAdminArticles(
   })
 }
 
+/** One article by id, drafts included (admin). */
+export function getAdminArticle(token: string, id: string, signal?: AbortSignal): Promise<Article> {
+  return request(`/api/admin/articles/${encodeURIComponent(id)}`, ArticleSchema, { token, signal })
+}
+
 export function createArticle(token: string, input: ArticleInput): Promise<Article> {
   return request('/api/admin/articles', ArticleSchema, { method: 'POST', body: input, token })
 }

@@ -15,6 +15,13 @@
       "when": 1791626377655,
       "tag": "0001_takedown_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791650893745,
+      "tag": "0002_slug_history_first_published",
+      "breakpoints": true
     }
   ]
 }

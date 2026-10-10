@@ -44,3 +44,11 @@ export class UnprocessableEntityError extends HttpError {
     this.name = 'UnprocessableEntityError'
   }
 }
+
+/** 409 Conflict — the request collides with existing state (e.g. a slug in use). */
+export class ConflictError extends HttpError {
+  constructor(message = 'Conflict', details?: unknown) {
+    super(409, message, details)
+    this.name = 'ConflictError'
+  }
+}

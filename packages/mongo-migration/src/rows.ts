@@ -140,7 +140,9 @@ export function articleRow(doc: LogicalDocument): NewArticleRow {
     c.problems.push(`status ${row.status} with publishedAt ${row.publishedAt === null ? 'null' : 'set'} (articles_published_at_check)`)
   }
   c.done('articles', String(doc.id))
-  return row
+  // Mongo never tracked a first-publish time. Derive it exactly as migration 0002
+  // backfills existing rows: a published article first went live at publishedAt.
+  return { ...row, firstPublishedAt: row.publishedAt }
 }
 
 export function userRow(doc: LogicalDocument): UserRow {

@@ -81,7 +81,7 @@ export async function useTestDatabase(): Promise<TestDatabase> {
     url,
     name,
     async truncateAll() {
-      await getDb().execute(sql`truncate articles, users, actor_keys, followers, takedown_requests restart identity`)
+      await getDb().execute(sql`truncate article_slug_history, articles, users, actor_keys, followers, takedown_requests restart identity`)
     },
     async drop() {
       await disconnectDb()

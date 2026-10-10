@@ -256,6 +256,26 @@ describe('GWJ API', () => {
     expect(allowed.headers['access-control-allow-origin']).toBe('https://globalworldjournal.com')
   })
 
+  it('an old slug 301-redirects to the article\'s current slug', async () => {
+    const token = await loginToken()
+    const created = await request(app)
+      .post('/api/admin/articles')
+      .set('authorization', `Bearer ${token}`)
+      .send({ ...validArticle(), title: 'Original headline', status: 'published' })
+    await request(app)
+      .patch(`/api/admin/articles/${created.body.id}`)
+      .set('authorization', `Bearer ${token}`)
+      .send({ slug: 'new-url' })
+      .expect(200)
+
+    const old = await request(app).get('/api/articles/original-headline')
+    expect(old.status).toBe(301)
+    expect(old.headers.location).toBe('/api/articles/new-url')
+
+    const missing = await request(app).get('/api/articles/never-existed')
+    expect(missing.status).toBe(404)
+  })
+
   it('GET /api/categories returns the 7 fixed categories', async () => {
     const res = await request(app).get('/api/categories')
     expect(res.status).toBe(200)

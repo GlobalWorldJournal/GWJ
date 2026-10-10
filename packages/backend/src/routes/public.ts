@@ -15,7 +15,7 @@ import { articleService } from '../services/articleService'
 import { takedownService } from '../services/takedownService'
 import { validate } from '../middleware/validate'
 import { requireParam } from '../middleware/params'
-import { BadRequestError } from '../errors'
+import { BadRequestError, NotFoundError } from '../errors'
 
 function readQuery(req: Request): PublicArticleListQuery {
   // `validate(..., 'query')` has already parsed and stashed the typed value.
@@ -41,8 +41,17 @@ export function createPublicRouter(): Router {
   })
 
   router.get('/articles/:slug', async (req: Request, res: Response) => {
-    const article = await articleService.getBySlug(requireParam(req, 'slug'))
-    res.json(toPublicArticle(article))
+    const slug = requireParam(req, 'slug')
+    try {
+      res.json(toPublicArticle(await articleService.getBySlug(slug)))
+    } catch (err) {
+      if (!(err instanceof NotFoundError)) throw err
+      // A slug the article used to have: permanently redirect to its current one,
+      // so old links (and the SEO worker, which follows it) land on the story.
+      const current = await articleService.findRedirectSlug(slug)
+      if (current === null) throw err
+      res.redirect(301, `${req.baseUrl}/articles/${encodeURIComponent(current)}`)
+    }
   })
 
   router.get('/categories', (_req: Request, res: Response) => {
