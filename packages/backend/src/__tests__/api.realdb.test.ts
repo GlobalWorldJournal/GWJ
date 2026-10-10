@@ -94,6 +94,25 @@ describe('GWJ API', () => {
     expect(res.body).toEqual({ ok: true, release: null });
   });
 
+  it('GET /readyz confirms the database is reachable', async () => {
+    const res = await request(app).get('/readyz');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, release: null });
+  });
+
+  it('tags every response with a request id, reusing a well-formed upstream one', async () => {
+    const generated = await request(app).get('/api/categories');
+    expect(generated.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+
+    const upstream = await request(app).get('/api/categories').set('x-request-id', 'alb-trace-123');
+    expect(upstream.headers['x-request-id']).toBe('alb-trace-123');
+
+    const hostile = await request(app)
+      .get('/api/categories')
+      .set('x-request-id', 'not ok {"level":"error"}');
+    expect(hostile.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
   it('login returns a token and the admin user', async () => {
     const res = await request(app)
       .post('/api/auth/login')

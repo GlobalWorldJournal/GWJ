@@ -1,12 +1,39 @@
 # ---------------------------------------------------------------------------
 # GWJ media: private S3 bucket + CloudFront CDN (cdn.globalworldjournal.com).
 # The bucket stays fully private; CloudFront reads articles/* (article images)
-# and writers/* (writer avatars) via OAC. No versioning. Bucket name is global
-# → suffixed with the account id.
+# and writers/* (writer avatars) via OAC. Versioned, so an overwritten or deleted
+# image can be restored for 30 days. Bucket name is global → suffixed with the
+# account id.
 # ---------------------------------------------------------------------------
 
 resource "aws_s3_bucket" "media" {
   bucket = "${var.prefix}-media-usw2-${var.account_id}"
+}
+
+resource "aws_s3_bucket_versioning" "media" {
+  bucket = aws_s3_bucket.media.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Previous versions are a recovery window, not an archive: expire them after 30
+# days, and clean up abandoned multipart uploads.
+resource "aws_s3_bucket_lifecycle_configuration" "media" {
+  bucket     = aws_s3_bucket.media.id
+  depends_on = [aws_s3_bucket_versioning.media]
+
+  rule {
+    id     = "expire-noncurrent-versions"
+    status = "Enabled"
+    filter {}
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "media" {

@@ -3,11 +3,27 @@ import { fileURLToPath } from 'node:url';
 import { loadEnv } from './env';
 import { connectDb, disconnectDb } from './db/client';
 import { buildApp } from './app';
-import { logger } from './logger';
+import { errorFields, logger } from './logger';
 
 export { createApp, buildApp } from './app';
 
+/**
+ * Never let an error escape silently: a rejected promise nobody awaited is logged
+ * with its stack; an uncaught exception leaves the process in an unknown state,
+ * so it is logged and the process exits for ECS to replace the task.
+ */
+function installProcessErrorHandlers(): void {
+  process.on('unhandledRejection', (reason: unknown) => {
+    logger.error('unhandled promise rejection', errorFields(reason));
+  });
+  process.on('uncaughtException', (err: Error) => {
+    logger.error('uncaught exception', errorFields(err));
+    process.exit(1);
+  });
+}
+
 async function bootstrap(): Promise<void> {
+  installProcessErrorHandlers();
   const env = loadEnv();
   // Refuses to start on a schema missing a pre-deploy migration (see connectDb).
   await connectDb(env.DATABASE_URL);
@@ -39,8 +55,7 @@ async function bootstrap(): Promise<void> {
 const entry = argv[1] ? fileURLToPath(import.meta.url) === argv[1] : false;
 if (entry) {
   bootstrap().catch((err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error('failed to start backend', { message });
+    logger.error('failed to start backend', errorFields(err));
     process.exit(1);
   });
 }

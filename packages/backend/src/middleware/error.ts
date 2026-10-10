@@ -1,7 +1,8 @@
 import { type ErrorRequestHandler, type NextFunction, type Request, type Response } from 'express';
 import { ZodError } from 'zod';
 import { HttpError } from '../errors';
-import { logger } from '../logger';
+import { errorFields, logger } from '../logger';
+import { requestIdOf } from './requestLog';
 import { constraintNameOf, isUniqueViolation } from '../db/pgErrors';
 
 const INTERNAL_ERROR = 'Internal server error';
@@ -17,7 +18,7 @@ export const notFoundHandler = (_req: Request, res: Response): void => {
  * anything else as a 500. The stack is never leaked outside development.
  */
 export function createErrorHandler(isDev: boolean): ErrorRequestHandler {
-  return (err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
+  return (err: unknown, req: Request, res: Response, _next: NextFunction): void => {
     if (err instanceof HttpError) {
       res.status(err.status).json({ error: err.message, details: err.details });
       return;
@@ -33,8 +34,12 @@ export function createErrorHandler(isDev: boolean): ErrorRequestHandler {
       return;
     }
 
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error('unhandled error', { message });
+    logger.error('unhandled error', {
+      requestId: requestIdOf(res),
+      method: req.method,
+      path: req.path,
+      ...errorFields(err),
+    });
     res.status(500).json({
       error: INTERNAL_ERROR,
       ...(isDev && err instanceof Error ? { details: err.stack } : {}),
