@@ -26,18 +26,18 @@ export const ArticleStatusSchema = z.enum(['draft', 'published'])
 export type ArticleStatus = z.infer<typeof ArticleStatusSchema>
 
 export const HeroImageSchema = z.object({
-  url: z.string().url(),
-  caption: z.string().optional(),
-  credit: z.string().optional(),
-  alt: z.string().default(''),
+  url: z.string().url().describe('The CDN url returned by upload_image — never a raw external url; always upload first.'),
+  caption: z.string().optional().describe('Optional caption shown under the image on the article page.'),
+  credit: z.string().optional().describe('Photo credit shown under the image, e.g. "Source: Reuters".'),
+  alt: z.string().default('').describe('Descriptive alt text for accessibility and SEO.'),
 })
 export type HeroImage = z.infer<typeof HeroImageSchema>
 
 export const SeoSchema = z
   .object({
-    metaTitle: z.string().optional(),
-    metaDescription: z.string().optional(),
-    ogImage: z.string().url().optional(),
+    metaTitle: z.string().optional().describe('At most 60 characters.'),
+    metaDescription: z.string().optional().describe('At most 155 characters.'),
+    ogImage: z.string().url().optional().describe('Usually the same CDN url as heroImage.url.'),
   })
   .default({})
 export type Seo = z.infer<typeof SeoSchema>
@@ -48,43 +48,51 @@ export type Seo = z.infer<typeof SeoSchema>
  * later. `imageUrl` is the ORIGINAL image URL before we copied it to our CDN.
  */
 export const SourceSchema = z.object({
-  name: z.string().optional(),
-  articleUrl: z.string().url().optional(),
-  imageUrl: z.string().url().optional(),
+  name: z.string().optional().describe('The original outlet\'s name, e.g. "Reuters".'),
+  articleUrl: z.string().url().optional().describe('The original news article\'s URL, for later tracing/re-attribution.'),
+  imageUrl: z.string().url().optional().describe('The ORIGINAL image URL passed to upload_image, before it was copied to our CDN.'),
 })
 export type Source = z.infer<typeof SourceSchema>
 
 /** Payload to create an article. */
 export const ArticleInputSchema = z.object({
-  title: z.string().min(1),
-  deck: z.string().optional(),
-  kicker: z.string().optional(),
+  title: z.string().min(1).describe('A specific, sentence-case headline.'),
+  deck: z.string().optional().describe('A one-sentence summary shown under the headline.'),
+  kicker: z.string().optional().describe('A short section/topic label shown above the headline, e.g. "Markets".'),
   category: CategorySchema,
-  // Edition this article belongs to. Readers see content for the selected
-  // language; the AI writers publish the same story across editions.
-  language: LanguageSchema.default('en'),
-  author: z.string().min(1),
-  // Article body is stored as Markdown (GitHub-flavored), rendered to HTML on
-  // the client. The legacy ContentBlock union remains exported for reference
-  // but is no longer the storage format. Sanitized on validation: HTML comments
-  // (e.g. stray provenance markers) are stripped so they never reach the body —
-  // provenance belongs in the `source` field, never in the prose.
+  language: LanguageSchema.default('en').describe(
+    'The edition this article belongs to. Readers only see content for the edition they selected; publish the same story in another language as a separate article with that language set, not a translation field on this one.',
+  ),
+  author: z.string().min(1).describe('The staff writer\'s byline name — see list_writers for the roster.'),
   body: z
     .string()
     .min(1)
+    .describe(
+      'Clean Markdown prose only: headings, quotes, lists and images, nothing else. No HTML comments, JSON, provenance notes or any other metadata inside it — provenance belongs in `source`, image credit in `heroImage.credit`. HTML comments are stripped automatically if present, so they are silently lost rather than causing an error; put that information in the right field instead.',
+    )
     .transform((s) =>
       s
         .replace(/<!--[\s\S]*?-->/g, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim(),
     ),
-  heroImage: HeroImageSchema.optional(),
-  status: ArticleStatusSchema.default('draft'),
-  featured: z.number().int().min(0).default(0),
-  tags: z.array(z.string()).default([]),
+  heroImage: HeroImageSchema.optional().describe(
+    'Required in practice: every article needs one. Upload the source\'s lead photo with upload_image first and use the CDN url this returns; never a raw external image url.',
+  ),
+  status: ArticleStatusSchema.default('draft').describe('Normally left to create_article\'s own draft:false/true flag rather than set directly.'),
+  featured: z
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .describe(
+      'Manual editorial rank controlling front-page prominence (higher shows more prominently). 0 (the default) is a normal story; reserve higher numbers for stories that genuinely deserve more prominence than an ordinary day\'s news.',
+    ),
+  tags: z.array(z.string()).default([]).describe('3-6 relevant tags.'),
   seo: SeoSchema,
-  // Internal provenance (original source article + original image URL).
-  source: SourceSchema.optional(),
+  source: SourceSchema.optional().describe(
+    'Internal provenance only — never shown to readers. Record this on every article the newsroom writes from an outside source, so the story and its photo can be traced and re-attributed later.',
+  ),
 })
 export type ArticleInput = z.infer<typeof ArticleInputSchema>
 
