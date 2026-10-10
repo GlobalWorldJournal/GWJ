@@ -39,8 +39,13 @@ jobs:
       - name: Install (frozen lockfile)
         run: bun install --frozen-lockfile
 
-      - name: Lint
-        run: bun run lint
+      # Formatting + lint in one read-only pass (fails on unformatted files and lint
+      # errors), then the AGENTS.md bans Biome has no rule for.
+      - name: Lint (Biome)
+        run: bunx biome ci .
+
+      - name: Banned patterns
+        run: bun run scripts/check-banned.ts
 
       - name: Typecheck
         run: bun run typecheck
