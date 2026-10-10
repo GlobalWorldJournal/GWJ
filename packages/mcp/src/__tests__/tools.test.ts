@@ -43,6 +43,7 @@ function mockClient(): GwjClient {
     listRevisions: vi.fn(),
     getRevision: vi.fn(),
     restoreRevision: vi.fn(),
+    addCorrection: vi.fn(),
   };
 }
 
@@ -69,6 +70,7 @@ describe('GWJ MCP tools', () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [
+        'add_correction',
         'create_article',
         'delete_article',
         'get_article',
@@ -410,5 +412,29 @@ describe('create_article scheduling', () => {
       status: 'draft',
       scheduledAt: '2026-10-11T07:00:00Z',
     });
+  });
+});
+
+describe('add_correction', () => {
+  it('appends a correction and rejects an empty one without calling the backend', async () => {
+    const client = mockClient();
+    vi.mocked(client.addCorrection).mockResolvedValue(sampleArticle({ id: 'a1' }));
+    const mcp = await connect(client);
+    const ok = await mcp.callTool({
+      name: 'add_correction',
+      arguments: { id: 'a1', text: 'An earlier version misstated the date of the vote.' },
+    });
+    const empty = await mcp.callTool({
+      name: 'add_correction',
+      arguments: { id: 'a1', text: '  ' },
+    });
+    await mcp.close();
+    expect(ok.isError).toBeFalsy();
+    expect(client.addCorrection).toHaveBeenCalledWith(
+      'a1',
+      'An earlier version misstated the date of the vote.',
+    );
+    expect(empty.isError).toBe(true);
+    expect(client.addCorrection).toHaveBeenCalledTimes(1);
   });
 });

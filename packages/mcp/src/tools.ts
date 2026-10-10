@@ -2,6 +2,7 @@ import {
   ArticleInputSchema,
   ArticleListQuerySchema,
   ArticleUpdateSchema,
+  CorrectionInputSchema,
   LANGUAGE_NAMES,
   SUPPORTED_LANGUAGES,
   WRITERS,
@@ -54,6 +55,11 @@ const ArticleRefShape = {
 };
 
 const ArticleIdShape = { id: z.string().min(1).describe('Article id') };
+
+const CorrectionShape = {
+  id: z.string().min(1).describe('Article id'),
+  ...CorrectionInputSchema.shape,
+};
 
 const RevisionShape = {
   id: z.string().min(1).describe('Article id'),
@@ -200,6 +206,16 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'list_categories',
     { description: 'List the fixed set of newspaper categories.' },
     () => guard(async () => jsonResult(await client.listCategories())),
+  );
+
+  server.registerTool(
+    'add_correction',
+    {
+      description:
+        'Append a dated, PUBLIC correction note to an article after fixing a factual error in it (fix the text with update_article first). Readers see it below the story; it can never be edited or removed. Use it for factual errors, not for routine copy edits.',
+      inputSchema: CorrectionShape,
+    },
+    ({ id, text }) => guard(async () => jsonResult(await client.addCorrection(id, text))),
   );
 
   server.registerTool(

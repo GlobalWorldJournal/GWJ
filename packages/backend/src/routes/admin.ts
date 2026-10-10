@@ -4,12 +4,14 @@ import {
   ArticleInputSchema,
   ArticleListQuerySchema,
   ArticleUpdateSchema,
+  CorrectionInputSchema,
   TakedownActionSchema,
   TakedownListQuerySchema,
   UploadFromUrlInputSchema,
   type ArticleInput,
   type ArticleListQuery,
   type ArticleUpdate,
+  type CorrectionInput,
   type TakedownAction,
   type TakedownListQuery,
   type UploadFromUrlInput,
@@ -119,6 +121,15 @@ export function createAdminRouter(
     const article = await articleService.unpublish(requireParam(req, 'id'), actorOf(req));
     res.json(article);
   });
+
+  router.post(
+    '/articles/:id/corrections',
+    validate(CorrectionInputSchema),
+    async (req: Request, res: Response) => {
+      const { text } = req.body as CorrectionInput;
+      res.json(await articleService.addCorrection(requireParam(req, 'id'), text, actorOf(req)));
+    },
+  );
 
   router.get('/articles/:id/revisions', async (req: Request, res: Response) => {
     res.json(await articleService.listRevisions(requireParam(req, 'id')));

@@ -16,6 +16,7 @@ import {
   SUPPORTED_LANGUAGES,
   type ArticleStatus,
   type Category,
+  type Correction,
   type HeroImage,
   type Language,
   type Seo,
@@ -85,6 +86,8 @@ export const articles = pgTable(
     firstPublishedAt: timestamp({ withTimezone: true, mode: 'date' }),
     /** A draft set to go live at this time (the scheduler publishes it). */
     scheduledAt: timestamp({ withTimezone: true, mode: 'date' }),
+    /** Public correction notes, oldest first; appended, never rewritten. */
+    corrections: jsonb().$type<Correction[]>().notNull().default(sql`'[]'::jsonb`),
     /**
      * The story this article is an edition of: every language version of one story
      * shares this id (the id of the article the group started from). An article

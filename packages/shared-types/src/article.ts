@@ -91,6 +91,29 @@ export type Source = z.infer<typeof SourceSchema>;
 /** A URL slug: lowercase ASCII words joined by single dashes (what `slugify` emits). */
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/**
+ * A public correction note on an article ("An earlier version misstated…"):
+ * dated, shown to readers below the story, never edited or removed.
+ */
+export const CorrectionSchema = z.object({
+  at: z.string().datetime(),
+  text: z.string().min(1),
+});
+export type Correction = z.infer<typeof CorrectionSchema>;
+
+/** Payload to append a correction to an article. */
+export const CorrectionInputSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(1)
+    .max(1000)
+    .describe(
+      'What was wrong and what is right now, in the article\'s language, e.g. "An earlier version of this article misstated the date of the vote."',
+    ),
+});
+export type CorrectionInput = z.infer<typeof CorrectionInputSchema>;
+
 /** Payload to create an article. */
 export const ArticleInputSchema = z.object({
   title: z.string().min(1).describe('A specific, sentence-case headline.'),
@@ -181,6 +204,8 @@ export const ArticleSchema = ArticleInputSchema.omit({ translationOf: true }).ex
   slug: z.string(),
   /** Shared by every language edition of the same story (optional: older API responses lack it). */
   translationGroupId: z.string().optional(),
+  /** Public corrections, oldest first (optional: older API responses lack it). */
+  corrections: z.array(CorrectionSchema).optional(),
   /**
    * The OTHER language editions of this story — only on single-article responses
    * (published ones only, on the public API).
