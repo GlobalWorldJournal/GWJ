@@ -2,6 +2,7 @@ import type { Correction } from '@gwj/shared-types';
 import { useLang } from '../lib/i18n';
 import { LocaleLink } from '../lib/locale';
 import { formatDateTime } from '../lib/format';
+import { EmailIcon, LinkedInIcon, ShareIcon, TelegramIcon, XIcon } from './SocialIcons';
 
 /** Public corrections, dated, below the story (newspaper practice). */
 export function CorrectionsNote({ corrections }: { corrections: readonly Correction[] }) {
@@ -55,12 +56,23 @@ interface ShareBarProps {
 }
 
 const SHARE_TARGETS = [
-  { name: 'X', href: (u: string, t: string) => `https://x.com/intent/post?url=${u}&text=${t}` },
+  {
+    name: 'X',
+    href: (u: string, t: string) => `https://x.com/intent/post?url=${u}&text=${t}`,
+    Icon: XIcon,
+  },
   {
     name: 'LinkedIn',
     href: (u: string) => `https://www.linkedin.com/sharing/share-offsite/?url=${u}`,
+    Icon: LinkedInIcon,
   },
-  { name: 'Telegram', href: (u: string, t: string) => `https://t.me/share/url?url=${u}&text=${t}` },
+  {
+    name: 'Telegram',
+    href: (u: string, t: string) => `https://t.me/share/url?url=${u}&text=${t}`,
+    Icon: TelegramIcon,
+  },
+  // Mention: pending its own share-intent URL format (not yet confirmed) —
+  // add here, same shape, once known. Don't guess a URL that might not work.
 ] as const;
 
 /**
@@ -74,7 +86,8 @@ export function ShareBar({ title, url }: ShareBarProps) {
   const encodedTitle = encodeURIComponent(title);
   const canShareNatively =
     typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-  const linkClass = 'label text-[0.6875rem] text-ink-soft transition-colors hover:text-accent';
+  const iconClass = 'h-[18px] w-[18px] text-ink-soft transition-colors group-hover:text-accent';
+  const linkClass = 'group inline-flex items-center justify-center';
 
   return (
     <nav
@@ -86,6 +99,7 @@ export function ShareBar({ title, url }: ShareBarProps) {
         <button
           type="button"
           className={linkClass}
+          aria-label={t('shareNative')}
           onClick={() => {
             navigator.share({ title, url }).catch((err: unknown) => {
               // Closing the share sheet rejects with AbortError: nothing to do.
@@ -93,7 +107,7 @@ export function ShareBar({ title, url }: ShareBarProps) {
             });
           }}
         >
-          {t('shareNative')}
+          <ShareIcon className={iconClass} />
         </button>
       ) : null}
       {SHARE_TARGETS.map((target) => (
@@ -105,7 +119,7 @@ export function ShareBar({ title, url }: ShareBarProps) {
           aria-label={t('shareVia', { x: target.name })}
           className={linkClass}
         >
-          {target.name}
+          <target.Icon className={iconClass} />
         </a>
       ))}
       <a
@@ -113,7 +127,7 @@ export function ShareBar({ title, url }: ShareBarProps) {
         aria-label={t('shareByEmail')}
         className={linkClass}
       >
-        Email
+        <EmailIcon className={iconClass} />
       </a>
     </nav>
   );
