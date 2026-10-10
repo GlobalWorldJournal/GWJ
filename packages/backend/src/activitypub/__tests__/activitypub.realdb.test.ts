@@ -53,6 +53,9 @@ const REMOTE_ACTOR_ID = 'https://remote.example/users/alice';
 const REMOTE_INBOX = 'https://remote.example/users/alice/inbox';
 const REMOTE_SHARED_INBOX = 'https://remote.example/inbox';
 const REMOTE_KEY_ID = `${REMOTE_ACTOR_ID}#main-key`;
+// A remote account deleted at its origin: its actor document answers 410 Gone.
+const GONE_ACTOR_ID = 'https://remote.example/users/gone';
+const GONE_INBOX = 'https://remote.example/users/gone/inbox';
 const remoteKeys = generateKeyPairSync('rsa', {
   modulusLength: 2048,
   publicKeyEncoding: { type: 'spki', format: 'pem' },
@@ -78,6 +81,9 @@ const fakeFetch: typeof fetch = (async (input: Parameters<typeof fetch>[0], init
       status: 200,
       headers: { 'content-type': 'application/activity+json' },
     });
+  }
+  if (method === 'GET' && url === GONE_ACTOR_ID) {
+    return new Response('gone', { status: 410 });
   }
   if (method === 'POST') {
     outboundPosts.push({ url, init: init ?? {} });
@@ -341,10 +347,10 @@ function ACTIVITY_JSON(): string {
 }
 
 /** Build a signed inbox POST request for the given activity body + target path. */
-function signedInbox(body: string, target: string) {
+function signedInbox(body: string, target: string, keyId: string = REMOTE_KEY_ID) {
   const signed = signRequest({
     privateKeyPem: remoteKeys.privateKey,
-    keyId: REMOTE_KEY_ID,
+    keyId,
     method: 'POST',
     url: `${ORIGIN}${target}`,
     body,
@@ -358,8 +364,8 @@ function signedInbox(body: string, target: string) {
 }
 
 /** Send a signed inbox POST through supertest. */
-function postInbox(target: string, body: string) {
-  const h = signedInbox(body, target);
+function postInbox(target: string, body: string, keyId: string = REMOTE_KEY_ID) {
+  const h = signedInbox(body, target, keyId);
   return request(app)
     .post(target)
     .set('content-type', 'application/activity+json')
@@ -527,6 +533,45 @@ describe('ActivityPub Inbox — per actor', () => {
     expect(res.status).toBe(202);
     expect(await countFollowers({ actorId: REMOTE_ACTOR_ID })).toBe(0);
   });
+
+  it('Delete of an actor its own server reports gone (410) removes it, though its key is gone', async () => {
+    await insertFollower({
+      actorUsername: NEWS,
+      actorId: GONE_ACTOR_ID,
+      inbox: GONE_INBOX,
+      followedAt: new Date(),
+    });
+    const body = JSON.stringify({
+      id: `${GONE_ACTOR_ID}#delete`,
+      type: 'Delete',
+      actor: GONE_ACTOR_ID,
+      object: GONE_ACTOR_ID,
+    });
+    const res = await postInbox('/inbox', body, `${GONE_ACTOR_ID}#main-key`);
+    expect(res.status).toBe(202);
+    expect(await countFollowers({ actorId: GONE_ACTOR_ID })).toBe(0);
+  });
+
+  it('anything else signed by a gone actor is refused', async () => {
+    await insertFollower({
+      actorUsername: NEWS,
+      actorId: REMOTE_ACTOR_ID,
+      inbox: REMOTE_INBOX,
+      followedAt: new Date(),
+    });
+    const goneKey = `${GONE_ACTOR_ID}#main-key`;
+    const follow = JSON.stringify({ type: 'Follow', actor: GONE_ACTOR_ID, object: newsId });
+    expect((await postInbox('/inbox', follow, goneKey)).status).toBe(401);
+    // A gone signer cannot delete someone else.
+    const forged = JSON.stringify({
+      type: 'Delete',
+      actor: GONE_ACTOR_ID,
+      object: REMOTE_ACTOR_ID,
+    });
+    expect((await postInbox('/inbox', forged, goneKey)).status).toBe(401);
+    expect(await countFollowers({ actorId: REMOTE_ACTOR_ID })).toBe(1);
+    expect(await countFollowers({ actorId: GONE_ACTOR_ID })).toBe(0);
+  });
 });
 
 describe('ActivityPub Followers collection — per actor', () => {
@@ -630,84 +675,84 @@ describe('ActivityPub publish delivery — writer Create + edition Announce', ()
       outboundPosts.filter((p) => (p.init.method ?? 'GET').toUpperCase() === 'POST'),
     ).toHaveLength(0);
   });
+});
 
-  describe('ActivityPub edit and retraction — Update / Delete of the delivered Note', () => {
-    const writerInbox = 'https://remote.example/users/wfollower/inbox';
-    const editionInbox = 'https://remote.example/users/efollower/inbox';
+describe('ActivityPub edit and retraction — Update / Delete of the delivered Note', () => {
+  const writerInbox = 'https://remote.example/users/wfollower/inbox';
+  const editionInbox = 'https://remote.example/users/efollower/inbox';
 
-    beforeEach(async () => {
-      await insertFollower({
-        actorUsername: WRITER_USERNAME,
-        actorId: 'https://remote.example/users/wfollower',
-        inbox: writerInbox,
-        followedAt: new Date(),
-      });
-      await insertFollower({
-        actorUsername: NEWS,
-        actorId: 'https://remote.example/users/efollower',
-        inbox: editionInbox,
-        followedAt: new Date(),
-      });
+  beforeEach(async () => {
+    await insertFollower({
+      actorUsername: WRITER_USERNAME,
+      actorId: 'https://remote.example/users/wfollower',
+      inbox: writerInbox,
+      followedAt: new Date(),
+    });
+    await insertFollower({
+      actorUsername: NEWS,
+      actorId: 'https://remote.example/users/efollower',
+      inbox: editionInbox,
+      followedAt: new Date(),
+    });
+  });
+
+  const delivered = (type: string) =>
+    outboundPosts
+      .map((post) => ({ url: post.url, body: JSON.parse((post.init.body as string) ?? '{}') }))
+      .filter((post) => post.body.type === type);
+
+  it('a visible edit sends the writer-signed Update of the same Note to writer and edition followers', async () => {
+    const article = await seedPublished({ title: 'First Take', author: WRITER_NAME });
+    const [create] = delivered('Create');
+    const noteId = create?.body.object.id;
+    expect(noteId).toMatch(new RegExp(`^${writerId}/articles/${article.id}/notes/\\d+$`));
+
+    await articleService.update(article.id, { title: 'Second Take' });
+    await drainOutbox();
+
+    const updates = delivered('Update');
+    expect(updates.map((u) => u.url).sort()).toEqual([editionInbox, writerInbox].sort());
+    const update = updates[0]?.body;
+    expect(update.actor).toBe(writerId);
+    expect(update.object.id).toBe(noteId);
+    expect(update.object.content).toContain('Second Take');
+    expect(update.object.updated).toBeDefined();
+  });
+
+  it('unpublish sends a Delete (Tombstone) of the Note; re-publishing federates a NEW Note', async () => {
+    const article = await seedPublished({ title: 'Pulled Story', author: WRITER_NAME });
+    const firstNote = delivered('Create')[0]?.body.object.id;
+
+    await articleService.unpublish(article.id);
+    await drainOutbox();
+    const deletes = delivered('Delete');
+    expect(deletes.map((d) => d.url).sort()).toEqual([editionInbox, writerInbox].sort());
+    expect(deletes[0]?.body).toMatchObject({
+      actor: writerId,
+      object: { id: firstNote, type: 'Tombstone' },
     });
 
-    const delivered = (type: string) =>
-      outboundPosts
-        .map((post) => ({ url: post.url, body: JSON.parse((post.init.body as string) ?? '{}') }))
-        .filter((post) => post.body.type === type);
+    await articleService.publish(article.id);
+    await drainOutbox();
+    const creates = delivered('Create');
+    expect(creates).toHaveLength(2);
+    // A tombstoned id would be ignored by Mastodon: the new publication is a new Note.
+    expect(creates[1]?.body.object.id).not.toBe(firstNote);
+    expect(delivered('Announce')[1]?.body.object).toBe(creates[1]?.body.object.id);
+  });
 
-    it('a visible edit sends the writer-signed Update of the same Note to writer and edition followers', async () => {
-      const article = await seedPublished({ title: 'First Take', author: WRITER_NAME });
-      const [create] = delivered('Create');
-      const noteId = create?.body.object.id;
-      expect(noteId).toMatch(new RegExp(`^${writerId}/articles/${article.id}/notes/\\d+$`));
+  it('deleting a published article sends the Delete too', async () => {
+    const article = await seedPublished({ title: 'Deleted Story', author: 'Reuters Staff' });
+    const note = delivered('Create')[0]?.body.object.id;
 
-      await articleService.update(article.id, { title: 'Second Take' });
-      await drainOutbox();
+    await articleService.remove(article.id);
+    await drainOutbox();
 
-      const updates = delivered('Update');
-      expect(updates.map((u) => u.url).sort()).toEqual([editionInbox, writerInbox].sort());
-      const update = updates[0]?.body;
-      expect(update.actor).toBe(writerId);
-      expect(update.object.id).toBe(noteId);
-      expect(update.object.content).toContain('Second Take');
-      expect(update.object.updated).toBeDefined();
-    });
-
-    it('unpublish sends a Delete (Tombstone) of the Note; re-publishing federates a NEW Note', async () => {
-      const article = await seedPublished({ title: 'Pulled Story', author: WRITER_NAME });
-      const firstNote = delivered('Create')[0]?.body.object.id;
-
-      await articleService.unpublish(article.id);
-      await drainOutbox();
-      const deletes = delivered('Delete');
-      expect(deletes.map((d) => d.url).sort()).toEqual([editionInbox, writerInbox].sort());
-      expect(deletes[0]?.body).toMatchObject({
-        actor: writerId,
-        object: { id: firstNote, type: 'Tombstone' },
-      });
-
-      await articleService.publish(article.id);
-      await drainOutbox();
-      const creates = delivered('Create');
-      expect(creates).toHaveLength(2);
-      // A tombstoned id would be ignored by Mastodon: the new publication is a new Note.
-      expect(creates[1]?.body.object.id).not.toBe(firstNote);
-      expect(delivered('Announce')[1]?.body.object).toBe(creates[1]?.body.object.id);
-    });
-
-    it('deleting a published article sends the Delete too', async () => {
-      const article = await seedPublished({ title: 'Deleted Story', author: 'Reuters Staff' });
-      const note = delivered('Create')[0]?.body.object.id;
-
-      await articleService.remove(article.id);
-      await drainOutbox();
-
-      const [deletion] = delivered('Delete');
-      expect(deletion?.url).toBe(editionInbox);
-      expect(deletion?.body).toMatchObject({
-        actor: newsId,
-        object: { id: note, type: 'Tombstone' },
-      });
+    const [deletion] = delivered('Delete');
+    expect(deletion?.url).toBe(editionInbox);
+    expect(deletion?.body).toMatchObject({
+      actor: newsId,
+      object: { id: note, type: 'Tombstone' },
     });
   });
 });
