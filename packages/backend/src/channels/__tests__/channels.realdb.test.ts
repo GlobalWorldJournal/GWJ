@@ -396,7 +396,10 @@ describe('telegram channel', () => {
     if (!tg) throw new Error('telegram channel missing');
 
     const ref = await tg.publish(
-      makeArticle({ language: 'en', heroImage: { url: 'https://cdn.example.test/hero.jpg', alt: '' } }),
+      makeArticle({
+        language: 'en',
+        heroImage: { url: 'https://cdn.example.test/hero.jpg', alt: '' },
+      }),
     );
     expect(ref).toEqual({ chatId: -1001234, messageId: 555 });
   });
