@@ -26,8 +26,9 @@ import {
 } from '../lib/api';
 import { useAuth } from './useAuth';
 import { StatusMessage } from '../components/StatusMessage';
-import { ArticleBody } from '../components/ArticleBody';
 import { CorrectionsPanel } from './editor/CorrectionsPanel';
+import { BodyEditor } from './editor/BodyEditor';
+import { useUnsavedChangesGuard } from './editor/useUnsavedChangesGuard';
 import { HistoryPanel } from './editor/HistoryPanel';
 import { TranslationsPanel } from './editor/TranslationsPanel';
 
@@ -214,6 +215,9 @@ function EditorForm({ initial, article }: EditorFormProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<EditorForm>(initial);
+  // The form as last loaded or saved: anything else is unsaved work.
+  const [baseline, setBaseline] = useState<EditorForm>(initial);
+  const dirty = JSON.stringify(form) !== JSON.stringify(baseline);
   // The server's view of the article after the latest save/publish/unpublish.
   const [saved, setSaved] = useState<Article | null>(article);
 
@@ -225,25 +229,31 @@ function EditorForm({ initial, article }: EditorFormProps) {
     return queryClient.invalidateQueries({ queryKey: ['admin'] });
   }
 
-  /** Persist the form without changing whether the story is live. */
-  async function persist(authToken: string): Promise<Article> {
-    if (saved) return updateArticle(authToken, saved.id, toArticleUpdate(form, saved.slug));
-    return createArticle(authToken, toArticleInput(form));
+  /** Persist `snapshot` (the form as it is now) without changing whether the story is live. */
+  async function persist(authToken: string, snapshot: EditorForm): Promise<Article> {
+    if (saved) return updateArticle(authToken, saved.id, toArticleUpdate(snapshot, saved.slug));
+    return createArticle(authToken, toArticleInput(snapshot));
   }
 
-  function onSaved(next: Article) {
+  /**
+   * After `snapshot` was stored: reflect server-side normalisation (a derived
+   * slug) and make it the saved baseline — while keeping anything typed during
+   * the save (still unsaved, so still guarded).
+   */
+  function onSaved(next: Article, snapshot: EditorForm) {
     setSaved(next);
-    // Reflect server-side normalisation (a derived slug, cleared SEO keys).
     setForm((current) => ({ ...current, slug: next.slug }));
+    setBaseline({ ...snapshot, slug: next.slug });
   }
 
   const save = useMutation({
-    mutationFn: async (): Promise<Article> => {
+    mutationFn: async () => {
       if (!token) throw new Error('Not authenticated');
-      return persist(token);
+      const snapshot = form;
+      return { next: await persist(token, snapshot), snapshot };
     },
-    onSuccess: async (next) => {
-      onSaved(next);
+    onSuccess: async ({ next, snapshot }) => {
+      onSaved(next, snapshot);
       await invalidate();
     },
   });
@@ -255,8 +265,9 @@ function EditorForm({ initial, article }: EditorFormProps) {
       if (form.heroImage && !form.heroImage.alt.trim()) {
         throw new Error('Describe the hero image (alt text) before publishing.');
       }
-      const stored = await persist(token);
-      onSaved(stored);
+      const snapshot = form;
+      const stored = await persist(token, snapshot);
+      onSaved(stored, snapshot);
       return publishArticle(token, stored.id);
     },
     onSuccess: async () => {
@@ -295,8 +306,11 @@ function EditorForm({ initial, article }: EditorFormProps) {
   const busy = save.isPending || publish.isPending || unpublish.isPending;
   const mutationError = save.error ?? publish.error ?? unpublish.error ?? heroUpload.error;
 
+  const leaveGuard = useUnsavedChangesGuard(dirty && !publish.isPending);
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
+      {leaveGuard}
       <header className="mb-6 flex items-center justify-between border-b-3 border-ink pb-4">
         <div className="flex items-baseline gap-3">
           <h1 className="headline text-2xl text-ink">{saved ? 'Edit Article' : 'New Article'}</h1>
@@ -462,7 +476,14 @@ function EditorForm({ initial, article }: EditorFormProps) {
           onRemove={() => update('heroImage', null)}
         />
 
-        <BodyField value={form.body} onChange={(body) => update('body', body)} />
+        <BodyEditor
+          value={form.body}
+          onChange={(body) => update('body', body)}
+          onUploadImage={async (file) => {
+            if (!token) throw new Error('Not authenticated');
+            return (await uploadImage(token, file)).url;
+          }}
+        />
 
         {isLive ? null : (
           <Field label="Publish automatically at (your local time; leave blank to publish by hand)">
@@ -638,51 +659,5 @@ function HeroImageField({
         </label>
       )}
     </fieldset>
-  );
-}
-
-/* ---------- body (markdown) ---------- */
-
-function BodyField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const [preview, setPreview] = useState(false);
-  return (
-    <section className="mt-4">
-      <div className="mb-1 flex items-baseline justify-between border-t-3 border-ink pt-2">
-        <h2 className="label text-sm text-ink">Body</h2>
-        <fieldset className="m-0 flex gap-3 border-0 p-0">
-          <legend className="sr-only">Body view</legend>
-          {(['Write', 'Preview'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              aria-pressed={preview === (mode === 'Preview')}
-              onClick={() => setPreview(mode === 'Preview')}
-              className={`label text-[0.6875rem] transition-colors hover:text-accent ${
-                preview === (mode === 'Preview') ? 'text-accent' : 'text-ink-soft'
-              }`}
-            >
-              {mode}
-            </button>
-          ))}
-        </fieldset>
-      </div>
-      <p className="label mb-3 text-[0.625rem] text-muted">
-        GitHub-flavored Markdown — headings, lists, links, quotes, images.
-      </p>
-      {preview ? (
-        <div className="border border-rule px-4 py-2">
-          <ArticleBody markdown={value} />
-        </div>
-      ) : (
-        <textarea
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          rows={20}
-          spellCheck
-          placeholder={'## A subhead\n\nWrite the story here in Markdown…'}
-          className="w-full resize-y border border-ink bg-paper px-3 py-2 font-body text-[1rem] leading-relaxed text-ink outline-none focus:border-accent"
-        />
-      )}
-    </section>
   );
 }
