@@ -133,9 +133,12 @@ export function Home() {
                     to={`/article/${article.slug}`}
                     className="group flex gap-2 font-body text-[0.95rem] font-semibold leading-snug text-ink transition-colors hover:text-accent"
                   >
-                    {article.kicker ? (
-                      <span className="label shrink-0 text-accent">{article.kicker}</span>
-                    ) : null}
+                    {/* Fixed width, not just shrink-0: a kicker's own text length
+                        ("Tech" vs. "Commentary") otherwise pushes each row's title
+                        to a different start position, breaking the column's alignment. */}
+                    <span className="label w-20 shrink-0 truncate text-accent">
+                      {article.kicker}
+                    </span>
                     <span>{article.title}</span>
                   </LocaleLink>
                 </li>
