@@ -47,6 +47,9 @@ function mockClient(): MockGwjClient {
     getRevision: vi.fn(),
     restoreRevision: vi.fn(),
     addCorrection: vi.fn(),
+    listTakedowns: vi.fn(),
+    actOnTakedown: vi.fn(),
+    popularArticles: vi.fn(),
   };
 }
 
@@ -73,16 +76,19 @@ describe('GWJ MCP tools', () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [
+        'act_on_takedown',
         'add_correction',
         'create_article',
         'delete_article',
         'get_article',
+        'get_most_popular',
         'get_revision',
         'link_translation',
         'list_articles',
         'list_categories',
         'list_languages',
         'list_revisions',
+        'list_takedowns',
         'list_writers',
         'publish_article',
         'restore_revision',
@@ -386,6 +392,61 @@ describe('MCP HTTP hardening', () => {
     } finally {
       server.close();
     }
+  });
+});
+
+describe('takedown and popularity tools', () => {
+  let mcpClient: Client | undefined;
+
+  afterEach(async () => {
+    await mcpClient?.close();
+    mcpClient = undefined;
+  });
+
+  it('act_on_takedown forwards the decision (with its default apply) for that request', async () => {
+    const client = mockClient();
+    client.actOnTakedown.mockResolvedValue({
+      id: 'td-1',
+      requesterName: 'Jamie',
+      requesterEmail: 'jamie@example.com',
+      claimType: 'copyright',
+      explanation: 'My photo.',
+      goodFaithAssertion: true,
+      status: 'actioned',
+      articleId: 'a1',
+      createdAt: '2026-10-10T10:00:00.000Z',
+      updatedAt: '2026-10-10T10:00:00.000Z',
+    });
+    mcpClient = await connect(client);
+
+    const result = await mcpClient.callTool({
+      name: 'act_on_takedown',
+      arguments: { id: 'td-1', status: 'actioned', resolution: 'Licensed photo replaced.' },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(client.actOnTakedown).toHaveBeenCalledWith('td-1', {
+      status: 'actioned',
+      resolution: 'Licensed photo replaced.',
+      apply: 'none',
+    });
+  });
+
+  it('list_takedowns and get_most_popular pass their filters through', async () => {
+    const client = mockClient();
+    client.listTakedowns.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
+    client.popularArticles.mockResolvedValue({ data: [] });
+    mcpClient = await connect(client);
+
+    await mcpClient.callTool({ name: 'list_takedowns', arguments: { status: 'pending' } });
+    expect(client.listTakedowns).toHaveBeenCalledWith({ status: 'pending', page: 1, limit: 20 });
+    await mcpClient.callTool({
+      name: 'get_most_popular',
+      arguments: { language: 'es', days: 7 },
+    });
+    expect(client.popularArticles).toHaveBeenCalledWith({ language: 'es', days: 7, limit: 6 });
   });
 });
 
