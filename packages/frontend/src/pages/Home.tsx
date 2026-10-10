@@ -14,6 +14,7 @@ import { categoryLabel } from '../lib/dictionary';
 import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
 import { MostPopular } from '../components/MostPopular';
+import { WhatsNews } from '../components/WhatsNews';
 import { mostPopularRail, usePopularArticles } from '../lib/popular';
 import { StatusMessage } from '../components/StatusMessage';
 import { HomeSkeleton } from '../components/Skeletons';
@@ -92,9 +93,9 @@ export function Home() {
   }
   const rest = news.filter((a) => a.id !== lead.id);
   const leftStack = rest.slice(0, 3);
-  const leftList = rest.slice(3, 6);
-  const leadBullets = rest.slice(6, 10);
-  const centerMore = rest.slice(10, 14); // fills the center column below the lead
+  const briefs = rest.slice(3, 8); // "What's News": the next stories as one-line briefs
+  const leadBullets = rest.slice(8, 12);
+  const centerMore = rest.slice(12, 16); // fills the center column below the lead
   // The most read stories, topped up with current ones only (like every rail).
   const mostPopular = mostPopularRail(
     popular.data?.data ?? [],
@@ -108,8 +109,8 @@ export function Home() {
           Uniform gap-6 gutters, no per-column horizontal padding; the vertical
           rules sit in the gutter via border-r so every column aligns. */}
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-[17rem_minmax(0,1fr)_18rem]">
-        {/* LEFT — mixed stack: a feature with photo, text headlines, then a
-            thumbnail list (varied card types like WSJ). */}
+        {/* LEFT — mixed stack: a feature with photo, text headlines, then the
+            "What's News" briefs box (varied card types like WSJ). */}
         <div className="flex flex-col divide-y divide-rule">
           {leftStack.map((article, i) => (
             <div key={article.id} className="py-4 first:pt-0">
@@ -122,17 +123,9 @@ export function Home() {
               />
             </div>
           ))}
-          {leftList.map((article) => (
-            <div key={article.id} className="py-3">
-              <ArticleCard
-                article={article}
-                variant="list"
-                showImage={Boolean(article.heroImage)}
-                showDeck={false}
-                showByline={false}
-              />
-            </div>
-          ))}
+          <div className="py-4">
+            <WhatsNews articles={briefs} title={t('whatsNews')} />
+          </div>
           <AdSlot variant="inline" className="pt-5" />
         </div>
 

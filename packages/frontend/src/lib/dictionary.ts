@@ -10,6 +10,7 @@ import type { Category, Language } from '@gwj/shared-types';
  */
 export const DICT: Record<Language, Record<string, string>> = {
   en: {
+    whatsNews: 'What’s News',
     notFoundTitle: 'Page not found',
     notFoundDetail: 'The story you’re looking for may have moved or been removed.',
     backToFrontPage: 'Return to the front page',
@@ -86,6 +87,7 @@ export const DICT: Record<Language, Record<string, string>> = {
     accessibility: 'Accessibility',
   },
   es: {
+    whatsNews: 'Lo esencial',
     notFoundTitle: 'Página no encontrada',
     notFoundDetail: 'La noticia que busca puede haberse movido o eliminado.',
     backToFrontPage: 'Volver a la portada',
@@ -159,6 +161,7 @@ export const DICT: Record<Language, Record<string, string>> = {
     accessibility: 'Accesibilidad',
   },
   fr: {
+    whatsNews: 'L’essentiel',
     notFoundTitle: 'Page introuvable',
     notFoundDetail: 'L’article que vous cherchez a peut-être été déplacé ou supprimé.',
     backToFrontPage: 'Retour à la une',
