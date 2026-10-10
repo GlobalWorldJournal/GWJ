@@ -65,6 +65,17 @@ export const PaginatedPublicArticlesSchema = z.object({
 })
 export type PaginatedPublicArticles = z.infer<typeof PaginatedPublicArticlesSchema>
 
+/**
+ * Copy a remote image onto our CDN. The BACKEND downloads it (behind its SSRF
+ * guard, timeout and size cap), validates it and stores it like an upload.
+ */
+export const UploadFromUrlInputSchema = z.object({
+  url: z.string().url(),
+  /** Name for the stored object; defaults to the URL's last path segment. */
+  filename: z.string().min(1).optional(),
+})
+export type UploadFromUrlInput = z.infer<typeof UploadFromUrlInputSchema>
+
 export const UploadResponseSchema = z.object({ url: z.string().url() })
 export type UploadResponse = z.infer<typeof UploadResponseSchema>
 

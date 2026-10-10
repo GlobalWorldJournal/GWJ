@@ -80,12 +80,10 @@ describe('GWJ MCP tools', () => {
     )
   })
 
-  it('create_article validates input and calls client.createArticle', async () => {
+  it('create_article validates input and creates the article published, in ONE call', async () => {
     const client = mockClient()
-    const created = sampleArticle({ id: 'created-1' })
+    const created = sampleArticle({ id: 'created-1', status: 'published' })
     vi.mocked(client.createArticle).mockResolvedValue(created)
-    // create_article now publishes immediately by default.
-    vi.mocked(client.publishArticle).mockResolvedValue(sampleArticle({ id: 'created-1' }))
     mcpClient = await connect(client)
 
     const result = await mcpClient.callTool({
@@ -99,7 +97,8 @@ describe('GWJ MCP tools', () => {
     })
 
     expect(client.createArticle).toHaveBeenCalledTimes(1)
-    expect(client.publishArticle).toHaveBeenCalledWith('created-1')
+    // Atomic: no separate publish call that could fail and strand a draft.
+    expect(client.publishArticle).not.toHaveBeenCalled()
     const passed = vi.mocked(client.createArticle).mock.calls[0]?.[0]
     expect(passed?.title).toBe('Markets rally on rate-cut hopes')
     expect(passed?.category).toBe(CATEGORIES[2])
@@ -107,18 +106,32 @@ describe('GWJ MCP tools', () => {
     expect(passed?.author).toBe('nate')
     // The body is accepted as a Markdown string.
     expect(passed?.body).toBe('# Markets rally\n\nEquities climbed today.')
-    // Schema defaults are applied before reaching the client.
-    expect(passed?.status).toBe('draft')
+    // Published by default; schema defaults are applied before reaching the client.
+    expect(passed?.status).toBe('published')
     expect(passed?.featured).toBe(0)
     expect(result.isError).toBeFalsy()
     const content = result.content as Array<{ type: string; text: string }>
     expect(JSON.parse(content[0]?.text ?? '{}').id).toBe('created-1')
   })
 
+  it('create_article with draft:true creates a draft', async () => {
+    const client = mockClient()
+    vi.mocked(client.createArticle).mockResolvedValue(sampleArticle({ id: 'held-1' }))
+    mcpClient = await connect(client)
+
+    const result = await mcpClient.callTool({
+      name: 'create_article',
+      arguments: { title: 'Held story', category: CATEGORIES[0], author: 'nate', body: 'Body', draft: true },
+    })
+
+    expect(result.isError).toBeFalsy()
+    expect(vi.mocked(client.createArticle).mock.calls[0]?.[0]?.status).toBe('draft')
+    expect(client.publishArticle).not.toHaveBeenCalled()
+  })
+
   it('auto-assigns a roster byline when create_article omits the author', async () => {
     const client = mockClient()
     vi.mocked(client.createArticle).mockResolvedValue(sampleArticle({ id: 'auto-1' }))
-    vi.mocked(client.publishArticle).mockResolvedValue(sampleArticle({ id: 'auto-1' }))
     mcpClient = await connect(client)
 
     const title = 'Chipmakers post record quarterly revenue'

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ACTIVITY_JSON_TYPE, LD_JSON_TYPE } from '@gwj/shared-types'
-import { assertSafeRemoteUrl, SsrfError, type AssertSafeRemoteUrlOptions } from './ssrfGuard'
+import { assertSafeRemoteUrl, type AssertSafeRemoteUrlOptions } from '../net/ssrfGuard'
+import { guardedGet, readBodyCapped } from '../net/guardedFetch'
 import { signRequest, type SignRequestOptions } from './httpSignature'
 import { logger } from '../logger'
 
@@ -49,33 +50,13 @@ export interface FederationFetchOptions {
   resolveDns?: AssertSafeRemoteUrlOptions['resolve']
 }
 
-/** Perform a guarded GET with a timeout and a manual-redirect policy. */
-async function guardedGet(
-  url: string,
-  options: FederationFetchOptions,
-): Promise<Response> {
-  const safeUrl = await assertSafeRemoteUrl(url, { resolve: options.resolveDns })
-  const fetchImpl = options.fetch ?? fetch
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-  try {
-    return await fetchImpl(safeUrl.toString(), {
-      method: 'GET',
-      // Re-validate redirect targets through the guard ourselves; never auto-follow.
-      redirect: 'manual',
-      headers: { accept: `${ACTIVITY_JSON_TYPE}, ${LD_JSON_TYPE}` },
-      signal: controller.signal,
-    })
-  } finally {
-    clearTimeout(timer)
-  }
-}
+/** Redirect hops followed (each re-guarded) when fetching a remote actor. */
+const ACTOR_MAX_REDIRECTS = 1
 
 /**
  * Fetch and cache a remote actor by its id/URL. Used to (a) look up a signer's
  * public key for inbound verification and (b) resolve a follower's inbox. The
- * SSRF guard runs before any egress; redirects are followed manually (one hop)
- * so each target is re-validated.
+ * SSRF guard runs before every hop, and the body is size-capped while streaming.
  */
 export async function fetchRemoteActor(
   actorUrl: string,
@@ -84,31 +65,17 @@ export async function fetchRemoteActor(
   const cached = actorCache.get(actorUrl)
   if (cached && cached.expiresAt > Date.now()) return cached.actor
 
-  let response = await guardedGet(actorUrl, options)
-  // Follow a single redirect hop manually (re-guarded), then refuse further.
-  if (response.status >= 300 && response.status < 400) {
-    const location = response.headers.get('location')
-    if (!location) throw new SsrfError('Redirect without a Location header')
-    const next = new URL(location, actorUrl).toString()
-    response = await guardedGet(next, options)
-    if (response.status >= 300 && response.status < 400) {
-      throw new SsrfError('Too many redirects fetching remote actor')
-    }
-  }
-
+  const response = await guardedGet(actorUrl, {
+    accept: `${ACTIVITY_JSON_TYPE}, ${LD_JSON_TYPE}`,
+    timeoutMs: FETCH_TIMEOUT_MS,
+    maxRedirects: ACTOR_MAX_REDIRECTS,
+    fetch: options.fetch,
+    resolveDns: options.resolveDns,
+  })
   if (!response.ok) {
     throw new Error(`Failed to fetch remote actor ${actorUrl} (${response.status})`)
   }
-
-  const declaredLength = Number(response.headers.get('content-length') ?? '')
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_ACTOR_BYTES) {
-    throw new Error('Remote actor document exceeds the size limit')
-  }
-
-  const text = await response.text()
-  if (text.length > MAX_ACTOR_BYTES) {
-    throw new Error('Remote actor document exceeds the size limit')
-  }
+  const text = (await readBodyCapped(response, MAX_ACTOR_BYTES)).toString('utf8')
 
   let json: unknown
   try {

@@ -6,16 +6,19 @@ import {
   ArticleUpdateSchema,
   TakedownActionSchema,
   TakedownListQuerySchema,
+  UploadFromUrlInputSchema,
   type ArticleInput,
   type ArticleListQuery,
   type ArticleUpdate,
   type TakedownAction,
   type TakedownListQuery,
+  type UploadFromUrlInput,
 } from '@gwj/shared-types'
 import { validateImageBuffer } from '@gwj/shared-types/image-validation'
 import { articleService } from '../services/articleService'
 import { takedownService } from '../services/takedownService'
 import { type UploadService } from '../services/uploadService'
+import { fetchRemoteImage, type RemoteImageOptions } from '../services/remoteImageService'
 import { requireAuth } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { requireParam } from '../middleware/params'
@@ -23,7 +26,11 @@ import { BadRequestError, UnprocessableEntityError } from '../errors'
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
-export function createAdminRouter(jwtSecret: string, uploadService: UploadService): Router {
+export function createAdminRouter(
+  jwtSecret: string,
+  uploadService: UploadService,
+  remoteImage: RemoteImageOptions = {},
+): Router {
   const router = Router()
   const upload = multer({
     storage: multer.memoryStorage(),
@@ -100,6 +107,16 @@ export function createAdminRouter(jwtSecret: string, uploadService: UploadServic
     }
 
     const result = await uploadService.uploadImage(file.buffer, file.originalname, file.mimetype)
+    res.status(201).json(result)
+  })
+
+  // Copy a remote image (e.g. a source's og:image) onto our CDN. The download
+  // happens HERE, behind the SSRF guard, a timeout and a streaming size cap, so
+  // no other service needs to fetch arbitrary URLs.
+  router.post('/upload/from-url', validate(UploadFromUrlInputSchema), async (req: Request, res: Response) => {
+    const input = req.body as UploadFromUrlInput
+    const image = await fetchRemoteImage(input.url, input.filename, remoteImage)
+    const result = await uploadService.uploadImage(image.buffer, image.filename, image.mime)
     res.status(201).json(result)
   })
 

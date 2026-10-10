@@ -2,6 +2,18 @@ import type { LookupAddress } from 'node:dns'
 import { lookup } from 'node:dns/promises'
 import { isIPv4, isIPv6 } from 'node:net'
 
+/**
+ * SSRF guard for every request the backend makes to a host it does not control:
+ * federation (any Mastodon instance) and image ingestion (`upload/from-url`).
+ *
+ * Such hosts are arbitrary PUBLIC hosts by nature, but a request must NEVER reach
+ * internal infrastructure. We require https, then resolve the host and reject if
+ * ANY resolved address points at a loopback, private, link-local, or unique-local
+ * range — classified at the byte level so tricks like `::ffff:127.0.0.1` or
+ * `0x7f.0.0.1` cannot slip through. Redirects are never auto-followed: callers use
+ * `guardedGet` (`./guardedFetch`), which re-validates every hop.
+ */
+
 /** Thrown when a remote URL fails the SSRF safety checks. */
 export class SsrfError extends Error {
   constructor(message: string) {
@@ -29,6 +41,7 @@ function isUnsafeIPv4(octets: [number, number, number, number]): boolean {
   if (a === 172 && b >= 16 && b <= 31) return true // 172.16.0.0/12 private
   if (a === 192 && b === 168) return true // 192.168.0.0/16 private
   if (a === 169 && b === 254) return true // 169.254.0.0/16 link-local
+  if (a === 100 && b >= 64 && b <= 127) return true // 100.64.0.0/10 CGNAT
   return false
 }
 
@@ -38,7 +51,6 @@ function isUnsafeIPv4(octets: [number, number, number, number]): boolean {
  */
 function expandIPv6(address: string): number[] | null {
   if (!isIPv6(address)) return null
-  // Strip a zone id (e.g. fe80::1%eth0) before parsing.
   const zoneless = address.split('%')[0] ?? address
 
   let head = zoneless
@@ -54,7 +66,6 @@ function expandIPv6(address: string): number[] | null {
     const groups: number[] = []
     for (const part of segment.split(':')) {
       if (part.includes('.')) {
-        // Embedded IPv4 tail (e.g. ::ffff:127.0.0.1) → two 16-bit groups.
         const v4 = parseIPv4(part)
         if (!v4) return null
         groups.push((v4[0] << 8) | v4[1], (v4[2] << 8) | v4[3])
@@ -92,18 +103,14 @@ function isUnsafeIPv6(address: string): boolean {
   const allZero = bytes.every((b) => b === 0)
   if (allZero) return true // :: unspecified
 
-  // ::1 loopback
-  if (bytes.slice(0, 15).every((b) => b === 0) && bytes[15] === 1) return true
+  if (bytes.slice(0, 15).every((b) => b === 0) && bytes[15] === 1) return true // ::1 loopback
 
   const first = bytes[0] ?? 0
   const second = bytes[1] ?? 0
 
-  // fc00::/7 unique-local
-  if ((first & 0xfe) === 0xfc) return true
-  // fe80::/10 link-local
-  if (first === 0xfe && (second & 0xc0) === 0x80) return true
+  if ((first & 0xfe) === 0xfc) return true // fc00::/7 unique-local
+  if (first === 0xfe && (second & 0xc0) === 0x80) return true // fe80::/10 link-local
 
-  // IPv4-mapped (::ffff:a.b.c.d) → classify the embedded IPv4.
   const isV4Mapped =
     bytes.slice(0, 10).every((b) => b === 0) && bytes[10] === 0xff && bytes[11] === 0xff
   if (isV4Mapped) {
@@ -133,9 +140,9 @@ export interface AssertSafeRemoteUrlOptions {
 }
 
 /**
- * Validate a caller-supplied remote URL against SSRF: require https, then resolve
- * the host and reject if ANY resolved address points at internal infrastructure.
- * Returns the parsed URL on success; throws SsrfError otherwise.
+ * Validate a remote URL against SSRF: require https, resolve the host, reject if
+ * ANY resolved address points at internal infrastructure. Returns the parsed URL
+ * on success; throws SsrfError otherwise.
  */
 export async function assertSafeRemoteUrl(
   raw: string,
