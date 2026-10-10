@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import {
   ArticleInputSchema,
@@ -55,6 +55,11 @@ export function createAdminRouter(
     limits: { fileSize: MAX_UPLOAD_BYTES },
   });
 
+  // Authenticated, per-user and often drafts: never stored by any cache.
+  router.use((_req: Request, res: Response, next: NextFunction) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
   router.use(requireAuth(jwtSecret));
 
   router.get(

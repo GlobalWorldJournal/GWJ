@@ -390,6 +390,22 @@ describe('GWJ API', () => {
     expect(anonymous.status).toBe(401);
   });
 
+  it('public reads are briefly cacheable; admin responses never are', async () => {
+    const list = await request(app).get('/api/articles');
+    expect(list.headers['cache-control']).toBe('public, max-age=60, stale-while-revalidate=300');
+    const missing = await request(app).get('/api/articles/no-such-story');
+    expect(missing.status).toBe(404);
+    expect(missing.headers['cache-control']).toBe('public, max-age=60, stale-while-revalidate=300');
+
+    const admin = await request(app)
+      .get('/api/admin/articles')
+      .set('authorization', `Bearer ${await loginToken()}`);
+    expect(admin.headers['cache-control']).toBe('no-store');
+    const anonymous = await request(app).get('/api/admin/articles');
+    expect(anonymous.status).toBe(401);
+    expect(anonymous.headers['cache-control']).toBe('no-store');
+  });
+
   it('GET /api/categories returns the 7 fixed categories', async () => {
     const res = await request(app).get('/api/categories');
     expect(res.status).toBe(200);
