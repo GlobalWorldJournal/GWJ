@@ -3,9 +3,9 @@
 // Request/Response so cross-realm AbortSignal checks behave like the real
 // Cloudflare runtime (jsdom's Request rejects a foreign signal).
 import { describe, it, expect, vi, afterEach } from 'vitest';
-// The SEO worker is plain JS shipped to Cloudflare Pages; we import its module
+// The SEO worker (src/worker, bundled to dist/_worker.js); we import its module
 // default and drive its fetch() to verify path-based locale parsing.
-import worker from '../../../public/_worker.js';
+import worker from '../../worker';
 
 const SHELL =
   '<!doctype html><html lang="en"><head><title>App</title></head><body><div id="root"></div></body></html>';
@@ -23,6 +23,31 @@ function makeEnv() {
 
 function get(path: string, env = makeEnv()) {
   return worker.fetch(new Request(`${SITE}${path}`), env);
+}
+
+/** An article exactly as the public API returns it (the worker validates it). */
+function apiArticle(overrides: Record<string, unknown>) {
+  return {
+    id: 'a'.repeat(24),
+    title: 'A story',
+    category: 'World',
+    language: 'en',
+    author: 'Ana',
+    body: 'Texto.',
+    status: 'published',
+    featured: 0,
+    tags: [],
+    seo: {},
+    publishedAt: '2026-06-23T00:00:00.000Z',
+    createdAt: '2026-06-23T00:00:00.000Z',
+    updatedAt: '2026-06-23T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** A page of articles as the public list endpoint returns it. */
+function apiPage(data: unknown[]) {
+  return { data, pagination: { page: 1, limit: 50, total: data.length, totalPages: 1 } };
 }
 
 afterEach(() => {
@@ -58,15 +83,7 @@ describe('worker locale parsing', () => {
 
   it('article: canonical is bound to the article language and gets self+x-default hreflang only', async () => {
     const env = makeEnv();
-    const article = {
-      slug: 'hola-mundo',
-      title: 'Hola Mundo',
-      author: 'Ana',
-      category: 'World',
-      language: 'es',
-      body: 'Texto.',
-      publishedAt: '2026-06-23T00:00:00.000Z',
-    };
+    const article = apiArticle({ slug: 'hola-mundo', title: 'Hola Mundo', language: 'es' });
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response(JSON.stringify(article), { status: 200 })),
@@ -86,14 +103,7 @@ describe('worker locale parsing', () => {
 
   it('article: wrong locale prefix 301-redirects to the canonical URL', async () => {
     const env = makeEnv();
-    const article = {
-      slug: 'hola-mundo',
-      title: 'Hola Mundo',
-      author: 'Ana',
-      category: 'World',
-      language: 'es',
-      body: 'Texto.',
-    };
+    const article = apiArticle({ slug: 'hola-mundo', title: 'Hola Mundo', language: 'es' });
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response(JSON.stringify(article), { status: 200 })),
@@ -119,26 +129,16 @@ describe('worker locale parsing', () => {
 
   it('sitemap: lists each edition root + categories and articles under their own language', async () => {
     const env = makeEnv();
-    const articles = {
-      data: [
-        {
-          slug: 'hola',
-          title: 'Hola',
-          author: 'Ana',
-          category: 'World',
-          language: 'es',
-          publishedAt: '2026-06-23T00:00:00.000Z',
-        },
-        {
-          slug: 'hello',
-          title: 'Hello',
-          author: 'Joe',
-          category: 'Tech',
-          language: 'en',
-          publishedAt: '2026-06-23T00:00:00.000Z',
-        },
-      ],
-    };
+    const articles = apiPage([
+      apiArticle({ slug: 'hola', title: 'Hola', language: 'es' }),
+      apiArticle({
+        id: 'b'.repeat(24),
+        slug: 'hello',
+        title: 'Hello',
+        author: 'Joe',
+        category: 'Tech',
+      }),
+    ]);
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response(JSON.stringify(articles), { status: 200 })),
