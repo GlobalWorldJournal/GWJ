@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express'
+import { Router, type Request, type Response } from 'express';
 import {
   CATEGORIES,
   categorySlug,
@@ -10,77 +10,85 @@ import {
   type PublicArticle,
   type PublicArticleListQuery,
   type TakedownRequestInput,
-} from '@gwj/shared-types'
-import { articleService } from '../services/articleService'
-import { takedownService } from '../services/takedownService'
-import { validate } from '../middleware/validate'
-import { requireParam } from '../middleware/params'
-import { BadRequestError, NotFoundError } from '../errors'
+} from '@gwj/shared-types';
+import { articleService } from '../services/articleService';
+import { takedownService } from '../services/takedownService';
+import { validate } from '../middleware/validate';
+import { requireParam } from '../middleware/params';
+import { BadRequestError, NotFoundError } from '../errors';
 
 function readQuery(req: Request): PublicArticleListQuery {
   // `validate(..., 'query')` has already parsed and stashed the typed value.
-  return req.validatedQuery as PublicArticleListQuery
+  return req.validatedQuery as PublicArticleListQuery;
 }
 
 /** Drop the internal `source` provenance: it is for the newsroom, never readers. */
 function toPublicArticle(article: Article): PublicArticle {
-  const { source, ...publicFields } = article
-  return publicFields
+  const { source, ...publicFields } = article;
+  return publicFields;
 }
 
 function toPublicPage(page: PaginatedArticles): PaginatedPublicArticles {
-  return { data: page.data.map(toPublicArticle), pagination: page.pagination }
+  return { data: page.data.map(toPublicArticle), pagination: page.pagination };
 }
 
 export function createPublicRouter(): Router {
-  const router = Router()
+  const router = Router();
 
-  router.get('/articles', validate(PublicArticleListQuerySchema, 'query'), async (req: Request, res: Response) => {
-    const result = await articleService.list(readQuery(req))
-    res.json(toPublicPage(result))
-  })
+  router.get(
+    '/articles',
+    validate(PublicArticleListQuerySchema, 'query'),
+    async (req: Request, res: Response) => {
+      const result = await articleService.list(readQuery(req));
+      res.json(toPublicPage(result));
+    },
+  );
 
   router.get('/articles/:slug', async (req: Request, res: Response) => {
-    const slug = requireParam(req, 'slug')
+    const slug = requireParam(req, 'slug');
     try {
-      res.json(toPublicArticle(await articleService.getBySlug(slug)))
+      res.json(toPublicArticle(await articleService.getBySlug(slug)));
     } catch (err) {
-      if (!(err instanceof NotFoundError)) throw err
+      if (!(err instanceof NotFoundError)) throw err;
       // A slug the article used to have: permanently redirect to its current one,
       // so old links (and the SEO worker, which follows it) land on the story.
-      const current = await articleService.findRedirectSlug(slug)
-      if (current === null) throw err
-      res.redirect(301, `${req.baseUrl}/articles/${encodeURIComponent(current)}`)
+      const current = await articleService.findRedirectSlug(slug);
+      if (current === null) throw err;
+      res.redirect(301, `${req.baseUrl}/articles/${encodeURIComponent(current)}`);
     }
-  })
+  });
 
   router.get('/categories', (_req: Request, res: Response) => {
     const categories = CATEGORIES.map((name, index) => ({
       name,
       slug: categorySlug(name),
       order: index,
-    }))
-    res.json(categories)
-  })
+    }));
+    res.json(categories);
+  });
 
-  router.get('/search', validate(PublicArticleListQuerySchema, 'query'), async (req: Request, res: Response) => {
-    const query = readQuery(req)
-    const q = query.q?.trim()
-    if (!q) throw new BadRequestError('Query parameter "q" is required')
-    const result = await articleService.search(q, query)
-    res.json(toPublicPage(result))
-  })
+  router.get(
+    '/search',
+    validate(PublicArticleListQuerySchema, 'query'),
+    async (req: Request, res: Response) => {
+      const query = readQuery(req);
+      const q = query.q?.trim();
+      if (!q) throw new BadRequestError('Query parameter "q" is required');
+      const result = await articleService.search(q, query);
+      res.json(toPublicPage(result));
+    },
+  );
 
   router.post(
     '/takedown-requests',
     validate(TakedownRequestInputSchema),
     async (req: Request, res: Response) => {
-      const record = await takedownService.create(req.body as TakedownRequestInput)
+      const record = await takedownService.create(req.body as TakedownRequestInput);
       // Never hand the requester our internal article match or anything beyond
       // confirmation — that resolution is for admin review, not a public response.
-      res.status(201).json({ id: record.id, status: record.status })
+      res.status(201).json({ id: record.id, status: record.status });
     },
-  )
+  );
 
-  return router
+  return router;
 }

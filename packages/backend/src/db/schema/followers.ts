@@ -1,4 +1,4 @@
-import { bigint, index, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { bigint, index, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
 
 /**
  * A fediverse account (`actorId`, REMOTE) following ONE local actor
@@ -28,6 +28,6 @@ export const followers = pgTable(
       t.id.desc(),
     ),
   ],
-)
+);
 
-export type FollowerRow = typeof followers.$inferSelect
+export type FollowerRow = typeof followers.$inferSelect;

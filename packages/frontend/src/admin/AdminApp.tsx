@@ -1,25 +1,25 @@
-import { useEffect } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import { ApiRequestError } from '../lib/api'
-import { AuthProvider } from './AuthProvider'
-import { useAuth } from './useAuth'
-import { Login } from './Login'
-import { Dashboard } from './Dashboard'
-import { Editor } from './Editor'
-import { Takedowns } from './Takedowns'
-import { NotFound } from '../pages/NotFound'
+import { useEffect } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { ApiRequestError } from '../lib/api';
+import { AuthProvider } from './AuthProvider';
+import { useAuth } from './useAuth';
+import { Login } from './Login';
+import { Dashboard } from './Dashboard';
+import { Editor } from './Editor';
+import { Takedowns } from './Takedowns';
+import { NotFound } from '../pages/NotFound';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated } = useAuth();
   if (!isAuthenticated) {
-    return <Navigate to="/admin/login" replace />
+    return <Navigate to="/admin/login" replace />;
   }
-  return <>{children}</>
+  return <>{children}</>;
 }
 
 function isUnauthorized(error: unknown): boolean {
-  return error instanceof ApiRequestError && error.status === 401
+  return error instanceof ApiRequestError && error.status === 401;
 }
 
 /**
@@ -28,26 +28,35 @@ function isUnauthorized(error: unknown): boolean {
  * user back to the login page.
  */
 function SignOutOnUnauthorized() {
-  const queryClient = useQueryClient()
-  const { isAuthenticated, signOut } = useAuth()
+  const queryClient = useQueryClient();
+  const { isAuthenticated, signOut } = useAuth();
 
   useEffect(() => {
-    if (!isAuthenticated) return undefined
+    if (!isAuthenticated) return undefined;
     const unsubscribeQueries = queryClient.getQueryCache().subscribe((event) => {
-      if (event.type === 'updated' && event.action.type === 'error' && isUnauthorized(event.action.error)) signOut()
-    })
+      if (
+        event.type === 'updated' &&
+        event.action.type === 'error' &&
+        isUnauthorized(event.action.error)
+      )
+        signOut();
+    });
     const unsubscribeMutations = queryClient.getMutationCache().subscribe((event) => {
-      if (event.type === 'updated' && event.mutation.state.status === 'error' && isUnauthorized(event.mutation.state.error)) {
-        signOut()
+      if (
+        event.type === 'updated' &&
+        event.mutation.state.status === 'error' &&
+        isUnauthorized(event.mutation.state.error)
+      ) {
+        signOut();
       }
-    })
+    });
     return () => {
-      unsubscribeQueries()
-      unsubscribeMutations()
-    }
-  }, [queryClient, isAuthenticated, signOut])
+      unsubscribeQueries();
+      unsubscribeMutations();
+    };
+  }, [queryClient, isAuthenticated, signOut]);
 
-  return null
+  return null;
 }
 
 /** Admin CMS subtree mounted at /admin/*. */
@@ -94,5 +103,5 @@ export function AdminApp() {
         </Routes>
       </div>
     </AuthProvider>
-  )
+  );
 }

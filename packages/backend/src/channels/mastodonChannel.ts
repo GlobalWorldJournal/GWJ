@@ -1,6 +1,6 @@
-import type { Article } from '@gwj/shared-types'
-import type { ActivityPubModule } from '../activitypub'
-import type { PublishChannel } from './types'
+import type { Article } from '@gwj/shared-types';
+import type { ActivityPubModule } from '../activitypub';
+import type { PublishChannel } from './types';
 
 /**
  * The Mastodon / fediverse distribution channel. It is a thin wrapper around the
@@ -23,5 +23,5 @@ export function mastodonChannel(activityPub: ActivityPubModule): PublishChannel 
     servesLanguage: () => true,
     isEnabled: () => true,
     publish: (article: Article) => activityPub.deliverArticle(article),
-  }
+  };
 }

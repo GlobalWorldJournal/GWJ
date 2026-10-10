@@ -1,9 +1,9 @@
-import type { Article } from '@gwj/shared-types'
-import { LocaleLink } from '../lib/locale'
+import type { Article } from '@gwj/shared-types';
+import { LocaleLink } from '../lib/locale';
 
 interface WhatsNewsProps {
-  articles: Article[]
-  className?: string
+  articles: Article[];
+  className?: string;
 }
 
 /**
@@ -12,7 +12,7 @@ interface WhatsNewsProps {
  */
 export function WhatsNews({ articles, className }: WhatsNewsProps) {
   if (articles.length === 0) {
-    return null
+    return null;
   }
 
   return (
@@ -35,5 +35,5 @@ export function WhatsNews({ articles, className }: WhatsNewsProps) {
         ))}
       </ul>
     </aside>
-  )
+  );
 }

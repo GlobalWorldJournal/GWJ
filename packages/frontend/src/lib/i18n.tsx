@@ -1,23 +1,23 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react'
-import { DEFAULT_LANGUAGE, type Language } from '@gwj/shared-types'
-import { DICT } from './dictionary'
+import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react';
+import { DEFAULT_LANGUAGE, type Language } from '@gwj/shared-types';
+import { DICT } from './dictionary';
 
 interface LanguageContextValue {
-  lang: Language
+  lang: Language;
   /** Translate a chrome key, falling back en → key, with `{x}` interpolation. */
-  t: (key: string, vars?: Record<string, string>) => string
+  t: (key: string, vars?: Record<string, string>) => string;
 }
 
-const LanguageContext = createContext<LanguageContextValue | null>(null)
+const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 function interpolate(template: string, vars?: Record<string, string>): string {
   if (!vars) {
-    return template
+    return template;
   }
   return template.replace(/\{(\w+)\}/g, (match: string, name: string): string => {
-    const value = vars[name]
-    return value === undefined ? match : value
-  })
+    const value = vars[name];
+    return value === undefined ? match : value;
+  });
 }
 
 /**
@@ -32,31 +32,31 @@ export function LanguageProvider({
   lang = DEFAULT_LANGUAGE,
   children,
 }: {
-  lang?: Language
-  children: ReactNode
+  lang?: Language;
+  children: ReactNode;
 }) {
   // Keep <html lang> in sync with the active edition (legitimate DOM side effect).
   useEffect(() => {
-    document.documentElement.lang = lang
-  }, [lang])
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   const t = useCallback(
     (key: string, vars?: Record<string, string>): string => {
-      const template = DICT[lang][key] ?? DICT[DEFAULT_LANGUAGE][key] ?? key
-      return interpolate(template, vars)
+      const template = DICT[lang][key] ?? DICT[DEFAULT_LANGUAGE][key] ?? key;
+      return interpolate(template, vars);
     },
     [lang],
-  )
+  );
 
-  const value = useMemo<LanguageContextValue>(() => ({ lang, t }), [lang, t])
+  const value = useMemo<LanguageContextValue>(() => ({ lang, t }), [lang, t]);
 
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
 export function useLang(): LanguageContextValue {
-  const context = useContext(LanguageContext)
+  const context = useContext(LanguageContext);
   if (!context) {
-    throw new Error('useLang must be used within a <LanguageProvider>')
+    throw new Error('useLang must be used within a <LanguageProvider>');
   }
-  return context
+  return context;
 }

@@ -9,29 +9,29 @@
  *   API_BASE_URL=https://api.globalworldjournal.com ADMIN_USERNAME=nate \
  *   ADMIN_PASSWORD=… bun run scripts/seed-real-news.ts
  */
-import { pickWriter, type ArticleInput, type Category } from '@gwj/shared-types'
+import { pickWriter, type ArticleInput, type Category } from '@gwj/shared-types';
 
-const API = (process.env.API_BASE_URL ?? '').replace(/\/$/, '')
-const USER = process.env.ADMIN_USERNAME ?? ''
-const PASS = process.env.ADMIN_PASSWORD ?? ''
+const API = (process.env.API_BASE_URL ?? '').replace(/\/$/, '');
+const USER = process.env.ADMIN_USERNAME ?? '';
+const PASS = process.env.ADMIN_PASSWORD ?? '';
 if (!API || !USER || !PASS) {
-  process.stderr.write('Missing API_BASE_URL / ADMIN_USERNAME / ADMIN_PASSWORD\n')
-  process.exit(1)
+  process.stderr.write('Missing API_BASE_URL / ADMIN_USERNAME / ADMIN_PASSWORD\n');
+  process.exit(1);
 }
 
 const UA =
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 
 interface Story {
-  title: string
-  deck: string
-  kicker: string
-  category: Category
-  featured: number
-  imageAlt: string
+  title: string;
+  deck: string;
+  kicker: string;
+  category: Category;
+  featured: number;
+  imageAlt: string;
   /** Source article — its og:image becomes the hero; name is the credit. */
-  source?: { name: string; url: string }
-  body: string // Markdown
+  source?: { name: string; url: string };
+  body: string; // Markdown
 }
 
 const STORIES: Story[] = [
@@ -42,7 +42,10 @@ const STORIES: Story[] = [
     category: 'Markets',
     featured: 100,
     imageAlt: 'Traders on a stock exchange floor',
-    source: { name: 'CNBC', url: 'https://www.cnbc.com/2026/06/23/tech-stocks-sell-off-mag7-samsung-sk-hynix.html' },
+    source: {
+      name: 'CNBC',
+      url: 'https://www.cnbc.com/2026/06/23/tech-stocks-sell-off-mag7-samsung-sk-hynix.html',
+    },
     body: `A wave of selling tore through global equity markets on Tuesday as investors reassessed the towering valuations attached to the companies driving the artificial-intelligence boom. Nasdaq 100 futures fell about 2.8% before the opening bell, a decline that would erase more than $1 trillion in market value if it held through the session.
 
 The drop was striking for its breadth. Every member of the so-called "magnificent seven" — Alphabet, Amazon, Apple, Meta Platforms, Microsoft, Nvidia and Tesla — traded lower in the pre-market, a rare show of unanimity that underscored just how concentrated the market's gains had become over the past two years.
@@ -72,7 +75,10 @@ For now, the safest conclusion is the oldest one on Wall Street: when a trade ge
     category: 'Tech',
     featured: 92,
     imageAlt: 'A rocket on a launch pad',
-    source: { name: 'NBC News', url: 'https://www.nbcnews.com/business/business-news/tech-sell-off-markets-spacex-alphabet-nasdaq100-stocks-rcna351331' },
+    source: {
+      name: 'NBC News',
+      url: 'https://www.nbcnews.com/business/business-news/tech-sell-off-markets-spacex-alphabet-nasdaq100-stocks-rcna351331',
+    },
     body: `Shares of SpaceX extended their slide for a fifth straight session, erasing close to $900 billion in value from the roughly $225 peak the stock reached only a week ago, shortly after its closely watched debut on the U.S. market.
 
 The reversal has become the defining image of the week's turmoil. A listing that was supposed to crown the AI-and-space investment era has instead turned into a cautionary tale about how quickly euphoria can curdle.
@@ -100,7 +106,10 @@ The episode is likely to weigh on the pipeline of companies hoping to follow Spa
     category: 'Markets',
     featured: 74,
     imageAlt: 'A semiconductor chip',
-    source: { name: 'CNBC', url: 'https://www.cnbc.com/2026/06/23/tech-stocks-sell-off-mag7-samsung-sk-hynix.html' },
+    source: {
+      name: 'CNBC',
+      url: 'https://www.cnbc.com/2026/06/23/tech-stocks-sell-off-mag7-samsung-sk-hynix.html',
+    },
     body: `South Korea's benchmark Kospi index closed down about 10% on Tuesday after its two most valuable companies, Samsung Electronics and SK Hynix, each fell more than 12% — one of the most punishing sessions in years for an economy levered to the global chip cycle.
 
 The pain did not stay in Seoul. In New York pre-market trading, the iShares Semiconductor ETF dropped 6.2%. Intel slid 7.6%, Micron lost 8.5% and AMD fell 6.2%.
@@ -122,7 +131,10 @@ Policymakers have long sought to broaden the index beyond its semiconductor anch
     category: 'World',
     featured: 88,
     imageAlt: 'An oil tanker at sea',
-    source: { name: 'CNN', url: 'https://www.cnn.com/2026/06/20/world/live-news/iran-war-trump-israel-lebanon' },
+    source: {
+      name: 'CNN',
+      url: 'https://www.cnn.com/2026/06/20/world/live-news/iran-war-trump-israel-lebanon',
+    },
     body: `The status of the Strait of Hormuz, the narrow passage through which a large share of the world's seaborne oil flows, remained unsettled this week as Iranian authorities offered openly conflicting accounts of whether it was open.
 
 Iran's Revolutionary Guard command declared the strait closed to all vessels, citing what it called breaches of a recently signed memorandum and pointing in particular to continued strikes in southern Lebanon. Within hours, the country's foreign ministry struck a very different tone, insisting that traffic was "operating normally."
@@ -146,7 +158,10 @@ That asymmetry is exactly why the mixed signals from Tehran carry such weight: i
     category: 'World',
     featured: 66,
     imageAlt: 'A grand palace hall',
-    source: { name: 'CNN', url: 'https://www.cnn.com/2026/06/14/world/live-news/iran-war-trump-israel' },
+    source: {
+      name: 'CNN',
+      url: 'https://www.cnn.com/2026/06/14/world/live-news/iran-war-trump-israel',
+    },
     body: `The agreement that paused this year's war between Iran and a U.S.-Israeli coalition was sealed with the kind of pageantry usually reserved for the end of much longer conflicts. Iran's president signed in Tehran; the American side signed, following the G7 summit, at the Palace of Versailles.
 
 Known as the Islamabad Memorandum, the deal ended both the fighting and a dual blockade that had choked regional trade since hostilities erupted in late winter. For a region braced for a far longer war, the speed of the settlement was its own kind of shock.
@@ -170,7 +185,10 @@ For now, the guns are mostly quiet. Whether they stay that way may depend less o
     category: 'Politics',
     featured: 58,
     imageAlt: 'Diplomats at a negotiating table',
-    source: { name: 'NPR', url: 'https://www.npr.org/2026/06/18/nx-s1-5863517/trump-iran-deal-blockade-strait-hormuz' },
+    source: {
+      name: 'NPR',
+      url: 'https://www.npr.org/2026/06/18/nx-s1-5863517/trump-iran-deal-blockade-strait-hormuz',
+    },
     body: `The lifting of the blockade on Iranian ports started a 60-day clock toward a final agreement — and, almost immediately, a fight over whether the interim truce is being honored.
 
 Negotiators framed the timeline as a forcing mechanism: a deadline short enough to keep momentum, long enough to hammer out the details that the memorandum left deliberately vague.
@@ -194,7 +212,10 @@ None of that is easy in 60 days. The question hanging over the talks is whether 
     category: 'Politics',
     featured: 52,
     imageAlt: 'A courthouse facade',
-    source: { name: 'CNN', url: 'https://www.cnn.com/2026/06/03/politics/supreme-court-explosive-final-month-birthright-cook-voting-tps' },
+    source: {
+      name: 'CNN',
+      url: 'https://www.cnn.com/2026/06/03/politics/supreme-court-explosive-final-month-birthright-cook-voting-tps',
+    },
     body: `The Supreme Court is racing to clear a docket of consequential cases before its term ends, with rulings that could reshape the 2026 midterm elections even as voters begin to tune in.
 
 Among the most closely watched: a challenge to laws in 14 states that count mail-in ballots received after Election Day, a case revisiting Watergate-era limits on coordinated party spending, and disputes over the scope of presidential power.
@@ -234,7 +255,7 @@ For two years, the market rewarded spending almost without question. A higher co
 Executives who once raced to announce ever-larger commitments may find investors asking a harder question — not whether they can build, but whether they should.`,
   },
   {
-    title: "Fox Strikes a $22 Billion Deal for Roku in a Bet on Connected TV",
+    title: 'Fox Strikes a $22 Billion Deal for Roku in a Bet on Connected TV',
     deck: 'The cash-and-stock tie-up would fuse Fox’s sports, news and entertainment with Roku’s streaming platform and its trove of viewer data.',
     kicker: 'Business',
     category: 'Business',
@@ -262,7 +283,10 @@ For now, the agreement is a statement of where the industry believes the next de
     category: 'Arts',
     featured: 36,
     imageAlt: 'A collage of book covers',
-    source: { name: 'The Christian Science Monitor', url: 'https://www.csmonitor.com/Arts-Culture/Books/2026/0622/june-2026-best-books' },
+    source: {
+      name: 'The Christian Science Monitor',
+      url: 'https://www.csmonitor.com/Arts-Culture/Books/2026/0622/june-2026-best-books',
+    },
     body: `It has been an unusually strong month for serious fiction and memoir, with new books reaching for the largest questions of grief, memory and loss.
 
 Maggie O'Farrell's historical novel "Land" unfolds on a remote Irish peninsula in the aftermath of the Great Hunger, following a surveyor hired to map the territory and, in the process, to record the disappearance of the tenant households swept away by the blight. It is a book about what is lost when a place is reduced to lines on a chart.
@@ -306,7 +330,10 @@ The coming year will test whether this crop of directors can translate the page 
     category: 'Opinion',
     featured: 40,
     imageAlt: 'An oil tanker in a narrow strait',
-    source: { name: 'CNN', url: 'https://www.cnn.com/2026/06/20/world/live-news/iran-war-trump-israel-lebanon' },
+    source: {
+      name: 'CNN',
+      url: 'https://www.cnn.com/2026/06/20/world/live-news/iran-war-trump-israel-lebanon',
+    },
     body: `For much of the past decade, investors treated geography as a solved problem. Supply chains were global, capital was frictionless, and the physical world rarely intruded on the spreadsheet.
 
 The events around the Strait of Hormuz are a reminder that a few miles of contested water can still ripple through fuel prices, inflation expectations and, ultimately, the valuations of companies that look as if they have nothing to do with oil.
@@ -321,41 +348,45 @@ The lesson is not to panic at every headline from the Gulf. It is to remember th
 
 A little humility about how much the physical world still matters would serve investors well. The map, it turns out, was never just lines on a chart.`,
   },
-]
+];
 
 async function getOgImage(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, { headers: { 'user-agent': UA, accept: 'text/html' } })
-    if (!res.ok) return null
-    const html = await res.text()
+    const res = await fetch(url, { headers: { 'user-agent': UA, accept: 'text/html' } });
+    if (!res.ok) return null;
+    const html = await res.text();
     const m =
       html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
-      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
-    if (!m || !m[1]) return null
-    return m[1].replace(/&amp;/g, '&')
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    if (!m || !m[1]) return null;
+    return m[1].replace(/&amp;/g, '&');
   } catch {
-    return null
+    return null;
   }
 }
 
-async function uploadToCdn(token: string, imageUrl: string, filename: string): Promise<string | null> {
+async function uploadToCdn(
+  token: string,
+  imageUrl: string,
+  filename: string,
+): Promise<string | null> {
   try {
-    const img = await fetch(imageUrl, { headers: { 'user-agent': UA } })
-    if (!img.ok) return null
-    const buf = new Uint8Array(await img.arrayBuffer())
-    const type = img.headers.get('content-type') ?? 'image/jpeg'
-    const form = new FormData()
-    form.set('file', new Blob([buf], { type }), filename)
+    const img = await fetch(imageUrl, { headers: { 'user-agent': UA } });
+    if (!img.ok) return null;
+    const buf = new Uint8Array(await img.arrayBuffer());
+    const type = img.headers.get('content-type') ?? 'image/jpeg';
+    const form = new FormData();
+    form.set('file', new Blob([buf], { type }), filename);
     const up = await fetch(`${API}/api/admin/upload`, {
       method: 'POST',
       headers: { authorization: `Bearer ${token}` },
       body: form,
-    })
-    if (!up.ok) return null
-    const { url } = (await up.json()) as { url: string }
-    return url
+    });
+    if (!up.ok) return null;
+    const { url } = (await up.json()) as { url: string };
+    return url;
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -364,37 +395,38 @@ async function main(): Promise<void> {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ username: USER, password: PASS }),
-  })
+  });
   if (!login.ok) {
-    process.stderr.write(`login failed: ${login.status}\n`)
-    process.exit(1)
+    process.stderr.write(`login failed: ${login.status}\n`);
+    process.exit(1);
   }
-  const { token } = (await login.json()) as { token: string }
-  const auth = { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+  const { token } = (await login.json()) as { token: string };
+  const auth = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
 
   const existing = (await (
     await fetch(`${API}/api/admin/articles?limit=50`, { headers: auth })
-  ).json()) as { data: { id: string }[] }
+  ).json()) as { data: { id: string }[] };
   for (const a of existing.data) {
-    await fetch(`${API}/api/admin/articles/${a.id}`, { method: 'DELETE', headers: auth })
+    await fetch(`${API}/api/admin/articles/${a.id}`, { method: 'DELETE', headers: auth });
   }
-  process.stdout.write(`removed ${existing.data.length} existing article(s)\n`)
+  process.stdout.write(`removed ${existing.data.length} existing article(s)\n`);
 
-  let created = 0
+  let created = 0;
   for (const story of STORIES) {
-    let heroImage: ArticleInput['heroImage']
-    let source: ArticleInput['source']
+    let heroImage: ArticleInput['heroImage'];
+    let source: ArticleInput['source'];
     if (story.source) {
-      const og = await getOgImage(story.source.url)
+      const og = await getOgImage(story.source.url);
       // Record provenance: the source outlet, the original article URL, and the
       // ORIGINAL image URL (before we copied it to our CDN).
-      source = { name: story.source.name, articleUrl: story.source.url, imageUrl: og ?? undefined }
+      source = { name: story.source.name, articleUrl: story.source.url, imageUrl: og ?? undefined };
       if (og) {
-        const cdn = await uploadToCdn(token, og, `${story.kicker.toLowerCase()}-${created}.jpg`)
-        if (cdn) heroImage = { url: cdn, alt: story.imageAlt, credit: `Source: ${story.source.name}` }
+        const cdn = await uploadToCdn(token, og, `${story.kicker.toLowerCase()}-${created}.jpg`);
+        if (cdn)
+          heroImage = { url: cdn, alt: story.imageAlt, credit: `Source: ${story.source.name}` };
       }
     }
-    const author = pickWriter(story.category, story.title).name
+    const author = pickWriter(story.category, story.title).name;
     const input: ArticleInput = {
       title: story.title,
       deck: story.deck,
@@ -408,22 +440,27 @@ async function main(): Promise<void> {
       tags: [],
       seo: {},
       source,
-    }
+    };
     const res = await fetch(`${API}/api/admin/articles`, {
       method: 'POST',
       headers: auth,
       body: JSON.stringify(input),
-    })
+    });
     if (!res.ok) {
-      process.stderr.write(`create failed "${story.title}": ${res.status} ${await res.text()}\n`)
-      continue
+      process.stderr.write(`create failed "${story.title}": ${res.status} ${await res.text()}\n`);
+      continue;
     }
-    const article = (await res.json()) as { id: string }
-    await fetch(`${API}/api/admin/articles/${article.id}/publish`, { method: 'POST', headers: auth })
-    created += 1
-    process.stdout.write(`published ${heroImage ? '[img]' : '[no img]'} by ${author}: ${story.title}\n`)
+    const article = (await res.json()) as { id: string };
+    await fetch(`${API}/api/admin/articles/${article.id}/publish`, {
+      method: 'POST',
+      headers: auth,
+    });
+    created += 1;
+    process.stdout.write(
+      `published ${heroImage ? '[img]' : '[no img]'} by ${author}: ${story.title}\n`,
+    );
   }
-  process.stdout.write(`\nreal-news seed complete: ${created} published\n`)
+  process.stdout.write(`\nreal-news seed complete: ${created} published\n`);
 }
 
-await main()
+await main();

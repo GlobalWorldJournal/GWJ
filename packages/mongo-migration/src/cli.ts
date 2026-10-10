@@ -10,28 +10,34 @@
  * Prints one `MIGRATION {json}` line per fact and ends with
  * `MIGRATION_VERDICT=PASS|FAIL`; the exit code is 0 only on PASS.
  */
-import { argv } from 'node:process'
-import { runMigration, type MigrationMode } from './run'
+import { argv } from 'node:process';
+import { runMigration, type MigrationMode } from './run';
 
 function emit(line: string): void {
-  process.stdout.write(`${line}\n`)
+  process.stdout.write(`${line}\n`);
 }
 
 function flag(args: readonly string[], name: string): string | undefined {
-  const prefix = `--${name}=`
-  return args.find((a) => a.startsWith(prefix))?.slice(prefix.length).trim() || undefined
+  const prefix = `--${name}=`;
+  return (
+    args
+      .find((a) => a.startsWith(prefix))
+      ?.slice(prefix.length)
+      .trim() || undefined
+  );
 }
 
 function required(value: string | undefined, what: string): string {
-  if (!value || value === '-') throw new Error(`${what} is required`)
-  return value
+  if (!value || value === '-') throw new Error(`${what} is required`);
+  return value;
 }
 
 async function main(): Promise<boolean> {
-  const args = argv.slice(2)
-  const [mode] = args
-  if (mode !== 'copy' && mode !== 'verify') throw new Error('usage: cli.ts <copy|verify> --source-database=<db> --target-database=<db>')
-  emit(`MIGRATION ${JSON.stringify({ event: 'start', mode, at: new Date().toISOString() })}`)
+  const args = argv.slice(2);
+  const [mode] = args;
+  if (mode !== 'copy' && mode !== 'verify')
+    throw new Error('usage: cli.ts <copy|verify> --source-database=<db> --target-database=<db>');
+  emit(`MIGRATION ${JSON.stringify({ event: 'start', mode, at: new Date().toISOString() })}`);
   const result = await runMigration({
     mode: mode satisfies MigrationMode,
     mongoUri: required(process.env.MONGO_URI, 'MONGO_URI'),
@@ -40,18 +46,21 @@ async function main(): Promise<boolean> {
     targetDatabase: required(flag(args, 'target-database'), '--target-database'),
     allowEmpty: args.includes('--allow-empty'),
     report: (event) => emit(`MIGRATION ${JSON.stringify(event)}`),
-  })
-  for (const reason of result.reasons) emit(`MIGRATION ${JSON.stringify({ event: 'fail-reason', reason })}`)
-  return result.pass
+  });
+  for (const reason of result.reasons)
+    emit(`MIGRATION ${JSON.stringify({ event: 'fail-reason', reason })}`);
+  return result.pass;
 }
 
 main()
   .then((pass) => {
-    emit(`MIGRATION_VERDICT=${pass ? 'PASS' : 'FAIL'}`)
-    process.exitCode = pass ? 0 : 1
+    emit(`MIGRATION_VERDICT=${pass ? 'PASS' : 'FAIL'}`);
+    process.exitCode = pass ? 0 : 1;
   })
   .catch((err: unknown) => {
-    emit(`MIGRATION ${JSON.stringify({ event: 'error', message: err instanceof Error ? err.message : String(err) })}`)
-    emit('MIGRATION_VERDICT=FAIL')
-    process.exitCode = 1
-  })
+    emit(
+      `MIGRATION ${JSON.stringify({ event: 'error', message: err instanceof Error ? err.message : String(err) })}`,
+    );
+    emit('MIGRATION_VERDICT=FAIL');
+    process.exitCode = 1;
+  });

@@ -1,7 +1,7 @@
-import { DEFAULT_LANGUAGE, isLanguage, type Article } from '@gwj/shared-types'
-import { onArticlePublished } from '../services/articleService'
-import { logger } from '../logger'
-import type { PublishChannel } from './types'
+import { DEFAULT_LANGUAGE, isLanguage, type Article } from '@gwj/shared-types';
+import { onArticlePublished } from '../services/articleService';
+import { logger } from '../logger';
+import type { PublishChannel } from './types';
 
 /**
  * Subscribe ONCE to the article-published transition and fan every published
@@ -24,33 +24,33 @@ import type { PublishChannel } from './types'
  */
 export function startChannelPublishing(channels: readonly PublishChannel[]): () => void {
   async function fanOut(article: Article): Promise<void> {
-    const language = isLanguage(article.language) ? article.language : DEFAULT_LANGUAGE
+    const language = isLanguage(article.language) ? article.language : DEFAULT_LANGUAGE;
     const matched = channels.filter(
       (channel) => channel.isEnabled() && channel.servesLanguage(language),
-    )
-    if (matched.length === 0) return
+    );
+    if (matched.length === 0) return;
     // Each task owns its own logging and never rejects (errors caught here), so one
     // channel failing can't affect the others — no index correlation needed.
     await Promise.all(
       matched.map(async (channel) => {
-        const meta = { channel: channel.name, platform: channel.platform, articleId: article.id }
+        const meta = { channel: channel.name, platform: channel.platform, articleId: article.id };
         try {
-          await channel.publish(article)
-          logger.info('channel publish succeeded', meta)
+          await channel.publish(article);
+          logger.info('channel publish succeeded', meta);
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          logger.error('channel publish failed', { ...meta, message })
+          const message = err instanceof Error ? err.message : String(err);
+          logger.error('channel publish failed', { ...meta, message });
         }
       }),
-    )
+    );
   }
 
   // The listener is synchronous and must not throw: it launches the best-effort
   // fan-out without awaiting it so the publish response is never blocked.
   return onArticlePublished((article) => {
     void fanOut(article).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err)
-      logger.error('channel publishing error', { articleId: article.id, message })
-    })
-  })
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error('channel publishing error', { articleId: article.id, message });
+    });
+  });
 }

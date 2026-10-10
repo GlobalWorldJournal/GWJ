@@ -1,35 +1,35 @@
-import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { searchArticles } from '../lib/api'
-import { useLang } from '../lib/i18n'
-import { ArticleCard } from '../components/ArticleCard'
-import { StatusMessage } from '../components/StatusMessage'
+import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { searchArticles } from '../lib/api';
+import { useLang } from '../lib/i18n';
+import { ArticleCard } from '../components/ArticleCard';
+import { StatusMessage } from '../components/StatusMessage';
 
 export function Search() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const { lang, t } = useLang()
-  const query = searchParams.get('q') ?? ''
-  const [draft, setDraft] = useState(query)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { lang, t } = useLang();
+  const query = searchParams.get('q') ?? '';
+  const [draft, setDraft] = useState(query);
 
   const { data, isPending, isError, error, isFetching } = useQuery({
     queryKey: ['search', query, lang],
     queryFn: ({ signal }) => searchArticles(query, 1, lang, signal),
     enabled: query.trim().length > 0,
-  })
+  });
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const trimmed = draft.trim()
+    event.preventDefault();
+    const trimmed = draft.trim();
     setSearchParams((params) => {
-      const updated = new URLSearchParams(params)
+      const updated = new URLSearchParams(params);
       if (trimmed) {
-        updated.set('q', trimmed)
+        updated.set('q', trimmed);
       } else {
-        updated.delete('q')
+        updated.delete('q');
       }
-      return updated
-    })
+      return updated;
+    });
   }
 
   return (
@@ -65,11 +65,15 @@ export function Search() {
         <div className="flex flex-col divide-y divide-rule">
           {data.data.map((article) => (
             <div key={article.id} className="py-6 first:pt-0">
-              <ArticleCard article={article} variant="feature" showImage={Boolean(article.heroImage)} />
+              <ArticleCard
+                article={article}
+                variant="feature"
+                showImage={Boolean(article.heroImage)}
+              />
             </div>
           ))}
         </div>
       )}
     </section>
-  )
+  );
 }

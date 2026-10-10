@@ -1,7 +1,7 @@
-import { type NextFunction, type Request, type RequestHandler, type Response } from 'express'
-import { type ZodTypeAny } from 'zod'
+import { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
+import { type ZodTypeAny } from 'zod';
 
-type ValidationSource = 'body' | 'query' | 'params'
+type ValidationSource = 'body' | 'query' | 'params';
 
 /**
  * Validate a request segment against a Zod schema. On success the parsed (and
@@ -13,15 +13,15 @@ type ValidationSource = 'body' | 'query' | 'params'
  */
 export function validate(schema: ZodTypeAny, source: ValidationSource = 'body'): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const input = source === 'body' ? req.body : source === 'query' ? req.query : req.params
-    const result = schema.safeParse(input)
+    const input = source === 'body' ? req.body : source === 'query' ? req.query : req.params;
+    const result = schema.safeParse(input);
     if (!result.success) {
-      res.status(400).json({ error: 'Validation failed', details: result.error.flatten() })
-      return
+      res.status(400).json({ error: 'Validation failed', details: result.error.flatten() });
+      return;
     }
-    if (source === 'body') req.body = result.data
-    else if (source === 'params') req.params = result.data
-    else req.validatedQuery = result.data
-    next()
-  }
+    if (source === 'body') req.body = result.data;
+    else if (source === 'params') req.params = result.data;
+    else req.validatedQuery = result.data;
+    next();
+  };
 }

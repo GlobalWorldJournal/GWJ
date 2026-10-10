@@ -1,6 +1,6 @@
-import { config as loadDotenv } from 'dotenv'
-import { z } from 'zod'
-import { TELEGRAM_CHANNEL_HANDLE } from '@gwj/shared-types'
+import { config as loadDotenv } from 'dotenv';
+import { z } from 'zod';
+import { TELEGRAM_CHANNEL_HANDLE } from '@gwj/shared-types';
 
 /**
  * Reject placeholder secret values. A secret set to `'-'` or empty string is a
@@ -11,7 +11,7 @@ const requiredSecret = (name: string) =>
   z
     .string()
     .min(1, `${name} is required`)
-    .refine((v) => v !== '-', `${name} must not be the placeholder '-'`)
+    .refine((v) => v !== '-', `${name} must not be the placeholder '-'`);
 
 /**
  * An optional secret. Absent OR empty string is treated as "not provided"
@@ -25,12 +25,12 @@ const optionalSecret = (name: string) =>
     .string()
     .transform((v) => (v.length === 0 ? undefined : v))
     .refine((v) => v !== '-', `${name} must not be the placeholder '-'`)
-    .optional()
+    .optional();
 
-const DEFAULT_PORT = 4000
+const DEFAULT_PORT = 4000;
 
 /** Default apex domain where the fediverse handles live (`@<user>@<domain>`). */
-const DEFAULT_FEDIVERSE_DOMAIN = 'globalworldjournal.com'
+const DEFAULT_FEDIVERSE_DOMAIN = 'globalworldjournal.com';
 
 /**
  * Parse the optional `FEDIVERSE_EDITION_USERNAMES` override: a JSON object mapping
@@ -43,25 +43,25 @@ const editionUsernamesOverride = z
   .string()
   .transform((v) => v.trim())
   .transform((v, ctx) => {
-    if (v.length === 0) return undefined
-    let parsed: unknown
+    if (v.length === 0) return undefined;
+    let parsed: unknown;
     try {
-      parsed = JSON.parse(v)
+      parsed = JSON.parse(v);
     } catch {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'must be valid JSON' })
-      return z.NEVER
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'must be valid JSON' });
+      return z.NEVER;
     }
-    const result = z.record(z.string(), z.string().regex(/^[a-z0-9]+$/)).safeParse(parsed)
+    const result = z.record(z.string(), z.string().regex(/^[a-z0-9]+$/)).safeParse(parsed);
     if (!result.success) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'must map language codes to plain lowercase [a-z0-9] usernames',
-      })
-      return z.NEVER
+      });
+      return z.NEVER;
     }
-    return result.data
+    return result.data;
   })
-  .optional()
+  .optional();
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -97,7 +97,12 @@ const EnvSchema = z.object({
   FEDIVERSE_DOMAIN: z
     .string()
     .default(DEFAULT_FEDIVERSE_DOMAIN)
-    .transform((v) => v.trim().replace(/^https?:\/\//, '').replace(/\/+$/, ''))
+    .transform((v) =>
+      v
+        .trim()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/+$/, ''),
+    )
     .refine((v) => v.length > 0, 'FEDIVERSE_DOMAIN must not be empty')
     .refine((v) => !v.includes('/'), 'FEDIVERSE_DOMAIN must be a bare domain (no path)'),
   // Optional per-edition username override (JSON map). Absent → canonical defaults
@@ -116,7 +121,7 @@ const EnvSchema = z.object({
     .transform((v) => v.trim())
     .transform((v) => (v.length === 0 ? TELEGRAM_CHANNEL_HANDLE : v))
     .default(TELEGRAM_CHANNEL_HANDLE),
-})
+});
 
 /**
  * Cross-field rules. In production an empty CORS allowlist is a misconfiguration
@@ -129,13 +134,13 @@ const RefinedEnvSchema = EnvSchema.superRefine((env, ctx) => {
       code: z.ZodIssueCode.custom,
       path: ['CORS_ORIGINS'],
       message: 'CORS_ORIGINS must list at least one origin in production',
-    })
+    });
   }
-})
+});
 
-export type Env = z.infer<typeof EnvSchema>
+export type Env = z.infer<typeof EnvSchema>;
 
-let cached: Env | null = null
+let cached: Env | null = null;
 
 /**
  * Parse and validate environment configuration.
@@ -145,22 +150,22 @@ let cached: Env | null = null
  * Throws with a readable message listing every missing/invalid variable.
  */
 export function loadEnv(): Env {
-  if (cached) return cached
-  loadDotenv()
-  const parsed = RefinedEnvSchema.safeParse(process.env)
+  if (cached) return cached;
+  loadDotenv();
+  const parsed = RefinedEnvSchema.safeParse(process.env);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`)
-      .join('\n')
-    throw new Error(`Invalid environment configuration:\n${issues}`)
+      .join('\n');
+    throw new Error(`Invalid environment configuration:\n${issues}`);
   }
-  cached = parsed.data
-  return cached
+  cached = parsed.data;
+  return cached;
 }
 
 /** Reset the cached env. Test-only helper for re-evaluating after mutating process.env. */
 export function resetEnvCache(): void {
-  cached = null
+  cached = null;
 }
 
 /** Parse the CORS_ORIGINS comma-separated allowlist into a trimmed, non-empty array. */
@@ -168,5 +173,5 @@ export function parseCorsOrigins(raw: string): string[] {
   return raw
     .split(',')
     .map((o) => o.trim())
-    .filter((o) => o.length > 0)
+    .filter((o) => o.length > 0);
 }

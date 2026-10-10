@@ -1,26 +1,26 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
-import { login } from '../lib/api'
-import { useAuth } from './useAuth'
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useMutation } from '@tanstack/react-query';
+import { login } from '../lib/api';
+import { useAuth } from './useAuth';
 
 export function Login() {
-  const navigate = useNavigate()
-  const { signIn } = useAuth()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const navigate = useNavigate();
+  const { signIn } = useAuth();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   const mutation = useMutation({
     mutationFn: () => login(username, password),
     onSuccess: (response) => {
-      signIn(response)
-      navigate('/admin', { replace: true })
+      signIn(response);
+      navigate('/admin', { replace: true });
     },
-  })
+  });
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    mutation.mutate()
+    event.preventDefault();
+    mutation.mutate();
   }
 
   return (
@@ -68,5 +68,5 @@ export function Login() {
         </button>
       </form>
     </div>
-  )
+  );
 }

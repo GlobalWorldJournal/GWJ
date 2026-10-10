@@ -42,91 +42,106 @@
  *   - followers without actorUsername → the default edition actor (`news`).
  *   The production census found 0 followers and 0 legacy rows.
  */
-import type { Document, ObjectId } from 'mongodb'
-import { DEFAULT_EDITION_USERNAMES, DEFAULT_LANGUAGE } from '@gwj/shared-types'
+import type { Document, ObjectId } from 'mongodb';
+import { DEFAULT_EDITION_USERNAMES, DEFAULT_LANGUAGE } from '@gwj/shared-types';
 
-export type SourceCollection = 'articles' | 'users' | 'actorkeys' | 'followers' | 'takedownrequests'
-export type LogicalDocument = Record<string, unknown>
+export type SourceCollection =
+  | 'articles'
+  | 'users'
+  | 'actorkeys'
+  | 'followers'
+  | 'takedownrequests';
+export type LogicalDocument = Record<string, unknown>;
 
-const LEGACY_FOLLOWER_EDITION = DEFAULT_EDITION_USERNAMES[DEFAULT_LANGUAGE]
+const LEGACY_FOLLOWER_EDITION = DEFAULT_EDITION_USERNAMES[DEFAULT_LANGUAGE];
 
 function objectIdOf(doc: Document): ObjectId {
-  const id: unknown = doc._id
-  if (id === null || typeof id !== 'object' || typeof Reflect.get(id, 'getTimestamp') !== 'function') {
-    throw new Error(`document _id ${JSON.stringify(id)} is not an ObjectId`)
+  const id: unknown = doc._id;
+  if (
+    id === null ||
+    typeof id !== 'object' ||
+    typeof Reflect.get(id, 'getTimestamp') !== 'function'
+  ) {
+    throw new Error(`document _id ${JSON.stringify(id)} is not an ObjectId`);
   }
-  return id as ObjectId
+  return id as ObjectId;
 }
 
 function withoutNulls(value: unknown): unknown {
-  if (value === null || typeof value !== 'object' || Array.isArray(value) || value instanceof Date) return value
-  const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(value)) if (v !== null && v !== undefined) out[k] = v
-  return out
+  if (value === null || typeof value !== 'object' || Array.isArray(value) || value instanceof Date)
+    return value;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value)) if (v !== null && v !== undefined) out[k] = v;
+  return out;
 }
 
 function isAbsent(value: unknown): boolean {
-  return value === undefined || value === null
+  return value === undefined || value === null;
 }
 
 export function toLogical(collection: SourceCollection, raw: Document): LogicalDocument {
-  const oid = objectIdOf(raw)
-  const created = oid.getTimestamp()
-  const { _id: _ignoredId, __v: _ignoredVersion, ...rest } = raw
-  const doc: LogicalDocument = { ...rest }
+  const oid = objectIdOf(raw);
+  const created = oid.getTimestamp();
+  const { _id: _ignoredId, __v: _ignoredVersion, ...rest } = raw;
+  const doc: LogicalDocument = { ...rest };
 
   switch (collection) {
     case 'articles': {
-      doc.id = oid.toHexString()
-      if (isAbsent(doc.language)) doc.language = 'en'
-      if (isAbsent(doc.status)) doc.status = 'draft'
-      if (isAbsent(doc.featured)) doc.featured = 0
-      if (isAbsent(doc.tags)) doc.tags = []
-      doc.seo = isAbsent(doc.seo) ? {} : withoutNulls(doc.seo)
-      for (const key of ['deck', 'kicker'] as const) if (isAbsent(doc[key])) doc[key] = null
+      doc.id = oid.toHexString();
+      if (isAbsent(doc.language)) doc.language = 'en';
+      if (isAbsent(doc.status)) doc.status = 'draft';
+      if (isAbsent(doc.featured)) doc.featured = 0;
+      if (isAbsent(doc.tags)) doc.tags = [];
+      doc.seo = isAbsent(doc.seo) ? {} : withoutNulls(doc.seo);
+      for (const key of ['deck', 'kicker'] as const) if (isAbsent(doc[key])) doc[key] = null;
       if (isAbsent(doc.heroImage)) {
-        doc.heroImage = null
+        doc.heroImage = null;
       } else {
-        const hero = withoutNulls(doc.heroImage) as Record<string, unknown>
-        doc.heroImage = { alt: '', ...hero }
+        const hero = withoutNulls(doc.heroImage) as Record<string, unknown>;
+        doc.heroImage = { alt: '', ...hero };
       }
-      doc.source = isAbsent(doc.source) ? null : withoutNulls(doc.source)
-      if (isAbsent(doc.publishedAt)) doc.publishedAt = null
-      if (isAbsent(doc.createdAt)) doc.createdAt = created
-      if (isAbsent(doc.updatedAt)) doc.updatedAt = doc.createdAt
-      return doc
+      doc.source = isAbsent(doc.source) ? null : withoutNulls(doc.source);
+      if (isAbsent(doc.publishedAt)) doc.publishedAt = null;
+      if (isAbsent(doc.createdAt)) doc.createdAt = created;
+      if (isAbsent(doc.updatedAt)) doc.updatedAt = doc.createdAt;
+      return doc;
     }
     case 'users': {
-      doc.id = oid.toHexString()
-      if (isAbsent(doc.role)) doc.role = 'admin'
-      if (isAbsent(doc.createdAt)) doc.createdAt = created
-      return doc
+      doc.id = oid.toHexString();
+      if (isAbsent(doc.role)) doc.role = 'admin';
+      if (isAbsent(doc.createdAt)) doc.createdAt = created;
+      return doc;
     }
     case 'actorkeys': {
-      if (isAbsent(doc.createdAt)) doc.createdAt = created
-      if (isAbsent(doc.updatedAt)) doc.updatedAt = doc.createdAt
-      return doc
+      if (isAbsent(doc.createdAt)) doc.createdAt = created;
+      if (isAbsent(doc.updatedAt)) doc.updatedAt = doc.createdAt;
+      return doc;
     }
     case 'takedownrequests': {
-      doc.id = oid.toHexString()
-      const ref: unknown = doc.articleId
-      if (isAbsent(ref)) doc.articleId = null
-      else if (typeof ref === 'object' && ref !== null && typeof Reflect.get(ref, 'toHexString') === 'function') {
-        doc.articleId = (ref as ObjectId).toHexString()
+      doc.id = oid.toHexString();
+      const ref: unknown = doc.articleId;
+      if (isAbsent(ref)) doc.articleId = null;
+      else if (
+        typeof ref === 'object' &&
+        ref !== null &&
+        typeof Reflect.get(ref, 'toHexString') === 'function'
+      ) {
+        doc.articleId = (ref as ObjectId).toHexString();
       }
-      for (const key of ['articleUrl', 'imageUrl', 'resolution'] as const) if (isAbsent(doc[key])) doc[key] = null
-      if (isAbsent(doc.status)) doc.status = 'pending'
-      if (isAbsent(doc.createdAt)) doc.createdAt = created
-      if (isAbsent(doc.updatedAt)) doc.updatedAt = doc.createdAt
-      return doc
+      for (const key of ['articleUrl', 'imageUrl', 'resolution'] as const)
+        if (isAbsent(doc[key])) doc[key] = null;
+      if (isAbsent(doc.status)) doc.status = 'pending';
+      if (isAbsent(doc.createdAt)) doc.createdAt = created;
+      if (isAbsent(doc.updatedAt)) doc.updatedAt = doc.createdAt;
+      return doc;
     }
     case 'followers': {
-      if (isAbsent(doc.actorUsername)) doc.actorUsername = LEGACY_FOLLOWER_EDITION
-      if (isAbsent(doc.sharedInbox)) doc.sharedInbox = null
-      if (isAbsent(doc.createdAt)) doc.createdAt = created
-      if (isAbsent(doc.updatedAt)) doc.updatedAt = doc.createdAt
-      if (isAbsent(doc.followedAt)) doc.followedAt = doc.createdAt
-      return doc
+      if (isAbsent(doc.actorUsername)) doc.actorUsername = LEGACY_FOLLOWER_EDITION;
+      if (isAbsent(doc.sharedInbox)) doc.sharedInbox = null;
+      if (isAbsent(doc.createdAt)) doc.createdAt = created;
+      if (isAbsent(doc.updatedAt)) doc.updatedAt = doc.createdAt;
+      if (isAbsent(doc.followedAt)) doc.followedAt = doc.createdAt;
+      return doc;
     }
   }
 }
@@ -137,10 +152,10 @@ export function naturalKey(collection: SourceCollection, doc: LogicalDocument): 
     case 'articles':
     case 'users':
     case 'takedownrequests':
-      return String(doc.id)
+      return String(doc.id);
     case 'actorkeys':
-      return String(doc.username)
+      return String(doc.username);
     case 'followers':
-      return `${String(doc.actorUsername)} ${String(doc.actorId)}`
+      return `${String(doc.actorUsername)} ${String(doc.actorId)}`;
   }
 }

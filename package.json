@@ -3,7 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "description": "Global World Journal — WSJ-style news site (reader + admin CMS + MCP)",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "build": "bun run --filter '*' build",
     "test": "bun run --filter '*' test",

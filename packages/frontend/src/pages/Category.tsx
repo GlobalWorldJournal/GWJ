@@ -1,42 +1,42 @@
-import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { CATEGORIES, categorySlug, type Category as CategoryName } from '@gwj/shared-types'
-import { getArticles } from '../lib/api'
-import { useLang } from '../lib/i18n'
-import { categoryLabel } from '../lib/dictionary'
-import { ArticleCard } from '../components/ArticleCard'
-import { AdSlot } from '../components/AdSlot'
-import { StatusMessage } from '../components/StatusMessage'
-import { ListSkeleton } from '../components/Skeletons'
-import { NotFound } from './NotFound'
+import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { CATEGORIES, categorySlug, type Category as CategoryName } from '@gwj/shared-types';
+import { getArticles } from '../lib/api';
+import { useLang } from '../lib/i18n';
+import { categoryLabel } from '../lib/dictionary';
+import { ArticleCard } from '../components/ArticleCard';
+import { AdSlot } from '../components/AdSlot';
+import { StatusMessage } from '../components/StatusMessage';
+import { ListSkeleton } from '../components/Skeletons';
+import { NotFound } from './NotFound';
 
 function resolveCategory(slug: string | undefined): CategoryName | null {
   if (!slug) {
-    return null
+    return null;
   }
-  return CATEGORIES.find((category) => categorySlug(category) === slug) ?? null
+  return CATEGORIES.find((category) => categorySlug(category) === slug) ?? null;
 }
 
 export function Category() {
-  const { category: slug } = useParams<{ category: string }>()
-  const category = resolveCategory(slug)
+  const { category: slug } = useParams<{ category: string }>();
+  const category = resolveCategory(slug);
 
   if (!category) {
-    return <NotFound />
+    return <NotFound />;
   }
 
-  return <CategoryView category={category} />
+  return <CategoryView category={category} />;
 }
 
 function CategoryView({ category }: { category: CategoryName }) {
-  const { lang, t } = useLang()
+  const { lang, t } = useLang();
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['articles', 'category', category, lang],
     queryFn: ({ signal }) => getArticles({ category, language: lang, limit: 30 }, signal),
-  })
+  });
 
   if (isPending) {
-    return <ListSkeleton />
+    return <ListSkeleton />;
   }
 
   if (isError) {
@@ -45,7 +45,7 @@ function CategoryView({ category }: { category: CategoryName }) {
         title={t('loadingError')}
         detail={error instanceof Error ? error.message : undefined}
       />
-    )
+    );
   }
 
   return (
@@ -72,5 +72,5 @@ function CategoryView({ category }: { category: CategoryName }) {
 
       <AdSlot variant="leaderboard" className="mt-10 border-t border-rule pt-8" />
     </section>
-  )
+  );
 }

@@ -1,4 +1,4 @@
-import { isDeepStrictEqual } from 'node:util'
+import { isDeepStrictEqual } from 'node:util';
 import {
   type Article,
   type ArticleInput,
@@ -7,9 +7,9 @@ import {
   type PaginatedArticles,
   type Seo,
   slugify,
-} from '@gwj/shared-types'
-import { getDb } from '../db/client'
-import { isRecordId, newRecordId } from '../db/ids'
+} from '@gwj/shared-types';
+import { getDb } from '../db/client';
+import { isRecordId, newRecordId } from '../db/ids';
 import {
   deleteArticle,
   findArticleById,
@@ -24,12 +24,12 @@ import {
   updateArticle,
   type ArticleFilter,
   type Executor,
-} from '../db/repositories/articleRepository'
-import type { ArticleRow, NewArticleRow } from '../db/schema/articles'
-import { ConflictError, NotFoundError } from '../errors'
+} from '../db/repositories/articleRepository';
+import type { ArticleRow, NewArticleRow } from '../db/schema/articles';
+import { ConflictError, NotFoundError } from '../errors';
 
 /** Fallback slug stem when a title slugifies to an empty string (e.g. all symbols). */
-const FALLBACK_SLUG = 'article'
+const FALLBACK_SLUG = 'article';
 
 /**
  * A listener notified when an article transitions INTO the published state — i.e.
@@ -38,23 +38,23 @@ const FALLBACK_SLUG = 'article'
  * AP → articleService, never the reverse. Listeners must not throw; they own their
  * own error handling and must never block or fail the publish response.
  */
-export type ArticlePublishedListener = (article: Article) => void
+export type ArticlePublishedListener = (article: Article) => void;
 
-const publishedListeners: ArticlePublishedListener[] = []
+const publishedListeners: ArticlePublishedListener[] = [];
 
 /** Register a listener for article-published transitions. Returns an unsubscribe fn. */
 export function onArticlePublished(listener: ArticlePublishedListener): () => void {
-  publishedListeners.push(listener)
+  publishedListeners.push(listener);
   return () => {
-    const index = publishedListeners.indexOf(listener)
-    if (index >= 0) publishedListeners.splice(index, 1)
-  }
+    const index = publishedListeners.indexOf(listener);
+    if (index >= 0) publishedListeners.splice(index, 1);
+  };
 }
 
 /** Notify all registered listeners that an article just became published. */
 function emitArticlePublished(article: Article): void {
   for (const listener of publishedListeners) {
-    listener(article)
+    listener(article);
   }
 }
 
@@ -64,23 +64,27 @@ function emitArticlePublished(article: Article): void {
  * constraint remains the authority: a concurrent writer that wins the race makes
  * this insert fail with 23505, which the error handler answers as 409.
  */
-async function generateUniqueSlug(executor: Executor, title: string, excludeId?: string): Promise<string> {
-  const base = slugify(title) || FALLBACK_SLUG
-  let candidate = base
-  let suffix = 2
+async function generateUniqueSlug(
+  executor: Executor,
+  title: string,
+  excludeId?: string,
+): Promise<string> {
+  const base = slugify(title) || FALLBACK_SLUG;
+  let candidate = base;
+  let suffix = 2;
   while (await isSlugTaken(executor, candidate, excludeId)) {
-    candidate = `${base}-${suffix}`
-    suffix += 1
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
   }
-  return candidate
+  return candidate;
 }
 
 /** Claim an explicitly requested slug, or fail with 409 if another article holds or reserves it. */
 async function claimSlug(executor: Executor, slug: string, articleId?: string): Promise<string> {
   if (await isSlugTaken(executor, slug, articleId)) {
-    throw new ConflictError('Slug already in use', { slug })
+    throw new ConflictError('Slug already in use', { slug });
   }
-  return slug
+  return slug;
 }
 
 /**
@@ -89,11 +93,11 @@ async function claimSlug(executor: Executor, slug: string, articleId?: string): 
  * to the empty string is cleared.
  */
 function mergeSeo(current: Seo, patch: Seo): Seo {
-  const merged: Seo = { ...current, ...patch }
+  const merged: Seo = { ...current, ...patch };
   for (const key of Object.keys(merged) as (keyof Seo)[]) {
-    if (merged[key] === undefined || merged[key] === '') delete merged[key]
+    if (merged[key] === undefined || merged[key] === '') delete merged[key];
   }
-  return merged
+  return merged;
 }
 
 /**
@@ -101,9 +105,12 @@ function mergeSeo(current: Seo, patch: Seo): Seo {
  * the original date rather than re-dating the story to "now" (which reordered the
  * front page), and `firstPublishedAt` is stamped exactly once.
  */
-function publishStamps(current: Pick<ArticleRow, 'firstPublishedAt'>, now: Date): Partial<NewArticleRow> {
-  const first = current.firstPublishedAt ?? now
-  return { status: 'published', publishedAt: first, firstPublishedAt: first }
+function publishStamps(
+  current: Pick<ArticleRow, 'firstPublishedAt'>,
+  now: Date,
+): Partial<NewArticleRow> {
+  const first = current.firstPublishedAt ?? now;
+  return { status: 'published', publishedAt: first, firstPublishedAt: first };
 }
 
 /**
@@ -111,10 +118,15 @@ function publishStamps(current: Pick<ArticleRow, 'firstPublishedAt'>, now: Date)
  * FIRST transition into published. Unpublish → re-publish is not news again.
  */
 function isFirstPublish(before: Pick<ArticleRow, 'firstPublishedAt'>, after: ArticleRow): boolean {
-  return before.firstPublishedAt === null && after.status === 'published'
+  return before.firstPublishedAt === null && after.status === 'published';
 }
 
-function buildPaginated(rows: ArticleRow[], total: number, page: number, limit: number): PaginatedArticles {
+function buildPaginated(
+  rows: ArticleRow[],
+  total: number,
+  page: number,
+  limit: number,
+): PaginatedArticles {
   return {
     data: rows.map(rowToArticle),
     pagination: {
@@ -123,7 +135,7 @@ function buildPaginated(rows: ArticleRow[], total: number, page: number, limit: 
       total,
       totalPages: total === 0 ? 0 : Math.ceil(total / limit),
     },
-  }
+  };
 }
 
 /**
@@ -132,11 +144,12 @@ function buildPaginated(rows: ArticleRow[], total: number, page: number, limit: 
  * equals the stored `{ url }`.
  */
 function sameValue(a: unknown, b: unknown): boolean {
-  const normalize = (v: unknown): unknown => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)))
+  const normalize = (v: unknown): unknown =>
+    v === undefined ? undefined : JSON.parse(JSON.stringify(v));
   if (a instanceof Date || b instanceof Date) {
-    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime()
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
   }
-  return isDeepStrictEqual(normalize(a), normalize(b))
+  return isDeepStrictEqual(normalize(a), normalize(b));
 }
 
 /**
@@ -150,22 +163,22 @@ async function mutateArticle(
   id: string,
   apply: (current: ArticleRow, tx: Executor) => Promise<Partial<NewArticleRow>>,
 ): Promise<{ before: ArticleRow; after: ArticleRow }> {
-  if (!isRecordId(id)) throw new NotFoundError('Article not found')
+  if (!isRecordId(id)) throw new NotFoundError('Article not found');
   return getDb().transaction(async (tx) => {
-    const current = await findArticleByIdForUpdate(tx, id)
-    if (!current) throw new NotFoundError('Article not found')
-    const proposed = await apply(current, tx)
-    const changes: Partial<NewArticleRow> = {}
+    const current = await findArticleByIdForUpdate(tx, id);
+    if (!current) throw new NotFoundError('Article not found');
+    const proposed = await apply(current, tx);
+    const changes: Partial<NewArticleRow> = {};
     for (const [key, value] of Object.entries(proposed) as [keyof NewArticleRow, unknown][]) {
-      if (value === undefined) continue
+      if (value === undefined) continue;
       if (!sameValue(value, current[key as keyof ArticleRow])) {
-        Object.assign(changes, { [key]: value })
+        Object.assign(changes, { [key]: value });
       }
     }
-    if (Object.keys(changes).length === 0) return { before: current, after: current }
-    const after = await updateArticle(tx, id, { ...changes, updatedAt: new Date() })
-    return { before: current, after }
-  })
+    if (Object.keys(changes).length === 0) return { before: current, after: current };
+    const after = await updateArticle(tx, id, { ...changes, updatedAt: new Date() });
+    return { before: current, after };
+  });
 }
 
 /** Options controlling whether a listing is restricted to published articles. */
@@ -174,75 +187,77 @@ export interface ListOptions {
    * When true, drafts are visible and `query.status` is honoured (admin path).
    * Otherwise the listing is ALWAYS published-only, whatever status was asked for.
    */
-  includeAll?: boolean
+  includeAll?: boolean;
   /** Restrict to a single exact author (the ActivityPub writer-outbox path). */
-  author?: string
+  author?: string;
 }
 
 /** Options controlling whether a single fetch may return a draft. */
 export interface GetOptions {
   /** When true, drafts are returned too (admin path); default is published-only. */
-  includeDrafts?: boolean
+  includeDrafts?: boolean;
 }
 
 export interface ArticleService {
-  list(query: ArticleListQuery, options?: ListOptions): Promise<PaginatedArticles>
-  getBySlug(slug: string, options?: GetOptions): Promise<Article>
-  getById(id: string): Promise<Article>
-  create(input: ArticleInput): Promise<Article>
-  update(id: string, patch: ArticleUpdate): Promise<Article>
-  publish(id: string): Promise<Article>
-  unpublish(id: string): Promise<Article>
-  remove(id: string): Promise<void>
-  search(q: string, query: ArticleListQuery): Promise<PaginatedArticles>
+  list(query: ArticleListQuery, options?: ListOptions): Promise<PaginatedArticles>;
+  getBySlug(slug: string, options?: GetOptions): Promise<Article>;
+  getById(id: string): Promise<Article>;
+  create(input: ArticleInput): Promise<Article>;
+  update(id: string, patch: ArticleUpdate): Promise<Article>;
+  publish(id: string): Promise<Article>;
+  unpublish(id: string): Promise<Article>;
+  remove(id: string): Promise<void>;
+  search(q: string, query: ArticleListQuery): Promise<PaginatedArticles>;
   /** The current slug of the PUBLISHED article that used to live at `oldSlug`. */
-  findRedirectSlug(oldSlug: string): Promise<string | null>
+  findRedirectSlug(oldSlug: string): Promise<string | null>;
 }
 
 export const articleService: ArticleService = {
   async list(query, options) {
-    const filter: ArticleFilter = {}
+    const filter: ArticleFilter = {};
     if (!options?.includeAll) {
       // A public listing only ever surfaces published work — a requested status is
       // ignored here, so `?status=draft` can never leak an unpublished story.
-      filter.status = 'published'
+      filter.status = 'published';
     } else if (query.status) {
-      filter.status = query.status
+      filter.status = query.status;
     }
-    if (query.category) filter.category = query.category
-    if (query.language) filter.language = query.language
-    if (query.featured) filter.featuredOnly = true
-    if (options?.author !== undefined) filter.author = options.author
+    if (query.category) filter.category = query.category;
+    if (query.language) filter.language = query.language;
+    if (query.featured) filter.featuredOnly = true;
+    if (options?.author !== undefined) filter.author = options.author;
 
     // Free-text search (title/deck). Lets the admin/MCP check for an EXISTING
     // similar story before writing a new one — incl. drafts on the admin path —
     // so the newsroom does not publish duplicates.
-    const q = query.q?.trim()
-    if (q) filter.q = q
+    const q = query.q?.trim();
+    if (q) filter.q = q;
 
-    const { rows, total } = await listArticles(filter, query.page, query.limit)
-    return buildPaginated(rows, total, query.page, query.limit)
+    const { rows, total } = await listArticles(filter, query.page, query.limit);
+    return buildPaginated(rows, total, query.page, query.limit);
   },
 
   async getBySlug(slug, options) {
-    const row = await findArticleBySlug(slug, !options?.includeDrafts)
-    if (!row) throw new NotFoundError('Article not found')
-    return rowToArticle(row)
+    const row = await findArticleBySlug(slug, !options?.includeDrafts);
+    if (!row) throw new NotFoundError('Article not found');
+    return rowToArticle(row);
   },
 
   async getById(id) {
     // A malformed id is a resource that does not exist (404), not a server error.
-    const row = isRecordId(id) ? await findArticleById(id) : null
-    if (!row) throw new NotFoundError('Article not found')
-    return rowToArticle(row)
+    const row = isRecordId(id) ? await findArticleById(id) : null;
+    if (!row) throw new NotFoundError('Article not found');
+    return rowToArticle(row);
   },
 
   async create(input) {
-    const db = getDb()
-    const now = new Date()
+    const db = getDb();
+    const now = new Date();
     const row = await insertArticle(db, {
       id: newRecordId(now),
-      slug: input.slug ? await claimSlug(db, input.slug) : await generateUniqueSlug(db, input.title),
+      slug: input.slug
+        ? await claimSlug(db, input.slug)
+        : await generateUniqueSlug(db, input.title),
       title: input.title,
       deck: input.deck,
       kicker: input.kicker,
@@ -260,11 +275,11 @@ export const articleService: ArticleService = {
       firstPublishedAt: input.status === 'published' ? now : null,
       createdAt: now,
       updatedAt: now,
-    })
-    const article = rowToArticle(row)
+    });
+    const article = rowToArticle(row);
     // A story created directly in the published state federates immediately.
-    if (article.status === 'published') emitArticlePublished(article)
-    return article
+    if (article.status === 'published') emitArticlePublished(article);
+    return article;
   },
 
   async update(id, patch) {
@@ -282,65 +297,71 @@ export const articleService: ArticleService = {
         tags: patch.tags,
         seo: patch.seo ? mergeSeo(current.seo, patch.seo) : undefined,
         source: patch.source,
-      }
+      };
 
       // Slugs are frozen once an article has ever been live, so links shared on
       // the fediverse, Telegram and search engines never break. Before that the
       // slug follows the title. An explicit slug change is always honoured, and a
       // previously public slug keeps redirecting to the new one.
-      const everPublished = current.firstPublishedAt !== null || current.status === 'published'
-      let nextSlug: string | undefined
+      const everPublished = current.firstPublishedAt !== null || current.status === 'published';
+      let nextSlug: string | undefined;
       if (patch.slug !== undefined && patch.slug !== current.slug) {
-        nextSlug = await claimSlug(tx, patch.slug, id)
-      } else if (patch.slug === undefined && !everPublished && patch.title !== undefined && patch.title !== current.title) {
-        nextSlug = await generateUniqueSlug(tx, patch.title, id)
+        nextSlug = await claimSlug(tx, patch.slug, id);
+      } else if (
+        patch.slug === undefined &&
+        !everPublished &&
+        patch.title !== undefined &&
+        patch.title !== current.title
+      ) {
+        nextSlug = await generateUniqueSlug(tx, patch.title, id);
       }
       if (nextSlug !== undefined) {
-        changes.slug = nextSlug
-        if (everPublished) await recordSlugChange(tx, id, current.slug, nextSlug)
+        changes.slug = nextSlug;
+        if (everPublished) await recordSlugChange(tx, id, current.slug, nextSlug);
       }
 
       if (patch.status !== undefined && patch.status !== current.status) {
-        if (patch.status === 'published') Object.assign(changes, publishStamps(current, new Date()))
-        else Object.assign(changes, { status: patch.status, publishedAt: null })
+        if (patch.status === 'published')
+          Object.assign(changes, publishStamps(current, new Date()));
+        else Object.assign(changes, { status: patch.status, publishedAt: null });
       }
-      return changes
-    })
-    const article = rowToArticle(after)
-    if (isFirstPublish(before, after)) emitArticlePublished(article)
-    return article
+      return changes;
+    });
+    const article = rowToArticle(after);
+    if (isFirstPublish(before, after)) emitArticlePublished(article);
+    return article;
   },
 
   async publish(id) {
     const { before, after } = await mutateArticle(id, async (current) =>
       current.status === 'published' ? {} : publishStamps(current, new Date()),
-    )
-    const article = rowToArticle(after)
-    if (isFirstPublish(before, after)) emitArticlePublished(article)
-    return article
+    );
+    const article = rowToArticle(after);
+    if (isFirstPublish(before, after)) emitArticlePublished(article);
+    return article;
   },
 
   async unpublish(id) {
     // `firstPublishedAt` is kept: the slug stays frozen and a later re-publish
     // restores the original date without re-announcing the story.
-    const { after } = await mutateArticle(id, async () => ({ status: 'draft', publishedAt: null }))
-    return rowToArticle(after)
+    const { after } = await mutateArticle(id, async () => ({ status: 'draft', publishedAt: null }));
+    return rowToArticle(after);
   },
 
   async findRedirectSlug(oldSlug) {
-    return findRedirectSlug(oldSlug)
+    return findRedirectSlug(oldSlug);
   },
 
   async remove(id) {
-    if (!isRecordId(id) || !(await deleteArticle(id))) throw new NotFoundError('Article not found')
+    if (!isRecordId(id) || !(await deleteArticle(id))) throw new NotFoundError('Article not found');
   },
 
   async search(q, query) {
     // Public search: published work only, whatever status the caller asked for.
-    const filter: ArticleFilter = { status: 'published', q }
-    if (query.category) filter.category = query.category
-    if (query.language) filter.language = query.language
-    const { rows, total } = await listArticles(filter, query.page, query.limit)
-    return buildPaginated(rows, total, query.page, query.limit)
+    const filter: ArticleFilter = { status: 'published', q };
+    if (query.category) filter.category = query.category;
+    if (query.language) filter.language = query.language;
+    const { rows, total } = await listArticles(filter, query.page, query.limit);
+    return buildPaginated(rows, total, query.page, query.limit);
   },
-}
+};

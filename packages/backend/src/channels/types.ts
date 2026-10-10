@@ -1,7 +1,7 @@
-import type { Article, Language } from '@gwj/shared-types'
+import type { Article, Language } from '@gwj/shared-types';
 
 /** The distribution platforms the paper fans articles out to. */
-export type ChannelPlatform = 'mastodon' | 'telegram' | 'whatsapp'
+export type ChannelPlatform = 'mastodon' | 'telegram' | 'whatsapp';
 
 /**
  * A distribution channel that fans a freshly published article out to one external
@@ -31,13 +31,13 @@ export type ChannelPlatform = 'mastodon' | 'telegram' | 'whatsapp'
  */
 export interface PublishChannel {
   /** Short, stable identifier for this channel (used in logs). */
-  readonly name: string
+  readonly name: string;
   /** The destination platform this channel delivers to. */
-  readonly platform: ChannelPlatform
+  readonly platform: ChannelPlatform;
   /** Whether this channel handles articles in the given edition/language. */
-  servesLanguage(language: Language): boolean
+  servesLanguage(language: Language): boolean;
   /** Whether this channel is active in the current process (config/credentials present). */
-  isEnabled(): boolean
+  isEnabled(): boolean;
   /** Distribute one published article to this channel's destination. */
-  publish(article: Article): Promise<void>
+  publish(article: Article): Promise<void>;
 }

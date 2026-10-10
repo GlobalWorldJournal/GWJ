@@ -4,17 +4,17 @@ import {
   isLanguage,
   type Article,
   type Language,
-} from '@gwj/shared-types'
-import type { Env } from '../env'
-import { escapeHtml } from '../activitypub/documents'
-import { logger } from '../logger'
-import type { PublishChannel } from './types'
+} from '@gwj/shared-types';
+import type { Env } from '../env';
+import { escapeHtml } from '../activitypub/documents';
+import { logger } from '../logger';
+import type { PublishChannel } from './types';
 
 /** Telegram Bot API base. The bot token is appended as a path segment per their API. */
-const TELEGRAM_API_BASE = 'https://api.telegram.org'
+const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
 /** Abort an in-flight Telegram request after this long so a hung call never lingers. */
-const TELEGRAM_TIMEOUT_MS = 10_000
+const TELEGRAM_TIMEOUT_MS = 10_000;
 
 /**
  * One Telegram channel binding: a single edition (`language`) delivered to one
@@ -28,11 +28,11 @@ const TELEGRAM_TIMEOUT_MS = 10_000
  */
 interface TelegramChannelConfig {
   /** The single edition this Telegram channel serves. */
-  readonly language: Language
+  readonly language: Language;
   /** Resolve the target chat id (`@handle` or numeric) from validated env. */
-  resolveChatId(env: Env): string
+  resolveChatId(env: Env): string;
   /** Resolve the bot token from validated env; undefined → this channel is disabled. */
-  resolveToken(env: Env): string | undefined
+  resolveToken(env: Env): string | undefined;
 }
 
 /**
@@ -46,7 +46,7 @@ const TELEGRAM_CHANNELS: readonly TelegramChannelConfig[] = [
     resolveChatId: (env) => env.TELEGRAM_CHANNEL,
     resolveToken: (env) => env.TELEGRAM_BOT_TOKEN,
   },
-]
+];
 
 /**
  * Build the HTML caption for a Telegram post: a bold title, the deck (when present),
@@ -54,11 +54,11 @@ const TELEGRAM_CHANNELS: readonly TelegramChannelConfig[] = [
  * deck are HTML-escaped; the URL is already a controlled value.
  */
 function buildCaption(article: Article, url: string): string {
-  const lines = [`<b>${escapeHtml(article.title)}</b>`]
-  const deck = article.deck?.trim()
-  if (deck && deck.length > 0) lines.push(escapeHtml(deck))
-  lines.push(`Read: ${url}`)
-  return lines.join('\n\n')
+  const lines = [`<b>${escapeHtml(article.title)}</b>`];
+  const deck = article.deck?.trim();
+  if (deck && deck.length > 0) lines.push(escapeHtml(deck));
+  lines.push(`Read: ${url}`);
+  return lines.join('\n\n');
 }
 
 /** POST a JSON body to a Telegram Bot API method, logging a warning on a non-OK reply. */
@@ -67,21 +67,21 @@ async function callTelegram(
   method: 'sendPhoto' | 'sendMessage',
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), TELEGRAM_TIMEOUT_MS)
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TELEGRAM_TIMEOUT_MS);
   try {
     const res = await fetch(`${TELEGRAM_API_BASE}/bot${token}/${method}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
       signal: controller.signal,
-    })
+    });
     if (!res.ok) {
-      const detail = await res.text().catch(() => '')
-      logger.warn('telegram publish non-ok response', { method, status: res.status, detail })
+      const detail = await res.text().catch(() => '');
+      logger.warn('telegram publish non-ok response', { method, status: res.status, detail });
     }
   } finally {
-    clearTimeout(timer)
+    clearTimeout(timer);
   }
 }
 
@@ -96,9 +96,9 @@ async function callTelegram(
  * never affect the publish response.
  */
 function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishChannel {
-  const token = config.resolveToken(env)
-  const chatId = config.resolveChatId(env)
-  const { language } = config
+  const token = config.resolveToken(env);
+  const chatId = config.resolveChatId(env);
+  const { language } = config;
 
   return {
     name: `telegram:${language}`,
@@ -108,12 +108,12 @@ function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishC
     async publish(article: Article) {
       // Guarded by the registry (isEnabled + servesLanguage), but keep the guards so
       // a direct caller can't post without a token or to the wrong edition.
-      if (!token) return
-      const articleLanguage = isLanguage(article.language) ? article.language : DEFAULT_LANGUAGE
-      if (articleLanguage !== language) return
+      if (!token) return;
+      const articleLanguage = isLanguage(article.language) ? article.language : DEFAULT_LANGUAGE;
+      if (articleLanguage !== language) return;
 
-      const url = articlePublicUrl(env.FEDIVERSE_DOMAIN, articleLanguage, article.slug)
-      const caption = buildCaption(article, url)
+      const url = articlePublicUrl(env.FEDIVERSE_DOMAIN, articleLanguage, article.slug);
+      const caption = buildCaption(article, url);
 
       if (article.heroImage?.url) {
         await callTelegram(token, 'sendPhoto', {
@@ -121,17 +121,17 @@ function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishC
           photo: article.heroImage.url,
           caption,
           parse_mode: 'HTML',
-        })
-        return
+        });
+        return;
       }
 
       await callTelegram(token, 'sendMessage', {
         chat_id: chatId,
         text: caption,
         parse_mode: 'HTML',
-      })
+      });
     },
-  }
+  };
 }
 
 /**
@@ -140,5 +140,5 @@ function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishC
  * so today only the English channel is active until `TELEGRAM_BOT_TOKEN` is set.
  */
 export function telegramChannels(env: Env): PublishChannel[] {
-  return TELEGRAM_CHANNELS.map((config) => buildTelegramChannel(env, config))
+  return TELEGRAM_CHANNELS.map((config) => buildTelegramChannel(env, config));
 }

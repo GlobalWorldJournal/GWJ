@@ -1,18 +1,18 @@
-import { CATEGORIES, categorySlug } from '@gwj/shared-types'
-import { useLang } from '../lib/i18n'
-import { LocaleLink } from '../lib/locale'
-import { categoryLabel } from '../lib/dictionary'
+import { CATEGORIES, categorySlug } from '@gwj/shared-types';
+import { useLang } from '../lib/i18n';
+import { LocaleLink } from '../lib/locale';
+import { categoryLabel } from '../lib/dictionary';
 
 /** A footer link whose visible label comes from a dictionary key. */
 interface FooterLink {
-  labelKey: string
-  to: string
+  labelKey: string;
+  to: string;
 }
 
 /** A footer column whose title comes from a dictionary key. */
 interface FooterColumn {
-  titleKey: string
-  links: FooterLink[]
+  titleKey: string;
+  links: FooterLink[];
 }
 
 // Routes stay identical across editions; only the visible labels are localized.
@@ -56,14 +56,14 @@ const COLUMNS: FooterColumn[] = [
       { labelKey: 'accessibility', to: '/accessibility' },
     ],
   },
-]
+];
 
 const FOOTER_LINK_CLASS =
-  'font-body text-[0.85rem] text-ink-soft transition-colors hover:text-accent'
+  'font-body text-[0.85rem] text-ink-soft transition-colors hover:text-accent';
 
 /** WSJ-style multi-column footer: link groups + wordmark + copyright. */
 export function Footer() {
-  const { lang, t } = useLang()
+  const { lang, t } = useLang();
 
   return (
     <footer className="mt-16 border-t-3 border-ink bg-paper">
@@ -84,7 +84,9 @@ export function Footer() {
 
           {COLUMNS.map((column) => (
             <div key={column.titleKey}>
-              <h3 className="label mb-3 text-[0.6875rem] font-bold text-ink">{t(column.titleKey)}</h3>
+              <h3 className="label mb-3 text-[0.6875rem] font-bold text-ink">
+                {t(column.titleKey)}
+              </h3>
               <ul className="flex flex-col gap-2">
                 {column.links.map((link) => (
                   <li key={link.labelKey}>
@@ -99,7 +101,10 @@ export function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col gap-2 border-t border-rule pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <LocaleLink to="/" className="headline text-2xl text-ink transition-colors hover:text-accent">
+          <LocaleLink
+            to="/"
+            className="headline text-2xl text-ink transition-colors hover:text-accent"
+          >
             The Global World Journal
           </LocaleLink>
           <p className="label text-[0.625rem] text-muted">
@@ -108,5 +113,5 @@ export function Footer() {
         </div>
       </div>
     </footer>
-  )
+  );
 }

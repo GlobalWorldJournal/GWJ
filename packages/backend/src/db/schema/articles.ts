@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm';
 import {
   check,
   customType,
@@ -9,7 +9,7 @@ import {
   text,
   timestamp,
   unique,
-} from 'drizzle-orm/pg-core'
+} from 'drizzle-orm/pg-core';
 import {
   ArticleStatusSchema,
   CATEGORIES,
@@ -20,15 +20,15 @@ import {
   type Language,
   type Seo,
   type Source,
-} from '@gwj/shared-types'
-import { RECORD_ID_SQL_PATTERN } from '../ids'
-import { sqlInList } from '../sqlLiterals'
+} from '@gwj/shared-types';
+import { RECORD_ID_SQL_PATTERN } from '../ids';
+import { sqlInList } from '../sqlLiterals';
 
 const tsvector = customType<{ data: string }>({
   dataType() {
-    return 'tsvector'
+    return 'tsvector';
   },
-})
+});
 
 /**
  * Full-text search vector over `title` + `deck` — the exact fields of the Mongo
@@ -43,7 +43,7 @@ const tsvector = customType<{ data: string }>({
 export const ARTICLE_SEARCH_VECTOR_SQL = sql`to_tsvector(
   CASE "language" WHEN 'es' THEN 'spanish'::regconfig WHEN 'fr' THEN 'french'::regconfig ELSE 'english'::regconfig END,
   coalesce("title", '') || ' ' || coalesce("deck", '')
-)`
+)`;
 
 export const articles = pgTable(
   'articles',
@@ -105,7 +105,7 @@ export const articles = pgTable(
     index('articles_category_published_at_idx').on(t.category, t.publishedAt.desc().nullsLast()),
     index('articles_search_vector_idx').using('gin', t.searchVector),
   ],
-)
+);
 
-export type ArticleRow = typeof articles.$inferSelect
-export type NewArticleRow = typeof articles.$inferInsert
+export type ArticleRow = typeof articles.$inferSelect;
+export type NewArticleRow = typeof articles.$inferInsert;

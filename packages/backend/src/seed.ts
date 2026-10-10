@@ -1,23 +1,29 @@
-import { argv } from 'node:process'
-import { fileURLToPath } from 'node:url'
-import bcrypt from 'bcryptjs'
-import { loadEnv, type Env } from './env'
-import { connectDb, disconnectDb, getDb } from './db/client'
-import { newRecordId } from './db/ids'
-import { users } from './db/schema/users'
-import { logger } from './logger'
+import { argv } from 'node:process';
+import { fileURLToPath } from 'node:url';
+import bcrypt from 'bcryptjs';
+import { loadEnv, type Env } from './env';
+import { connectDb, disconnectDb, getDb } from './db/client';
+import { newRecordId } from './db/ids';
+import { users } from './db/schema/users';
+import { logger } from './logger';
 
-const BCRYPT_ROUNDS = 12
+const BCRYPT_ROUNDS = 12;
 
 /** Idempotently upsert the single admin user from env. Re-hashes the password each run. */
 export async function seedAdminUser(env: Env): Promise<void> {
-  const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, BCRYPT_ROUNDS)
+  const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, BCRYPT_ROUNDS);
   await getDb()
     .insert(users)
-    .values({ id: newRecordId(), username: env.ADMIN_USERNAME, passwordHash, role: 'admin', createdAt: new Date() })
+    .values({
+      id: newRecordId(),
+      username: env.ADMIN_USERNAME,
+      passwordHash,
+      role: 'admin',
+      createdAt: new Date(),
+    })
     // An existing admin keeps its id (the JWT `sub`) and creation time.
-    .onConflictDoUpdate({ target: users.username, set: { passwordHash, role: 'admin' } })
-  logger.info('seeded admin user', { username: env.ADMIN_USERNAME })
+    .onConflictDoUpdate({ target: users.username, set: { passwordHash, role: 'admin' } });
+  logger.info('seeded admin user', { username: env.ADMIN_USERNAME });
 }
 
 /**
@@ -26,24 +32,24 @@ export async function seedAdminUser(env: Env): Promise<void> {
  * the `articles_category_check` constraint), so there is no table to fill.
  */
 export async function runSeed(env: Env): Promise<void> {
-  await seedAdminUser(env)
+  await seedAdminUser(env);
 }
 
 async function main(): Promise<void> {
-  const env = loadEnv()
-  await connectDb(env.DATABASE_URL)
+  const env = loadEnv();
+  await connectDb(env.DATABASE_URL);
   try {
-    await runSeed(env)
+    await runSeed(env);
   } finally {
-    await disconnectDb()
+    await disconnectDb();
   }
 }
 
-const entry = argv[1] ? fileURLToPath(import.meta.url) === argv[1] : false
+const entry = argv[1] ? fileURLToPath(import.meta.url) === argv[1] : false;
 if (entry) {
   main().catch((err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err)
-    logger.error('seed failed', { message })
-    process.exit(1)
-  })
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('seed failed', { message });
+    process.exit(1);
+  });
 }

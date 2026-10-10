@@ -1,4 +1,4 @@
-import { sql, type SQL } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm';
 
 /**
  * Render a closed value set as a SQL `IN (...)` list for a `check()` constraint.
@@ -12,8 +12,8 @@ import { sql, type SQL } from 'drizzle-orm'
 export function sqlInList(values: readonly string[]): SQL {
   for (const value of values) {
     if (!/^[A-Za-z0-9_-]+$/.test(value)) {
-      throw new Error(`Refusing to render ${JSON.stringify(value)} into a CHECK constraint`)
+      throw new Error(`Refusing to render ${JSON.stringify(value)} into a CHECK constraint`);
     }
   }
-  return sql.raw(`(${values.map((v) => `'${v}'`).join(', ')})`)
+  return sql.raw(`(${values.map((v) => `'${v}'`).join(', ')})`);
 }

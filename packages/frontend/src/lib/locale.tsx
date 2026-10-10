@@ -1,12 +1,12 @@
-import { forwardRef } from 'react'
-import { Link, NavLink, useLocation, type LinkProps, type NavLinkProps } from 'react-router-dom'
+import { forwardRef } from 'react';
+import { Link, NavLink, useLocation, type LinkProps, type NavLinkProps } from 'react-router-dom';
 import {
   DEFAULT_LANGUAGE,
   SUPPORTED_LANGUAGES,
   isLanguage,
   localePrefix,
   type Language,
-} from '@gwj/shared-types'
+} from '@gwj/shared-types';
 
 /**
  * Path-based locale editions. English is the canonical root edition and carries
@@ -17,25 +17,24 @@ import {
  * Derived from the shared `SUPPORTED_LANGUAGES`: every supported edition except
  * the default one owns a prefix, so adding an edition to shared-types is enough.
  */
-export type PrefixedLocale = Exclude<Language, 'en'>
+export type PrefixedLocale = Exclude<Language, 'en'>;
 
 export const PREFIXED_LOCALES: readonly PrefixedLocale[] = SUPPORTED_LANGUAGES.filter(
   (code): code is PrefixedLocale => code !== DEFAULT_LANGUAGE,
-)
+);
 
 /** True when `value` is a non-default edition that owns a `/<locale>` path prefix. */
 export function isPrefixedLocale(value: string): value is PrefixedLocale {
-  return isLanguage(value) && value !== DEFAULT_LANGUAGE
+  return isLanguage(value) && value !== DEFAULT_LANGUAGE;
 }
-
 
 /**
  * The edition that owns a given pathname, read from its first path segment.
  * `/es/article/x` → `es`; everything else (including `/world`) → English.
  */
 export function localeFromPath(pathname: string): Language {
-  const segment = pathname.split('/')[1] ?? ''
-  return isPrefixedLocale(segment) ? segment : DEFAULT_LANGUAGE
+  const segment = pathname.split('/')[1] ?? '';
+  return isPrefixedLocale(segment) ? segment : DEFAULT_LANGUAGE;
 }
 
 /**
@@ -44,12 +43,12 @@ export function localeFromPath(pathname: string): Language {
  * `/es` → `/`, `/world` → `/world`.
  */
 export function stripLocale(pathname: string): string {
-  const lang = localeFromPath(pathname)
+  const lang = localeFromPath(pathname);
   if (lang === DEFAULT_LANGUAGE) {
-    return pathname
+    return pathname;
   }
-  const rest = pathname.slice(`/${lang}`.length)
-  return rest === '' ? '/' : rest
+  const rest = pathname.slice(`/${lang}`.length);
+  return rest === '' ? '/' : rest;
 }
 
 /**
@@ -60,14 +59,14 @@ export function stripLocale(pathname: string): string {
  * `http(s):`, fragment-only) are returned untouched.
  */
 export function localizePath(lang: Language, path: string): string {
-  const prefix = localePrefix(lang)
+  const prefix = localePrefix(lang);
   if (!prefix || !path.startsWith('/')) {
-    return path
+    return path;
   }
   if (path === '/') {
-    return prefix
+    return prefix;
   }
-  return `${prefix}${path}`
+  return `${prefix}${path}`;
 }
 
 /**
@@ -75,7 +74,7 @@ export function localizePath(lang: Language, path: string): string {
  * `es`/`fr` under their prefixes.
  */
 export function useActiveLocale(): Language {
-  return localeFromPath(useLocation().pathname)
+  return localeFromPath(useLocation().pathname);
 }
 
 /**
@@ -84,7 +83,7 @@ export function useActiveLocale(): Language {
  * returns the path unchanged.
  */
 export function useLocalizedTo(to: string): string {
-  return localizePath(useActiveLocale(), to)
+  return localizePath(useActiveLocale(), to);
 }
 
 /**
@@ -96,17 +95,17 @@ export const LocaleLink = forwardRef<HTMLAnchorElement, LinkProps>(function Loca
   { to, ...rest },
   ref,
 ) {
-  const locale = useActiveLocale()
-  const resolved = typeof to === 'string' ? localizePath(locale, to) : to
-  return <Link ref={ref} to={resolved} {...rest} />
-})
+  const locale = useActiveLocale();
+  const resolved = typeof to === 'string' ? localizePath(locale, to) : to;
+  return <Link ref={ref} to={resolved} {...rest} />;
+});
 
 /** A `<NavLink>` variant of {@link LocaleLink} (preserves active styling callbacks). */
 export const LocaleNavLink = forwardRef<HTMLAnchorElement, NavLinkProps>(function LocaleNavLink(
   { to, ...rest },
   ref,
 ) {
-  const locale = useActiveLocale()
-  const resolved = typeof to === 'string' ? localizePath(locale, to) : to
-  return <NavLink ref={ref} to={resolved} {...rest} />
-})
+  const locale = useActiveLocale();
+  const resolved = typeof to === 'string' ? localizePath(locale, to) : to;
+  return <NavLink ref={ref} to={resolved} {...rest} />;
+});

@@ -1,43 +1,43 @@
-import express, { type Express, type Request, type Response } from 'express'
-import helmet from 'helmet'
-import cors from 'cors'
-import rateLimit from 'express-rate-limit'
-import { parseCorsOrigins, type Env } from './env'
-import { createPublicRouter } from './routes/public'
-import { createAuthRouter } from './routes/auth'
-import { createAdminRouter } from './routes/admin'
-import { createUploadService, type UploadService } from './services/uploadService'
-import { type RemoteImageOptions } from './services/remoteImageService'
-import { createErrorHandler, notFoundHandler } from './middleware/error'
-import { createActivityPub, type ActivityPubModule, type ActivityPubOptions } from './activitypub'
-import { startChannels } from './channels'
+import express, { type Express, type Request, type Response } from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import { parseCorsOrigins, type Env } from './env';
+import { createPublicRouter } from './routes/public';
+import { createAuthRouter } from './routes/auth';
+import { createAdminRouter } from './routes/admin';
+import { createUploadService, type UploadService } from './services/uploadService';
+import { type RemoteImageOptions } from './services/remoteImageService';
+import { createErrorHandler, notFoundHandler } from './middleware/error';
+import { createActivityPub, type ActivityPubModule, type ActivityPubOptions } from './activitypub';
+import { startChannels } from './channels';
 
-const RATE_WINDOW_MS = 15 * 60 * 1000
-const PUBLIC_MAX = 300
-const AUTH_MAX = 20
-const ADMIN_MAX = 200
+const RATE_WINDOW_MS = 15 * 60 * 1000;
+const PUBLIC_MAX = 300;
+const AUTH_MAX = 20;
+const ADMIN_MAX = 200;
 /** Generous limiter for unauthenticated federation traffic (crawls, fan-in). */
-const FEDERATION_MAX = 600
+const FEDERATION_MAX = 600;
 
 /** Allow building the app with a pre-made upload service (tests inject a fake S3). */
 export interface CreateAppOptions {
-  uploadService?: UploadService
+  uploadService?: UploadService;
   /** Options forwarded to the ActivityPub module (test seams for key/fetch). */
-  activityPub?: ActivityPubOptions
+  activityPub?: ActivityPubOptions;
   /** Test seams (fetch, DNS) for downloading remote images in `upload/from-url`. */
-  remoteImage?: RemoteImageOptions
+  remoteImage?: RemoteImageOptions;
 }
 
 /** The Express app, the ActivityPub module, and the channel publishing handle. */
 export interface BuiltApp {
-  app: Express
-  activityPub: ActivityPubModule
+  app: Express;
+  activityPub: ActivityPubModule;
   /**
    * Stop distribution-channel publishing (unsubscribe from article-published
    * transitions). Call at graceful shutdown, and in tests that build multiple app
    * instances so a stale listener doesn't fan out across instances.
    */
-  stopChannels(): void
+  stopChannels(): void;
 }
 
 /**
@@ -53,14 +53,14 @@ export interface BuiltApp {
  * {@link BuiltApp.stopChannels}.
  */
 export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
-  const app = express()
+  const app = express();
   // Resolve `req.ip` from X-Forwarded-For across exactly the proxies we run behind,
   // so the rate limiters key on the real client rather than the load balancer.
-  app.set('trust proxy', env.TRUST_PROXY_HOPS)
+  app.set('trust proxy', env.TRUST_PROXY_HOPS);
 
-  app.use(helmet())
+  app.use(helmet());
 
-  const allowlist = parseCorsOrigins(env.CORS_ORIGINS)
+  const allowlist = parseCorsOrigins(env.CORS_ORIGINS);
   app.use(
     cors({
       // Non-browser clients send no Origin and are unaffected. A browser origin off
@@ -68,46 +68,70 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
       // it is a refusal, not a server error. An empty allowlist (dev only — boot
       // rejects it in production) allows every origin.
       origin: (origin, callback) => {
-        callback(null, !origin || allowlist.length === 0 || allowlist.includes(origin))
+        callback(null, !origin || allowlist.length === 0 || allowlist.includes(origin));
       },
       credentials: true,
     }),
-  )
+  );
 
   // Distinct limiter instances with unique state per scope.
-  const publicLimiter = rateLimit({ windowMs: RATE_WINDOW_MS, max: PUBLIC_MAX, standardHeaders: true, legacyHeaders: false })
-  const authLimiter = rateLimit({ windowMs: RATE_WINDOW_MS, max: AUTH_MAX, standardHeaders: true, legacyHeaders: false })
-  const adminLimiter = rateLimit({ windowMs: RATE_WINDOW_MS, max: ADMIN_MAX, standardHeaders: true, legacyHeaders: false })
-  const federationLimiter = rateLimit({ windowMs: RATE_WINDOW_MS, max: FEDERATION_MAX, standardHeaders: true, legacyHeaders: false })
+  const publicLimiter = rateLimit({
+    windowMs: RATE_WINDOW_MS,
+    max: PUBLIC_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  const authLimiter = rateLimit({
+    windowMs: RATE_WINDOW_MS,
+    max: AUTH_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  const adminLimiter = rateLimit({
+    windowMs: RATE_WINDOW_MS,
+    max: ADMIN_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  const federationLimiter = rateLimit({
+    windowMs: RATE_WINDOW_MS,
+    max: FEDERATION_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
 
   app.get('/healthz', (_req: Request, res: Response) => {
-    res.json({ ok: true })
-  })
+    res.json({ ok: true });
+  });
 
   // ActivityPub is mounted BEFORE the global JSON body parser: its inbox routes
   // need the raw request bytes to verify the HTTP Signature Digest, so they apply
   // their own raw parser. Its ids are apex-anchored (host-independent).
-  const activityPub = createActivityPub(env, options.activityPub)
-  app.use(federationLimiter, activityPub.router)
+  const activityPub = createActivityPub(env, options.activityPub);
+  app.use(federationLimiter, activityPub.router);
 
   // The channel registry owns the single article-published subscription and fans
   // each published article out to the Mastodon + Telegram channels by edition.
-  const stopChannels = startChannels(env, activityPub)
+  const stopChannels = startChannels(env, activityPub);
 
-  app.use(express.json({ limit: '1mb' }))
+  app.use(express.json({ limit: '1mb' }));
 
-  const uploadService = options.uploadService ?? createUploadService(env)
+  const uploadService = options.uploadService ?? createUploadService(env);
 
   // Specific mounts first so their dedicated limiters apply without the public
   // limiter also counting the request.
-  app.use('/api/auth', authLimiter, createAuthRouter(env.JWT_SECRET))
-  app.use('/api/admin', adminLimiter, createAdminRouter(env.JWT_SECRET, uploadService, options.remoteImage))
-  app.use('/api', publicLimiter, createPublicRouter())
+  app.use('/api/auth', authLimiter, createAuthRouter(env.JWT_SECRET));
+  app.use(
+    '/api/admin',
+    adminLimiter,
+    createAdminRouter(env.JWT_SECRET, uploadService, options.remoteImage),
+  );
+  app.use('/api', publicLimiter, createPublicRouter());
 
-  app.use(notFoundHandler)
-  app.use(createErrorHandler(env.NODE_ENV === 'development'))
+  app.use(notFoundHandler);
+  app.use(createErrorHandler(env.NODE_ENV === 'development'));
 
-  return { app, activityPub, stopChannels }
+  return { app, activityPub, stopChannels };
 }
 
 /**
@@ -116,5 +140,5 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
  * to drive initialization explicitly (the bootstrap) should use {@link buildApp}.
  */
 export function createApp(env: Env, options: CreateAppOptions = {}): Express {
-  return buildApp(env, options).app
+  return buildApp(env, options).app;
 }

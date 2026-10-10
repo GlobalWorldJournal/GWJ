@@ -1,7 +1,7 @@
-import { CATEGORIES } from '@gwj/shared-types'
-import { useLang } from '../lib/i18n'
-import { LocaleLink } from '../lib/locale'
-import { categoryLabel } from '../lib/dictionary'
+import { CATEGORIES } from '@gwj/shared-types';
+import { useLang } from '../lib/i18n';
+import { LocaleLink } from '../lib/locale';
+import { categoryLabel } from '../lib/dictionary';
 
 function todayDateline(): string {
   return new Date().toLocaleDateString('en-US', {
@@ -9,13 +9,13 @@ function todayDateline(): string {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-  })
+  });
 }
 
 /** Centered serif masthead with dateline and a double rule beneath it. */
 export function Masthead() {
-  const { lang } = useLang()
-  const sections = CATEGORIES.map((category) => categoryLabel(category, lang)).join(' · ')
+  const { lang } = useLang();
+  const sections = CATEGORIES.map((category) => categoryLabel(category, lang)).join(' · ');
 
   return (
     <header className="border-b border-ink bg-paper">
@@ -30,5 +30,5 @@ export function Masthead() {
       </div>
       <div className="rule-double mx-auto max-w-6xl" />
     </header>
-  )
+  );
 }

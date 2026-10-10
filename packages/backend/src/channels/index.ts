@@ -1,8 +1,8 @@
-import type { Env } from '../env'
-import type { ActivityPubModule } from '../activitypub'
-import { startChannelPublishing } from './registry'
-import { mastodonChannel } from './mastodonChannel'
-import { telegramChannels } from './telegramChannel'
+import type { Env } from '../env';
+import type { ActivityPubModule } from '../activitypub';
+import { startChannelPublishing } from './registry';
+import { mastodonChannel } from './mastodonChannel';
+import { telegramChannels } from './telegramChannel';
 
 /**
  * Assemble the paper's distribution channels and start publishing: subscribes ONCE
@@ -17,5 +17,5 @@ import { telegramChannels } from './telegramChannel'
  * channel's `servesLanguage`.
  */
 export function startChannels(env: Env, activityPub: ActivityPubModule): () => void {
-  return startChannelPublishing([mastodonChannel(activityPub), ...telegramChannels(env)])
+  return startChannelPublishing([mastodonChannel(activityPub), ...telegramChannels(env)]);
 }

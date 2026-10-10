@@ -1,6 +1,6 @@
 interface StatusMessageProps {
-  title: string
-  detail?: string
+  title: string;
+  detail?: string;
 }
 
 /** Centered message block for loading / empty / error states. */
@@ -10,5 +10,5 @@ export function StatusMessage({ title, detail }: StatusMessageProps) {
       <p className="headline text-2xl text-ink">{title}</p>
       {detail ? <p className="mt-2 text-muted">{detail}</p> : null}
     </div>
-  )
+  );
 }

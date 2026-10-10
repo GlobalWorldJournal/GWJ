@@ -3,16 +3,16 @@
 // worker reads are declared.
 declare module '*/public/_worker.js' {
   interface WorkerAssets {
-    fetch(request: Request): Promise<Response>
+    fetch(request: Request): Promise<Response>;
   }
   interface WorkerEnv {
-    SITE_URL?: string
-    API_BASE_URL?: string
-    ASSETS: WorkerAssets
+    SITE_URL?: string;
+    API_BASE_URL?: string;
+    ASSETS: WorkerAssets;
   }
   interface WorkerModule {
-    fetch(request: Request, env: WorkerEnv): Promise<Response>
+    fetch(request: Request, env: WorkerEnv): Promise<Response>;
   }
-  const worker: WorkerModule
-  export default worker
+  const worker: WorkerModule;
+  export default worker;
 }

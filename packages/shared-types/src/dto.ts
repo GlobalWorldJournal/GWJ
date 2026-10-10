@@ -1,19 +1,19 @@
-import { z } from 'zod'
-import { CategorySchema } from './category'
-import { LanguageSchema } from './language'
-import { ArticleSchema, ArticleStatusSchema, PublicArticleSchema } from './article'
+import { z } from 'zod';
+import { CategorySchema } from './category';
+import { LanguageSchema } from './language';
+import { ArticleSchema, ArticleStatusSchema, PublicArticleSchema } from './article';
 
 export const LoginInputSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
-})
-export type LoginInput = z.infer<typeof LoginInputSchema>
+});
+export type LoginInput = z.infer<typeof LoginInputSchema>;
 
 export const LoginResponseSchema = z.object({
   token: z.string(),
   user: z.object({ username: z.string(), role: z.literal('admin') }),
-})
-export type LoginResponse = z.infer<typeof LoginResponseSchema>
+});
+export type LoginResponse = z.infer<typeof LoginResponseSchema>;
 
 /**
  * A boolean query parameter. `z.coerce.boolean()` would read the string "false"
@@ -23,7 +23,7 @@ export type LoginResponse = z.infer<typeof LoginResponseSchema>
 const QueryBooleanSchema = z.union([
   z.boolean(),
   z.enum(['true', 'false']).transform((value) => value === 'true'),
-])
+]);
 
 /** Query params for listing articles (coerced from strings). */
 export const ArticleListQuerySchema = z.object({
@@ -34,36 +34,36 @@ export const ArticleListQuerySchema = z.object({
   q: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
-})
-export type ArticleListQuery = z.infer<typeof ArticleListQuerySchema>
+});
+export type ArticleListQuery = z.infer<typeof ArticleListQuerySchema>;
 
 /**
  * Query params the PUBLIC listing/search accept. No `status`: readers only ever
  * see published work, so a `?status=draft` is dropped (unknown keys are stripped).
  */
-export const PublicArticleListQuerySchema = ArticleListQuerySchema.omit({ status: true })
-export type PublicArticleListQuery = z.infer<typeof PublicArticleListQuerySchema>
+export const PublicArticleListQuerySchema = ArticleListQuerySchema.omit({ status: true });
+export type PublicArticleListQuery = z.infer<typeof PublicArticleListQuerySchema>;
 
 export const PaginationSchema = z.object({
   page: z.number().int(),
   limit: z.number().int(),
   total: z.number().int(),
   totalPages: z.number().int(),
-})
-export type Pagination = z.infer<typeof PaginationSchema>
+});
+export type Pagination = z.infer<typeof PaginationSchema>;
 
 export const PaginatedArticlesSchema = z.object({
   data: z.array(ArticleSchema),
   pagination: PaginationSchema,
-})
-export type PaginatedArticles = z.infer<typeof PaginatedArticlesSchema>
+});
+export type PaginatedArticles = z.infer<typeof PaginatedArticlesSchema>;
 
 /** A page of articles as the public API serves it (no internal provenance). */
 export const PaginatedPublicArticlesSchema = z.object({
   data: z.array(PublicArticleSchema),
   pagination: PaginationSchema,
-})
-export type PaginatedPublicArticles = z.infer<typeof PaginatedPublicArticlesSchema>
+});
+export type PaginatedPublicArticles = z.infer<typeof PaginatedPublicArticlesSchema>;
 
 /**
  * Copy a remote image onto our CDN. The BACKEND downloads it (behind its SSRF
@@ -73,14 +73,14 @@ export const UploadFromUrlInputSchema = z.object({
   url: z.string().url(),
   /** Name for the stored object; defaults to the URL's last path segment. */
   filename: z.string().min(1).optional(),
-})
-export type UploadFromUrlInput = z.infer<typeof UploadFromUrlInputSchema>
+});
+export type UploadFromUrlInput = z.infer<typeof UploadFromUrlInputSchema>;
 
-export const UploadResponseSchema = z.object({ url: z.string().url() })
-export type UploadResponse = z.infer<typeof UploadResponseSchema>
+export const UploadResponseSchema = z.object({ url: z.string().url() });
+export type UploadResponse = z.infer<typeof UploadResponseSchema>;
 
 export const ApiErrorSchema = z.object({
   error: z.string(),
   details: z.unknown().optional(),
-})
-export type ApiError = z.infer<typeof ApiErrorSchema>
+});
+export type ApiError = z.infer<typeof ApiErrorSchema>;
