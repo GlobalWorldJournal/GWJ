@@ -120,7 +120,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'list_articles',
     {
       description:
-        'List or SEARCH articles (including drafts). Pass `q` to full-text search headlines, decks and bodies (each edition in its own language; headline matches rank first) — ALWAYS do this before create_article to check whether a similar story already exists and avoid publishing a duplicate. Also filters by language, category, status, featured, `tag` and `author` (exact byline), with pagination.',
+        'List or SEARCH articles (including drafts). Pass `q` to full-text search headlines, decks and bodies (each edition in its own language; headline matches rank first) — ALWAYS do this before create_article to check whether a similar story already exists and avoid publishing a duplicate. Also filters by language, category, status, featured, `tag` and `author` (exact byline); `sort: "latest"` lists newest first instead of front-page order; paginated.',
       inputSchema: ArticleListQuerySchema.shape,
     },
     (args) => guard(async () => jsonResult(await client.listArticles(args))),
