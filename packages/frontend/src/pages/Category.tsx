@@ -1,5 +1,4 @@
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { CATEGORIES, categorySlug, type Category as CategoryName } from '@gwj/shared-types';
 import { getArticles } from '../lib/api';
 import { useLang } from '../lib/i18n';
@@ -8,6 +7,8 @@ import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
 import { StatusMessage } from '../components/StatusMessage';
 import { ListSkeleton } from '../components/Skeletons';
+import { LoadMore } from '../components/LoadMore';
+import { LIST_PAGE_SIZE, usePagedArticles } from '../lib/usePagedArticles';
 import { NotFound } from './NotFound';
 
 function resolveCategory(slug: string | undefined): CategoryName | null {
@@ -30,10 +31,10 @@ export function Category() {
 
 function CategoryView({ category }: { category: CategoryName }) {
   const { lang, t } = useLang();
-  const { data, isPending, isError, error } = useQuery({
-    queryKey: ['articles', 'category', category, lang],
-    queryFn: ({ signal }) => getArticles({ category, language: lang, limit: 30 }, signal),
-  });
+  const { articles, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    usePagedArticles(['articles', 'category', category, lang], (page, signal) =>
+      getArticles({ category, language: lang, limit: LIST_PAGE_SIZE, page }, signal),
+    );
 
   if (isPending) {
     return <ListSkeleton />;
@@ -54,11 +55,11 @@ function CategoryView({ category }: { category: CategoryName }) {
         {categoryLabel(category, lang)}
       </h1>
 
-      {data.data.length === 0 ? (
+      {articles.length === 0 ? (
         <StatusMessage title={t('noStories')} />
       ) : (
         <div className="grid grid-cols-1 gap-8 divide-y divide-rule sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3">
-          {data.data.map((article) => (
+          {articles.map((article) => (
             <div key={article.id} className="pt-6 first:pt-0 sm:pt-0">
               <ArticleCard
                 article={article}
@@ -69,6 +70,12 @@ function CategoryView({ category }: { category: CategoryName }) {
           ))}
         </div>
       )}
+
+      <LoadMore
+        hasMore={hasNextPage}
+        loading={isFetchingNextPage}
+        onLoadMore={() => void fetchNextPage()}
+      />
 
       <AdSlot variant="leaderboard" className="mt-10 border-t border-rule pt-8" />
     </section>
