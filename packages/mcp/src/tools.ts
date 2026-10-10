@@ -55,6 +55,11 @@ const ArticleRefShape = {
 
 const ArticleIdShape = { id: z.string().min(1).describe('Article id') };
 
+const RevisionShape = {
+  id: z.string().min(1).describe('Article id'),
+  revisionId: z.number().int().positive().describe('A revision id from list_revisions'),
+};
+
 const LinkTranslationShape = {
   id: z.string().min(1).describe('The article to link (e.g. the Spanish edition)'),
   translationOf: z
@@ -197,6 +202,36 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'list_categories',
     { description: 'List the fixed set of newspaper categories.' },
     () => guard(async () => jsonResult(await client.listCategories())),
+  );
+
+  server.registerTool(
+    'list_revisions',
+    {
+      description:
+        "An article's history, newest first: each revision is the state BEFORE one change, with who made it (`actor`) and when. Use get_revision to read one and restore_revision to roll the content back.",
+      inputSchema: ArticleIdShape,
+    },
+    ({ id }) => guard(async () => jsonResult(await client.listRevisions(id))),
+  );
+
+  server.registerTool(
+    'get_revision',
+    {
+      description: "One revision's full snapshot (headline, body, images, tags, SEO…).",
+      inputSchema: RevisionShape,
+    },
+    ({ id, revisionId }) => guard(async () => jsonResult(await client.getRevision(id, revisionId))),
+  );
+
+  server.registerTool(
+    'restore_revision',
+    {
+      description:
+        "Roll an article's CONTENT back to a revision (live/draft status and URL are unchanged). The restore is itself recorded, so it can be undone the same way.",
+      inputSchema: RevisionShape,
+    },
+    ({ id, revisionId }) =>
+      guard(async () => jsonResult(await client.restoreRevision(id, revisionId))),
   );
 
   server.registerTool(

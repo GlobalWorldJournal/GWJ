@@ -536,3 +536,62 @@ describe('articleService.search — body, weights, editions and filters', () => 
     ).toEqual([tagged.id]);
   });
 });
+
+describe('articleService — revisions', () => {
+  it('records the state BEFORE each real change, with who made it; a no-op records nothing', async () => {
+    const article = await articleService.create(baseInput({ title: 'First draft', deck: 'v1' }));
+    await articleService.update(article.id, { deck: 'v2' }, 'eleanor');
+    await articleService.update(article.id, { deck: 'v2' }, 'eleanor');
+    await articleService.publish(article.id, 'gwj-agent');
+
+    const history = await articleService.listRevisions(article.id);
+    expect(history.map((r) => [r.actor, r.status])).toEqual([
+      ['gwj-agent', 'draft'],
+      ['eleanor', 'draft'],
+    ]);
+    const oldest = await articleService.getRevision(article.id, history[1]?.id ?? 0);
+    expect(oldest.snapshot.deck).toBe('v1');
+  });
+
+  it('restores content (even clearing a hero image) without touching status or URL, and can be undone', async () => {
+    const article = await articleService.create(
+      baseInput({ title: 'Original headline', body: 'Original body.', status: 'published' }),
+    );
+    await articleService.update(article.id, {
+      title: 'Rewritten headline',
+      body: 'Rewritten body.',
+      heroImage: { url: 'https://cdn.example.test/new.webp', alt: 'New' },
+    });
+    const [beforeRewrite] = await articleService.listRevisions(article.id);
+
+    const restored = await articleService.restoreRevision(
+      article.id,
+      beforeRewrite?.id ?? 0,
+      'nate',
+    );
+    expect(restored.title).toBe('Original headline');
+    expect(restored.body).toBe('Original body.');
+    expect(restored.heroImage).toBeUndefined();
+    expect(restored.status).toBe('published');
+    expect(restored.slug).toBe(article.slug);
+
+    // The restore itself is history: undoing it brings the rewrite back.
+    const [beforeRestore] = await articleService.listRevisions(article.id);
+    expect(beforeRestore?.actor).toBe('nate');
+    const undone = await articleService.restoreRevision(article.id, beforeRestore?.id ?? 0);
+    expect(undone.title).toBe('Rewritten headline');
+  });
+
+  it('answers 404 for an unknown article or a revision of another article', async () => {
+    const a = await articleService.create(baseInput({ title: 'A', deck: 'one' }));
+    const b = await articleService.create(baseInput({ title: 'B' }));
+    await articleService.update(a.id, { deck: 'two' });
+    const [revisionOfA] = await articleService.listRevisions(a.id);
+    await expect(articleService.listRevisions('f'.repeat(24))).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(articleService.getRevision(b.id, revisionOfA?.id ?? 0)).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+});

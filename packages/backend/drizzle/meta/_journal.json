@@ -50,6 +50,13 @@
       "when": 1791655278601,
       "tag": "0006_search_body_and_feed_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791656292955,
+      "tag": "0007_article_revisions",
+      "breakpoints": true
     }
   ]
 }

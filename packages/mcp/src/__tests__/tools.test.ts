@@ -40,6 +40,9 @@ function mockClient(): GwjClient {
     deleteArticle: vi.fn(),
     uploadImage: vi.fn(),
     listCategories: vi.fn(),
+    listRevisions: vi.fn(),
+    getRevision: vi.fn(),
+    restoreRevision: vi.fn(),
   };
 }
 
@@ -69,12 +72,15 @@ describe('GWJ MCP tools', () => {
         'create_article',
         'delete_article',
         'get_article',
+        'get_revision',
         'link_translation',
         'list_articles',
         'list_categories',
         'list_languages',
+        'list_revisions',
         'list_writers',
         'publish_article',
+        'restore_revision',
         'unpublish_article',
         'update_article',
         'upload_image',
@@ -351,5 +357,34 @@ describe('link_translation', () => {
     expect(client.updateArticle).toHaveBeenCalledWith('es-1', { translationOf: 'en-1' });
     const content = result.content as Array<{ type: string; text: string }>;
     expect(JSON.parse(content[0]?.text ?? '{}').translations).toHaveLength(1);
+  });
+});
+
+describe('revision tools', () => {
+  it('restore_revision rolls back by article id and revision id', async () => {
+    const client = mockClient();
+    vi.mocked(client.restoreRevision).mockResolvedValue(
+      sampleArticle({ id: 'a1', title: 'Old headline' }),
+    );
+    const mcp = await connect(client);
+    const result = await mcp.callTool({
+      name: 'restore_revision',
+      arguments: { id: 'a1', revisionId: 7 },
+    });
+    await mcp.close();
+    expect(result.isError).toBeFalsy();
+    expect(client.restoreRevision).toHaveBeenCalledWith('a1', 7);
+  });
+
+  it('rejects a non-integer revision id without calling the backend', async () => {
+    const client = mockClient();
+    const mcp = await connect(client);
+    const result = await mcp.callTool({
+      name: 'get_revision',
+      arguments: { id: 'a1', revisionId: 'latest' },
+    });
+    await mcp.close();
+    expect(result.isError).toBe(true);
+    expect(client.getRevision).not.toHaveBeenCalled();
   });
 });

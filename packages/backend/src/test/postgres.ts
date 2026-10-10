@@ -84,7 +84,7 @@ export async function useTestDatabase(): Promise<TestDatabase> {
     name,
     async truncateAll() {
       await getDb().execute(
-        sql`truncate article_slug_history, articles, users, actor_keys, followers, takedown_requests restart identity`,
+        sql`truncate article_revisions, article_slug_history, article_channel_posts, articles, users, actor_keys, followers, takedown_requests restart identity`,
       );
     },
     async drop() {
