@@ -4,6 +4,7 @@ import { useAuth } from './useAuth'
 import { Login } from './Login'
 import { Dashboard } from './Dashboard'
 import { Editor } from './Editor'
+import { Takedowns } from './Takedowns'
 import { NotFound } from '../pages/NotFound'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,14 @@ export function AdminApp() {
             element={
               <RequireAuth>
                 <Editor />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="takedown-requests"
+            element={
+              <RequireAuth>
+                <Takedowns />
               </RequireAuth>
             }
           />

@@ -23,6 +23,7 @@ const AboutUs = lazy(() => import('./pages/static/AboutUs').then((m) => ({ defau
 const Careers = lazy(() => import('./pages/static/Careers').then((m) => ({ default: m.Careers })))
 const Advertise = lazy(() => import('./pages/static/Advertise').then((m) => ({ default: m.Advertise })))
 const Corrections = lazy(() => import('./pages/static/Corrections').then((m) => ({ default: m.Corrections })))
+const ReportContent = lazy(() => import('./pages/static/ReportContent').then((m) => ({ default: m.ReportContent })))
 const PrivacyNotice = lazy(() => import('./pages/static/PrivacyNotice').then((m) => ({ default: m.PrivacyNotice })))
 const CookieNotice = lazy(() => import('./pages/static/CookieNotice').then((m) => ({ default: m.CookieNotice })))
 const TermsOfUse = lazy(() => import('./pages/static/TermsOfUse').then((m) => ({ default: m.TermsOfUse })))
@@ -42,6 +43,7 @@ const STATIC_PAGES: { path: string; element: ReactElement }[] = [
   { path: 'careers', element: <Careers /> },
   { path: 'advertise', element: <Advertise /> },
   { path: 'corrections', element: <Corrections /> },
+  { path: 'report-content', element: <ReportContent /> },
   { path: 'privacy', element: <PrivacyNotice /> },
   { path: 'cookie-notice', element: <CookieNotice /> },
   { path: 'terms', element: <TermsOfUse /> },

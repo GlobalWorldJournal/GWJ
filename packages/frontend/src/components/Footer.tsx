@@ -44,6 +44,7 @@ const COLUMNS: FooterColumn[] = [
       { labelKey: 'careers', to: '/careers' },
       { labelKey: 'advertise', to: '/advertise' },
       { labelKey: 'corrections', to: '/corrections' },
+      { labelKey: 'reportContent', to: '/report-content' },
     ],
   },
   {

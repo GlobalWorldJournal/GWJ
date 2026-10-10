@@ -63,6 +63,12 @@ export function Dashboard() {
         <div className="flex items-center gap-4">
           <span className="label text-[0.6875rem] text-muted">{user?.username}</span>
           <Link
+            to="/admin/takedown-requests"
+            className="label text-[0.75rem] text-ink-soft transition-colors hover:text-accent"
+          >
+            Takedown Requests
+          </Link>
+          <Link
             to="/admin/articles/new"
             className="label bg-ink px-4 py-2 text-[0.75rem] text-paper transition-colors hover:bg-accent"
           >
