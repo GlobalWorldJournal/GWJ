@@ -1,13 +1,38 @@
-# Local development stack: MongoDB + backend + MCP server.
+# Local development stack: PostgreSQL + one-shot migrator + backend + MCP server.
 # Reads secrets from .env (copy from .env.example). For local-only use.
+#
+# The backend refuses to start on an unmigrated schema, so `migrate` runs the
+# production migrator once (exactly as the ECS deploy does) before it starts.
+# The same server doubles as the test server:
+#   TEST_POSTGRES_URL=postgres://gwj:gwj@127.0.0.1:5432/postgres bun run test
 services:
-  mongo:
-    image: mongo:8
+  postgres:
+    image: postgres:17-alpine
     restart: unless-stopped
+    environment:
+      POSTGRES_USER: gwj
+      POSTGRES_PASSWORD: gwj
+      POSTGRES_DB: gwj
     ports:
-      - '27017:27017'
+      - '5432:5432'
     volumes:
-      - gwj_mongo_data:/data/db
+      - gwj_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U gwj -d gwj']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    environment:
+      DATABASE_URL: postgres://gwj:gwj@postgres:5432/gwj
+    command: ['bun', 'run', 'src/db/migrate.ts', '--target-database=gwj']
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   backend:
     build:
@@ -19,7 +44,7 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: development
-      MONGO_URI: mongodb://mongo:27017/gwj
+      DATABASE_URL: postgres://gwj:gwj@postgres:5432/gwj
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
@@ -30,7 +55,8 @@ services:
       S3_BUCKET: ${S3_BUCKET}
       CDN_BASE_URL: ${CDN_BASE_URL}
     depends_on:
-      - mongo
+      migrate:
+        condition: service_completed_successfully
 
   mcp:
     build:
@@ -50,4 +76,4 @@ services:
       - backend
 
 volumes:
-  gwj_mongo_data:
+  gwj_postgres_data:

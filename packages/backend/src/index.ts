@@ -1,7 +1,7 @@
 import { argv } from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { loadEnv } from './env'
-import { connectDb, disconnectDb } from './db'
+import { connectDb, disconnectDb } from './db/client'
 import { buildApp } from './app'
 import { logger } from './logger'
 
@@ -9,11 +9,11 @@ export { createApp, buildApp } from './app'
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv()
-  await connectDb(env.MONGO_URI)
+  // Refuses to start on a schema missing a pre-deploy migration (see connectDb).
+  await connectDb(env.DATABASE_URL)
+  // Channel publishing (Mastodon + Telegram) is wired by buildApp and fans out on
+  // the next published article.
   const { app, activityPub, stopChannels } = buildApp(env)
-  // Migrate legacy followers now that Mongo is up. Channel publishing (Mastodon +
-  // Telegram) was wired by buildApp and fans out on the next published article.
-  await activityPub.initialize()
   logger.info('activitypub ready', {
     domain: activityPub.registry.domain,
     actors: activityPub.registry.all.length,

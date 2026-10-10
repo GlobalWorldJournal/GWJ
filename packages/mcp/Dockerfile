@@ -7,6 +7,8 @@ COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/backend/package.json packages/backend/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/frontend/package.json packages/frontend/
+# Every workspace in bun.lock must be present, or --frozen-lockfile refuses.
+COPY packages/mongo-migration/package.json packages/mongo-migration/
 RUN bun install --frozen-lockfile
 
 COPY tsconfig.base.json ./

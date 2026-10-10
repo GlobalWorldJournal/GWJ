@@ -8,13 +8,16 @@ CLI `--profile oxy`) but is **fully isolated** from Oxy's stack:
   key `gwj/terraform.tfstate`. A separate state file from Oxy's
   `uswest2/terraform.tfstate`, so a GWJ apply has an independent lifecycle.
 - **Own IAM** — `gwj-ecs-execution`, `gwj-ecs-task`, `gwj-mongo`
-  (role+instance-profile), `gwj-github-deploy` (OIDC). GWJ never uses Oxy's
+  (role+instance-profile; removed at the Mongo decommission), `gwj-github-deploy` (OIDC). GWJ never uses Oxy's
   roles, so there is no cross-stack IAM dependency.
 - **Own SSM namespace** — `/gwj/*` (not `/oxy/gwj`).
 - **Own security groups** — `gwj-tasks` + `gwj-mongo` (GWJ does not reuse
   Oxy's `tasks` SG).
-- **Own data plane** — dedicated MongoDB box, dedicated `gwj-media` S3 bucket +
-  CloudFront, dedicated ACM certs.
+- **Own data plane** — own PostgreSQL database `gwj` (role `gwj`) on the shared
+  `oxy-postgres` instance (created per oxy-infra runbook 30, NOT by this stack;
+  only `/gwj/DATABASE_URL` is managed here), dedicated `gwj-media` S3 bucket +
+  CloudFront, dedicated ACM certs. The dedicated MongoDB box is retired per
+  `docs/POSTGRES-CUTOVER.md`.
 
 **Shared, read-only (never managed here):** Oxy's VPC (`10.20.0.0/16`), its two
 public subnets, the `oxy-alb` ALB + its `:443` HTTPS listener, and the
@@ -28,7 +31,8 @@ here can only **create GWJ resources** and can never modify Oxy's.
 |------|----------|
 | ECR | `gwj-backend`, `gwj-mcp` (MUTABLE, scan-on-push, keep-10) |
 | Secrets | `/gwj/*` SSM params (random-seeded, `ignore_changes=[value]`) |
-| Mongo | dedicated `t4g.small` arm64 box + 30 GB gp3 EBS + `gwj-mongo` SG (27017 from `gwj-tasks` only) |
+| Mongo (until decommission) | dedicated `t4g.small` arm64 box + 30 GB gp3 EBS + `gwj-mongo` SG (27017 from `gwj-tasks` only) |
+| PostgreSQL | `/gwj/DATABASE_URL` (imported; value set out-of-band) — the database itself lives on `oxy-postgres` |
 | Media | private `gwj-media-usw2-<acct>` S3 + CloudFront `cdn.globalworldjournal.com` (OAC, articles/*) |
 | ACM | `api`/`mcp.globalworldjournal.com` (us-west-2, SNI-attached to the shared listener) + `cdn` (us-east-1) |
 | ECS | backend (4000) + mcp (4100) task-defs/target-groups/listener-rules (priorities 400/401)/services on the shared cluster |

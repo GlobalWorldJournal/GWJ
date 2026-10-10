@@ -1,18 +1,17 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import mongoose from 'mongoose'
-import { MongoMemoryServer } from 'mongodb-memory-server'
 import bcrypt from 'bcryptjs'
 import request from 'supertest'
 import type { Express } from 'express'
 import { CATEGORIES } from '@gwj/shared-types'
 import { loadEnv, resetEnvCache, type Env } from '../env'
 import { createApp } from '../app'
-import { ArticleModel } from '../models/Article'
-import { TakedownRequestModel } from '../models/TakedownRequest'
-import { UserModel } from '../models/User'
+import { getDb } from '../db/client'
+import { newRecordId } from '../db/ids'
+import { users } from '../db/schema/users'
+import { useTestDatabase, type TestDatabase } from '../test/postgres'
 import { type UploadService } from '../services/uploadService'
 
-let mongod: MongoMemoryServer
+let testDb: TestDatabase
 let app: Express
 
 const ADMIN_USERNAME = 'nate'
@@ -27,7 +26,7 @@ const fakeUploadService: UploadService = {
 function setTestEnv(): Env {
   process.env.NODE_ENV = 'test'
   process.env.PORT = '4000'
-  process.env.MONGO_URI = mongod.getUri()
+  process.env.DATABASE_URL = testDb.url
   process.env.JWT_SECRET = 'test-jwt-secret'
   process.env.ADMIN_USERNAME = ADMIN_USERNAME
   process.env.ADMIN_PASSWORD = ADMIN_PASSWORD
@@ -61,23 +60,19 @@ const validRequest = (overrides: Record<string, unknown> = {}) => ({
 })
 
 beforeAll(async () => {
-  mongod = await MongoMemoryServer.create()
-  await mongoose.connect(mongod.getUri())
+  testDb = await useTestDatabase()
   const env = setTestEnv()
   app = createApp(env, { uploadService: fakeUploadService })
 })
 
 beforeEach(async () => {
-  await ArticleModel.deleteMany({})
-  await TakedownRequestModel.deleteMany({})
-  await UserModel.deleteMany({})
+  await testDb.truncateAll()
   const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 10)
-  await UserModel.create({ username: ADMIN_USERNAME, passwordHash, role: 'admin' })
+  await getDb().insert(users).values({ id: newRecordId(), username: ADMIN_USERNAME, passwordHash, role: 'admin' })
 })
 
 afterAll(async () => {
-  await mongoose.disconnect()
-  await mongod.stop()
+  await testDb.drop()
 })
 
 async function loginToken(): Promise<string> {
