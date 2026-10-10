@@ -109,7 +109,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'list_articles',
     {
       description:
-        'List or SEARCH articles (including drafts). Pass `q` to full-text search titles and decks — ALWAYS do this before create_article to check whether a similar story already exists and avoid publishing a duplicate. Also supports language/category/status/featured filters and pagination.',
+        'List or SEARCH articles (including drafts). Pass `q` to full-text search headlines, decks and bodies (each edition in its own language; headline matches rank first) — ALWAYS do this before create_article to check whether a similar story already exists and avoid publishing a duplicate. Also filters by language, category, status, featured, `tag` and `author` (exact byline), with pagination.',
       inputSchema: ArticleListQuerySchema.shape,
     },
     (args) => guard(async () => jsonResult(await client.listArticles(args))),

@@ -31,19 +31,29 @@ const tsvector = customType<{ data: string }>({
 });
 
 /**
- * Full-text search vector over `title` + `deck` — the exact fields of the Mongo
- * text index it replaces (`{ title: 'text', deck: 'text' }`, equal weights).
- *
- * The text-search configuration is chosen PER ROW from `language`, because the
- * Mongo index did the same thing implicitly: a text index's `language_override`
- * defaults to the document's `language` field, so an `es` article was stemmed as
- * Spanish and an `fr` one as French. Queries are parsed with `english`, the index's
- * `default_language` (see `articleRepository.searchCondition`).
+ * The text-search configuration for each edition: an article is stemmed, and a
+ * query against it parsed, in its own language.
  */
-export const ARTICLE_SEARCH_VECTOR_SQL = sql`to_tsvector(
-  CASE "language" WHEN 'es' THEN 'spanish'::regconfig WHEN 'fr' THEN 'french'::regconfig ELSE 'english'::regconfig END,
-  coalesce("title", '') || ' ' || coalesce("deck", '')
-)`;
+export const TEXT_SEARCH_CONFIG: Record<Language, string> = {
+  en: 'english',
+  es: 'spanish',
+  fr: 'french',
+};
+
+const ROW_TS_CONFIG = sql.raw(
+  `CASE "language" ${SUPPORTED_LANGUAGES.filter((language) => language !== 'en')
+    .map((language) => `WHEN '${language}' THEN '${TEXT_SEARCH_CONFIG[language]}'::regconfig`)
+    .join(' ')} ELSE 'english'::regconfig END`,
+);
+
+/**
+ * Full-text search vector over the headline, deck and body, weighted so a match
+ * in the headline (A) outranks one in the deck (B), which outranks one only in
+ * the body (C). Each row is stemmed in its own edition's language.
+ */
+export const ARTICLE_SEARCH_VECTOR_SQL = sql`setweight(to_tsvector(${ROW_TS_CONFIG}, coalesce("title", '')), 'A')
+  || setweight(to_tsvector(${ROW_TS_CONFIG}, coalesce("deck", '')), 'B')
+  || setweight(to_tsvector(${ROW_TS_CONFIG}, coalesce("body", '')), 'C')`;
 
 export const articles = pgTable(
   'articles',
@@ -110,6 +120,13 @@ export const articles = pgTable(
     ),
     index('articles_category_published_at_idx').on(t.category, t.publishedAt.desc().nullsLast()),
     index('articles_search_vector_idx').using('gin', t.searchVector),
+    // The public feed: published articles of one edition in editorial order.
+    index('articles_published_feed_idx')
+      .on(t.language, t.featured.desc(), t.publishedAt.desc().nullsLast())
+      .where(sql`${t.status} = 'published'`),
+    // ?tag= (array containment) and ?author= listings.
+    index('articles_tags_idx').using('gin', t.tags),
+    index('articles_author_published_at_idx').on(t.author, t.publishedAt.desc().nullsLast()),
     // One article per language per story — and the lookup for an article's editions.
     unique('articles_translation_group_language_unique').on(t.translationGroupId, t.language),
   ],

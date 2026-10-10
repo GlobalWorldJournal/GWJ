@@ -304,9 +304,12 @@ export const articleService: ArticleService = {
     if (query.category) filter.category = query.category;
     if (query.language) filter.language = query.language;
     if (query.featured) filter.featuredOnly = true;
-    if (options?.author !== undefined) filter.author = options.author;
+    if (query.tag) filter.tag = query.tag;
+    // The ActivityPub writer outbox pins its own author; otherwise the query's.
+    const author = options?.author ?? query.author;
+    if (author !== undefined) filter.author = author;
 
-    // Free-text search (title/deck). Lets the admin/MCP check for an EXISTING
+    // Free-text search (headline, deck, body). Lets the admin/MCP check for an EXISTING
     // similar story before writing a new one — incl. drafts on the admin path —
     // so the newsroom does not publish duplicates.
     const q = query.q?.trim();
@@ -468,6 +471,8 @@ export const articleService: ArticleService = {
     const filter: ArticleFilter = { status: 'published', q };
     if (query.category) filter.category = query.category;
     if (query.language) filter.language = query.language;
+    if (query.tag) filter.tag = query.tag;
+    if (query.author) filter.author = query.author;
     const { rows, total } = await listArticles(filter, query.page, query.limit);
     return buildPaginated(rows, total, query.page, query.limit);
   },
