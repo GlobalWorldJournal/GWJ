@@ -60,6 +60,7 @@ export function rowToArticle(row: ArticleRow): Article {
     publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
     firstPublishedAt: row.firstPublishedAt ? row.firstPublishedAt.toISOString() : null,
     scheduledAt: row.scheduledAt ? row.scheduledAt.toISOString() : null,
+    corrections: row.corrections,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

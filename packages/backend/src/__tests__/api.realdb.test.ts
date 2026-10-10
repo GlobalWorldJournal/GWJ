@@ -406,6 +406,32 @@ describe('GWJ API', () => {
     expect(anonymous.headers['cache-control']).toBe('no-store');
   });
 
+  it('POST /articles/:id/corrections appends a public correction (admin only, non-empty)', async () => {
+    const token = await loginToken();
+    const created = await request(app)
+      .post('/api/admin/articles')
+      .set('authorization', `Bearer ${token}`)
+      .send({ ...validArticle(), title: 'Corrected story', status: 'published' });
+    const path = `/api/admin/articles/${created.body.id}/corrections`;
+
+    expect((await request(app).post(path).send({ text: 'Fixed.' })).status).toBe(401);
+    const empty = await request(app)
+      .post(path)
+      .set('authorization', `Bearer ${token}`)
+      .send({ text: ' ' });
+    expect(empty.status).toBe(400);
+
+    const ok = await request(app)
+      .post(path)
+      .set('authorization', `Bearer ${token}`)
+      .send({ text: 'An earlier version misstated the figure.' });
+    expect(ok.status).toBe(200);
+    const readerView = await request(app).get(`/api/articles/${created.body.slug}`);
+    expect(readerView.body.corrections).toEqual([
+      { at: expect.any(String), text: 'An earlier version misstated the figure.' },
+    ]);
+  });
+
   it('GET /api/categories returns the 7 fixed categories', async () => {
     const res = await request(app).get('/api/categories');
     expect(res.status).toBe(200);

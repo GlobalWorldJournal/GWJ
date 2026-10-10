@@ -655,3 +655,29 @@ describe('articleService — scheduled publishing', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 });
+
+describe('articleService — corrections', () => {
+  it('appends dated public corrections that a restore leaves in place', async () => {
+    const article = await articleService.create(
+      baseInput({ title: 'Vote set for Tuesday', status: 'published' }),
+    );
+    await articleService.update(article.id, { title: 'Vote set for Wednesday' });
+    const corrected = await articleService.addCorrection(
+      article.id,
+      'An earlier version misstated the day of the vote.',
+      'harper',
+    );
+    expect(corrected.corrections).toEqual([
+      { at: expect.any(String), text: 'An earlier version misstated the day of the vote.' },
+    ]);
+    expect((await articleService.listRevisions(article.id))[0]?.actor).toBe('harper');
+
+    const [, beforeTitleFix] = await articleService.listRevisions(article.id);
+    const restored = await articleService.restoreRevision(article.id, beforeTitleFix?.id ?? 0);
+    expect(restored.title).toBe('Vote set for Tuesday');
+    expect(restored.corrections).toHaveLength(1);
+
+    const publicView = await articleService.getBySlug(article.slug);
+    expect(publicView.corrections).toHaveLength(1);
+  });
+});

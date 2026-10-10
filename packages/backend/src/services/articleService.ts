@@ -331,6 +331,11 @@ export interface ArticleService {
   search(q: string, query: ArticleListQuery): Promise<PaginatedArticles>;
   /** The current slug of the PUBLISHED article that used to live at `oldSlug`. */
   findRedirectSlug(oldSlug: string): Promise<string | null>;
+  /**
+   * Append a dated public correction. Corrections are never edited or removed
+   * (a restore leaves them in place); the change is recorded in the history.
+   */
+  addCorrection(id: string, text: string, actor?: string): Promise<Article>;
   /** Publish every draft whose schedule has come; returns the ids it published. */
   publishDue(now?: Date): Promise<string[]>;
 }
@@ -507,6 +512,13 @@ export const articleService: ArticleService = {
 
   async findRedirectSlug(oldSlug) {
     return findRedirectSlug(oldSlug);
+  },
+
+  async addCorrection(id, text, actor = SYSTEM_ACTOR) {
+    const { after } = await mutateArticle(id, actor, async (current) => ({
+      corrections: [...current.corrections, { at: new Date().toISOString(), text }],
+    }));
+    return withTranslations(after, false);
   },
 
   async publishDue(now = new Date()) {

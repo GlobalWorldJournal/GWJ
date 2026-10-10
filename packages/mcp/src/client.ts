@@ -54,6 +54,7 @@ export interface GwjClient {
   listRevisions(id: string): Promise<ArticleRevisionSummary[]>;
   getRevision(id: string, revisionId: number): Promise<ArticleRevision>;
   restoreRevision(id: string, revisionId: number): Promise<Article>;
+  addCorrection(id: string, text: string): Promise<Article>;
 }
 
 export interface UploadImageInput {
@@ -258,6 +259,18 @@ export function createGwjClient(options: GwjClientOptions): GwjClient {
       const payload = await authedRequest(
         `/api/admin/articles/${encodeURIComponent(id)}/revisions/${revisionId}/restore`,
         { method: 'POST' },
+      );
+      return ArticleSchema.parse(payload);
+    },
+
+    async addCorrection(id, text) {
+      const payload = await authedRequest(
+        `/api/admin/articles/${encodeURIComponent(id)}/corrections`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text }),
+        },
       );
       return ArticleSchema.parse(payload);
     },
