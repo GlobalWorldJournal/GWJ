@@ -28,7 +28,7 @@ resource "random_password" "mongo" {
 # PostgreSQL connection string for the backend: logical database `gwj`, owned by
 # the `gwj` role, on the shared RDS instance (reached as postgres.internal.oxy.so,
 # ?sslmode=require). Externally owned like TELEGRAM_BOT_TOKEN: the role and its
-# password are created on RDS out-of-band (docs/POSTGRES-CUTOVER.md §2), the real
+# password are created on RDS out-of-band (docs/POSTGRES-CUTOVER.md §1.2), the real
 # value is put in SSM then, and this resource is IMPORTED — terraform never holds
 # or rewrites the password.
 resource "aws_ssm_parameter" "database_url" {
@@ -42,7 +42,7 @@ resource "aws_ssm_parameter" "database_url" {
   }
 }
 
-# REMOVED at the Mongo decommission (docs/POSTGRES-CUTOVER.md §8), together with
+# REMOVED at the Mongo decommission (docs/POSTGRES-CUTOVER.md §5.3), together with
 # mongo_admin_*, random_password.mongo, mongo.tf and the MONGO_URI task secret.
 resource "aws_ssm_parameter" "mongo_uri" {
   name        = "/gwj/MONGO_URI"

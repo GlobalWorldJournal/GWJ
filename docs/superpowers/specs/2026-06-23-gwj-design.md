@@ -1,5 +1,7 @@
 # Global World Journal (GWJ) — Design Spec
 
+> **Historical (design spec of 2026-06-23).** Kept as the record of the original v1 intent; it is NOT the current architecture. It predates the PostgreSQL port (MongoDB/Mongoose below are gone), the OIDC/SSM secret model and the CI-gated, digest-pinned deploys. Current sources of truth: `AGENTS.md`, `docs/DATABASE.md`, `docs/INFRA.md`, `infra/`.
+
 **Date:** 2026-06-23
 **Domain:** globalworldjournal.com (Cloudflare DNS)
 **Goal:** A WSJ-style news site for "Global World Journal" — public reader site + admin CMS + an MCP server so AI agents can manage the newspaper. Vite + Tailwind frontend, MongoDB + Zod backend, deployed on AWS (backend) + Cloudflare Pages (frontend).

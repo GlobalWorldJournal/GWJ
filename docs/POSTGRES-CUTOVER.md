@@ -2,8 +2,11 @@
 
 How GWJ moves from its self-managed MongoDB EC2 (`gwj-mongo`) to its own logical
 database `gwj` on the shared RDS instance `oxy-postgres`, and how the Mongo host is
-then destroyed. Every command is written out. **None of it has been run**: the
-port PR only adds code, tests, terraform and this document.
+then destroyed. Every command is written out.
+
+**Status (2026-10-10):** §1–§3 are done — the cutover copy ran in the deploy of
+PR #4 and `GWJ_PG_CUTOVER` is unset; production serves from PostgreSQL. §4 (soak)
+runs until about 2026-10-17. §5 (decommission) is pending.
 
 Companion docs: `docs/DATABASE.md` (schema, mapping, conventions),
 `scripts/ecs-oneshot.sh` (the one-shot runner every step below uses), and
