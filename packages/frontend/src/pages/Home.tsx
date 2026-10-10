@@ -24,6 +24,18 @@ function useHomeArticles(lang: Language) {
   })
 }
 
+/**
+ * Newest first, `featured` only as a tiebreak: sorting by `featured` alone
+ * let old seed stories with a high manual rank bury every new story (which
+ * defaults to 0) forever — the front page never looked like it updated.
+ */
+export function sortForHome(articles: Article[]): Article[] {
+  return [...articles].sort((a, b) => {
+    const dateDiff = Date.parse(b.publishedAt ?? b.createdAt) - Date.parse(a.publishedAt ?? a.createdAt)
+    return dateDiff !== 0 ? dateDiff : b.featured - a.featured
+  })
+}
+
 export function Home() {
   const { lang, t } = useLang()
   const { data, isPending, isError, error } = useHomeArticles(lang)
@@ -40,7 +52,7 @@ export function Home() {
     )
   }
 
-  const all = [...data.data].sort((a, b) => b.featured - a.featured)
+  const all = sortForHome(data.data)
   if (all.length === 0) {
     return <StatusMessage title={t('noStories')} />
   }
