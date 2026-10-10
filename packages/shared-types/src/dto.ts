@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CategorySchema } from './category';
 import { DEFAULT_LANGUAGE, LanguageSchema } from './language';
+import { UserRoleSchema } from './user';
 import {
   ArticleSchema,
   ArticleStatusSchema,
@@ -16,7 +17,7 @@ export type LoginInput = z.infer<typeof LoginInputSchema>;
 
 export const LoginResponseSchema = z.object({
   token: z.string(),
-  user: z.object({ username: z.string(), role: z.literal('admin') }),
+  user: z.object({ username: z.string(), role: UserRoleSchema }),
 });
 export type LoginResponse = z.infer<typeof LoginResponseSchema>;
 

@@ -37,7 +37,14 @@ export function requireAuth(jwtSecret: string): RequestHandler {
         req.principal = agent;
       } else {
         const payload = authService.verify(token, jwtSecret);
-        req.principal = { kind: 'user', userId: payload.sub, username: payload.username };
+        const user = await authService.activeUser(payload.sub);
+        if (!user) throw new UnauthorizedError('This account is no longer active');
+        req.principal = {
+          kind: 'user',
+          userId: user.id,
+          username: user.username,
+          role: user.role,
+        };
       }
       next();
     } catch (err) {
@@ -67,9 +74,28 @@ export function requireScope(scope: ApiScope): RequestHandler {
   };
 }
 
-/** Only people (admin JWT) — never an agent token, whatever its scopes. */
+/** The calling person (behind requireUser/requireAdmin); an agent is refused. */
+export function userPrincipalOf(req: Request): Extract<Principal, { kind: 'user' }> {
+  const principal = principalOf(req);
+  if (principal.kind !== 'user') throw new ForbiddenError('People only');
+  return principal;
+}
+
+/** Only people (a newsroom JWT) — never an agent token, whatever its scopes. */
 export function requireUser(): RequestHandler {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    next(principalOf(req).kind === 'user' ? undefined : new ForbiddenError('Admins only'));
+    next(principalOf(req).kind === 'user' ? undefined : new ForbiddenError('People only'));
+  };
+}
+
+/** Only admins: running the newsroom (people, agent tokens) is not an editor's job. */
+export function requireAdmin(): RequestHandler {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    const principal = principalOf(req);
+    next(
+      principal.kind === 'user' && principal.role === 'admin'
+        ? undefined
+        : new ForbiddenError('Admins only'),
+    );
   };
 }

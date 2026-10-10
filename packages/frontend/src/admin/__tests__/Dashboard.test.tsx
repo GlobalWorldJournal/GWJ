@@ -104,4 +104,24 @@ describe('Dashboard filters', () => {
     fireEvent.change(screen.getByLabelText('Edition'), { target: { value: 'fr' } });
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('?language=fr'));
   });
+
+  it('an editor sees no delete action and no newsroom-management links', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/admin']}>
+          <AuthContext.Provider value={{ ...authValue, user: { username: 'ana', role: 'editor' } }}>
+            <Routes>
+              <Route path="/admin" element={<Dashboard />} />
+            </Routes>
+          </AuthContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await screen.findByText('A Story');
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'People' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Agent Tokens' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Account' })).toBeInTheDocument();
+  });
 });
