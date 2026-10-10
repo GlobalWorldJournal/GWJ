@@ -59,6 +59,35 @@ function emitArticlePublished(article: Article): void {
 }
 
 /**
+ * A listener notified when an article stops being publicly visible: unpublished
+ * back to draft, or deleted outright. Channel delivery (Telegram) subscribes to
+ * this to retract whatever it posted, the same decoupled-dependency shape as
+ * {@link ArticlePublishedListener}. Only the id is passed — a deleted article has
+ * no row left to read, and retraction only ever needs the id to look up what was
+ * delivered. Listeners must not throw; they own their own error handling and must
+ * never block or fail the unpublish/delete response.
+ */
+export type ArticleRetractedListener = (articleId: string) => void;
+
+const retractedListeners: ArticleRetractedListener[] = [];
+
+/** Register a listener for article-retracted transitions. Returns an unsubscribe fn. */
+export function onArticleRetracted(listener: ArticleRetractedListener): () => void {
+  retractedListeners.push(listener);
+  return () => {
+    const index = retractedListeners.indexOf(listener);
+    if (index >= 0) retractedListeners.splice(index, 1);
+  };
+}
+
+/** Notify all registered listeners that an article just stopped being public. */
+function emitArticleRetracted(articleId: string): void {
+  for (const listener of retractedListeners) {
+    listener(articleId);
+  }
+}
+
+/**
  * Generate a slug unique across the table. Starts from the title's slug and
  * appends `-2`, `-3`, … until no OTHER article claims it. The `articles_slug_unique`
  * constraint remains the authority: a concurrent writer that wins the race makes
@@ -344,7 +373,11 @@ export const articleService: ArticleService = {
   async unpublish(id) {
     // `firstPublishedAt` is kept: the slug stays frozen and a later re-publish
     // restores the original date without re-announcing the story.
-    const { after } = await mutateArticle(id, async () => ({ status: 'draft', publishedAt: null }));
+    const { before, after } = await mutateArticle(id, async () => ({
+      status: 'draft',
+      publishedAt: null,
+    }));
+    if (before.status === 'published') emitArticleRetracted(id);
     return rowToArticle(after);
   },
 
@@ -354,6 +387,10 @@ export const articleService: ArticleService = {
 
   async remove(id) {
     if (!isRecordId(id) || !(await deleteArticle(id))) throw new NotFoundError('Article not found');
+    // After the row is gone, not before: retraction only needs the id, and a
+    // listener that failed to look anything up would retry forever against an
+    // article that no longer exists either way.
+    emitArticleRetracted(id);
   },
 
   async search(q, query) {

@@ -1,5 +1,6 @@
 import { DEFAULT_LANGUAGE, isLanguage, type Article } from '@gwj/shared-types';
-import { onArticlePublished } from '../services/articleService';
+import { onArticlePublished, onArticleRetracted } from '../services/articleService';
+import { channelPostsFor, recordChannelPost, removeChannelPosts } from './channelPosts';
 import { logger } from '../logger';
 import type { PublishChannel } from './types';
 
@@ -19,8 +20,14 @@ import type { PublishChannel } from './types';
  * best-effort and its result is logged per channel. This mirrors the safe-listener
  * pattern the ActivityPub module previously used directly.
  *
- * Returns an unsubscribe function that removes the listener (use it in tests that
- * build multiple app instances and at graceful shutdown).
+ * Also subscribes to article-retracted transitions (unpublish, delete): every
+ * recorded delivery for that article is looked up, retracted on whichever
+ * channel implements it, then dropped from storage regardless of the outcome —
+ * same "never throw, isolate per channel" discipline, and a message Telegram
+ * already can't find (deleted by hand, API hiccup) is not worth retrying forever.
+ *
+ * Returns an unsubscribe function that removes both listeners (use it in tests
+ * that build multiple app instances and at graceful shutdown).
  */
 export function startChannelPublishing(channels: readonly PublishChannel[]): () => void {
   async function fanOut(article: Article): Promise<void> {
@@ -35,7 +42,8 @@ export function startChannelPublishing(channels: readonly PublishChannel[]): () 
       matched.map(async (channel) => {
         const meta = { channel: channel.name, platform: channel.platform, articleId: article.id };
         try {
-          await channel.publish(article);
+          const ref = await channel.publish(article);
+          if (ref) await recordChannelPost(article.id, channel.name, ref);
           logger.info('channel publish succeeded', meta);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -45,12 +53,41 @@ export function startChannelPublishing(channels: readonly PublishChannel[]): () 
     );
   }
 
-  // The listener is synchronous and must not throw: it launches the best-effort
-  // fan-out without awaiting it so the publish response is never blocked.
-  return onArticlePublished((article) => {
+  async function retractAll(articleId: string): Promise<void> {
+    const posts = await channelPostsFor(articleId);
+    if (posts.length === 0) return;
+    await Promise.all(
+      posts.map(async (post) => {
+        const channel = channels.find((c) => c.name === post.channel);
+        const meta = { channel: post.channel, articleId };
+        try {
+          await channel?.retract?.(post.ref);
+          logger.info('channel retract succeeded', meta);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.error('channel retract failed', { ...meta, message });
+        }
+      }),
+    );
+    await removeChannelPosts(articleId);
+  }
+
+  // Both listeners are synchronous and must not throw: each launches its
+  // best-effort work without awaiting it so the caller's response is never blocked.
+  const unsubPublished = onArticlePublished((article) => {
     void fanOut(article).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       logger.error('channel publishing error', { articleId: article.id, message });
     });
   });
+  const unsubRetracted = onArticleRetracted((articleId) => {
+    void retractAll(articleId).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error('channel retraction error', { articleId, message });
+    });
+  });
+  return () => {
+    unsubPublished();
+    unsubRetracted();
+  };
 }

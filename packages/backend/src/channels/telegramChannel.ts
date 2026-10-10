@@ -61,12 +61,25 @@ function buildCaption(article: Article, url: string): string {
   return lines.join('\n\n');
 }
 
-/** POST a JSON body to a Telegram Bot API method, logging a warning on a non-OK reply. */
+/** The one shape read out of a Telegram `send*` reply's `result`: enough to retract it later. */
+interface TelegramMessageRef {
+  chatId: number;
+  messageId: number;
+}
+
+/**
+ * POST a JSON body to a Telegram Bot API method, logging a warning and
+ * resolving `undefined` on any failure (non-OK status, timeout, non-JSON body)
+ * — a delivery hiccup must never throw into the registry's fan-out. On success
+ * resolves the raw `result` field, whose shape differs per method: a
+ * `send*` reply's `result` is the message object `parseMessageRef` reads;
+ * `deleteMessage`'s is just `true`, read as a plain success/failure instead.
+ */
 async function callTelegram(
   token: string,
-  method: 'sendPhoto' | 'sendMessage',
+  method: 'sendPhoto' | 'sendMessage' | 'deleteMessage',
   payload: Record<string, unknown>,
-): Promise<void> {
+): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TELEGRAM_TIMEOUT_MS);
   try {
@@ -78,11 +91,28 @@ async function callTelegram(
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
-      logger.warn('telegram publish non-ok response', { method, status: res.status, detail });
+      logger.warn('telegram request non-ok response', { method, status: res.status, detail });
+      return undefined;
     }
+    const body = (await res.json().catch(() => undefined)) as { result?: unknown } | undefined;
+    return body?.result;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Read `{ chatId, messageId }` out of a `send*` reply's `result` object, if it's shaped as expected. */
+function parseMessageRef(result: unknown): TelegramMessageRef | undefined {
+  const messageId = (result as { message_id?: unknown } | undefined)?.message_id;
+  const chatId = (result as { chat?: { id?: unknown } } | undefined)?.chat?.id;
+  if (typeof messageId !== 'number' || typeof chatId !== 'number') return undefined;
+  return { chatId, messageId };
+}
+
+function isTelegramRef(
+  ref: Record<string, unknown>,
+): ref is Record<string, unknown> & TelegramMessageRef {
+  return typeof ref.chatId === 'number' && typeof ref.messageId === 'number';
 }
 
 /**
@@ -115,20 +145,28 @@ function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishC
       const url = articlePublicUrl(env.FEDIVERSE_DOMAIN, articleLanguage, article.slug);
       const caption = buildCaption(article, url);
 
-      if (article.heroImage?.url) {
-        await callTelegram(token, 'sendPhoto', {
-          chat_id: chatId,
-          photo: article.heroImage.url,
-          caption,
-          parse_mode: 'HTML',
-        });
-        return;
-      }
+      const result = article.heroImage?.url
+        ? await callTelegram(token, 'sendPhoto', {
+            chat_id: chatId,
+            photo: article.heroImage.url,
+            caption,
+            parse_mode: 'HTML',
+          })
+        : await callTelegram(token, 'sendMessage', {
+            chat_id: chatId,
+            text: caption,
+            parse_mode: 'HTML',
+          });
 
-      await callTelegram(token, 'sendMessage', {
-        chat_id: chatId,
-        text: caption,
-        parse_mode: 'HTML',
+      const ref = parseMessageRef(result);
+      if (!ref) return;
+      return { chatId: ref.chatId, messageId: ref.messageId };
+    },
+    async retract(ref: Record<string, unknown>) {
+      if (!token || !isTelegramRef(ref)) return;
+      await callTelegram(token, 'deleteMessage', {
+        chat_id: ref.chatId,
+        message_id: ref.messageId,
       });
     },
   };

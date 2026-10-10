@@ -22,6 +22,13 @@
       "when": 1791650893745,
       "tag": "0002_slug_history_first_published",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791654506363,
+      "tag": "0003_hot_blacklash",
+      "breakpoints": true
     }
   ]
 }

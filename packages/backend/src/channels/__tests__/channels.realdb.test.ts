@@ -6,6 +6,7 @@ import type { ActivityPubModule } from '../../activitypub';
 import { mastodonChannel } from '../mastodonChannel';
 import { telegramChannels } from '../telegramChannel';
 import { startChannelPublishing } from '../registry';
+import { channelPostsFor } from '../channelPosts';
 import type { PublishChannel } from '../types';
 import { articleService } from '../../services/articleService';
 import { useTestDatabase, type TestDatabase } from '../../test/postgres';
@@ -66,25 +67,38 @@ function makeEnv(overrides: Record<string, string> = {}): Env {
 /** A spy channel for registry tests. */
 function spyChannel(
   name: string,
-  opts: { enabled?: boolean; languages?: Language[] | 'all'; throws?: boolean } = {},
-): PublishChannel & { calls: Article[] } {
+  opts: {
+    enabled?: boolean;
+    languages?: Language[] | 'all';
+    throws?: boolean;
+    ref?: Record<string, unknown>;
+    retractThrows?: boolean;
+  } = {},
+): PublishChannel & { calls: Article[]; retracted: Record<string, unknown>[] } {
   const calls: Article[] = [];
+  const retracted: Record<string, unknown>[] = [];
   const languages = opts.languages ?? 'all';
   return {
     name,
     platform: 'telegram',
     calls,
+    retracted,
     servesLanguage: (lang) => languages === 'all' || languages.includes(lang),
     isEnabled: () => opts.enabled ?? true,
     async publish(article) {
       calls.push(article);
       if (opts.throws) throw new Error(`${name} boom`);
+      return opts.ref;
+    },
+    async retract(ref) {
+      if (opts.retractThrows) throw new Error(`${name} retract boom`);
+      retracted.push(ref);
     },
   };
 }
 
-/** Create + publish an article so the article-published hook fires for real. */
-async function publishArticle(overrides: Partial<ArticleInput> = {}): Promise<void> {
+/** Create + publish an article so the article-published hook fires for real. Returns it (its id drives retraction tests). */
+async function publishArticle(overrides: Partial<ArticleInput> = {}): Promise<Article> {
   const draft = await articleService.create({
     title: 'Markets Rally Today',
     category: CATEGORIES[2],
@@ -97,7 +111,7 @@ async function publishArticle(overrides: Partial<ArticleInput> = {}): Promise<vo
     seo: {},
     ...overrides,
   });
-  await articleService.publish(draft.id);
+  return articleService.publish(draft.id);
 }
 
 /** Let queued microtasks (the registry's best-effort fan-out) settle. */
@@ -175,6 +189,92 @@ describe('channel registry routing', () => {
     await flush();
 
     expect(ch.calls).toHaveLength(0);
+  });
+});
+
+describe('channel retraction (unpublish / delete)', () => {
+  it('records a channel post when publish returns a ref, and retracts + clears it on unpublish', async () => {
+    const ch = spyChannel('ch', { ref: { messageId: 42 } });
+    const stop = startChannelPublishing([ch]);
+
+    const article = await publishArticle({ title: 'To Be Unpublished' });
+    await flush();
+    expect(await channelPostsFor(article.id)).toHaveLength(1);
+
+    await articleService.unpublish(article.id);
+    await flush();
+
+    expect(ch.retracted).toEqual([{ messageId: 42 }]);
+    expect(await channelPostsFor(article.id)).toHaveLength(0);
+    stop();
+  });
+
+  it('retracts on delete too, looked up before the row is gone', async () => {
+    const ch = spyChannel('ch', { ref: { messageId: 7 } });
+    const stop = startChannelPublishing([ch]);
+
+    const article = await publishArticle({ title: 'To Be Deleted' });
+    await flush();
+
+    await articleService.remove(article.id);
+    await flush();
+
+    expect(ch.retracted).toEqual([{ messageId: 7 }]);
+    stop();
+  });
+
+  it('a channel that returns nothing from publish is never recorded, so unpublish has nothing to retract', async () => {
+    const ch = spyChannel('ch'); // no `ref` option → publish resolves undefined
+    const stop = startChannelPublishing([ch]);
+
+    const article = await publishArticle({ title: 'No Ref Channel' });
+    await flush();
+    expect(await channelPostsFor(article.id)).toHaveLength(0);
+
+    await articleService.unpublish(article.id);
+    await flush();
+
+    expect(ch.retracted).toHaveLength(0);
+    stop();
+  });
+
+  it('unpublishing an article that was never published retracts nothing (no channel post was ever recorded)', async () => {
+    const ch = spyChannel('ch', { ref: { messageId: 1 } });
+    const stop = startChannelPublishing([ch]);
+
+    const draft = await articleService.create({
+      title: 'Never Published',
+      category: CATEGORIES[0],
+      language: 'en',
+      author: 'Eleanor Vance',
+      body: '# Draft\n\nNot live.',
+      status: 'draft',
+      featured: 0,
+      tags: [],
+      seo: {},
+    });
+    await articleService.unpublish(draft.id);
+    await flush();
+
+    expect(ch.retracted).toHaveLength(0);
+    stop();
+  });
+
+  it('isolates a throwing retract: the post is still cleared, and it does not affect another channel', async () => {
+    const boom = spyChannel('boom', { ref: { messageId: 1 }, retractThrows: true });
+    const ok = spyChannel('ok', { ref: { messageId: 2 } });
+    const stop = startChannelPublishing([boom, ok]);
+
+    const article = await publishArticle({ title: 'Partial Retract Failure' });
+    await flush();
+    expect(await channelPostsFor(article.id)).toHaveLength(2);
+
+    await articleService.unpublish(article.id);
+    await flush();
+
+    expect(ok.retracted).toEqual([{ messageId: 2 }]);
+    expect(await channelPostsFor(article.id)).toHaveLength(0);
+    stop();
   });
 });
 
@@ -281,6 +381,63 @@ describe('telegram channel', () => {
     if (!tg) throw new Error('telegram channel missing');
 
     await tg.publish(makeArticle({ language: 'es', slug: 'hola-mundo' }));
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('publish reads { chatId, messageId } out of a real sendPhoto reply, so it can be retracted later', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123', TELEGRAM_CHANNEL: '@GWJOfficial' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ ok: true, result: { message_id: 555, chat: { id: -1001234 } } }),
+        { status: 200 },
+      ),
+    );
+    const tg = telegramChannels(env)[0];
+    if (!tg) throw new Error('telegram channel missing');
+
+    const ref = await tg.publish(
+      makeArticle({ language: 'en', heroImage: { url: 'https://cdn.example.test/hero.jpg', alt: '' } }),
+    );
+    expect(ref).toEqual({ chatId: -1001234, messageId: 555 });
+  });
+
+  it('publish resolves no ref when the reply has no usable result (so nothing gets recorded for later retraction)', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const tg = telegramChannels(env)[0];
+    if (!tg) throw new Error('telegram channel missing');
+
+    const ref = await tg.publish(makeArticle({ language: 'en', heroImage: undefined }));
+    expect(ref).toBeUndefined();
+  });
+
+  it('retract calls deleteMessage with the exact chat_id and message_id from the ref', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"ok":true,"result":true}', { status: 200 }));
+    const tg = telegramChannels(env)[0];
+    if (!tg?.retract) throw new Error('telegram channel missing retract');
+
+    await tg.retract({ chatId: -1001234, messageId: 555 });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const call = fetchSpy.mock.calls[0];
+    if (!call) throw new Error('fetch not called');
+    const [url, init] = call;
+    expect(String(url)).toBe('https://api.telegram.org/botBOT123/deleteMessage');
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body.chat_id).toBe(-1001234);
+    expect(body.message_id).toBe(555);
+  });
+
+  it('retract is a no-op for a ref it does not recognize, and never fetches', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const tg = telegramChannels(env)[0];
+    if (!tg?.retract) throw new Error('telegram channel missing retract');
+
+    await tg.retract({ someOtherChannelsRef: 'whatever' });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

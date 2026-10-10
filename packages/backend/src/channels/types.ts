@@ -38,6 +38,18 @@ export interface PublishChannel {
   servesLanguage(language: Language): boolean;
   /** Whether this channel is active in the current process (config/credentials present). */
   isEnabled(): boolean;
-  /** Distribute one published article to this channel's destination. */
-  publish(article: Article): Promise<void>;
+  /**
+   * Distribute one published article to this channel's destination. Returning a
+   * `ref` means the delivery can later be retracted (stored, then passed back to
+   * `retract`); returning nothing means it can't (today: Mastodon, WhatsApp) and
+   * the registry never records or retracts it.
+   */
+  publish(article: Article): Promise<Record<string, unknown> | void>;
+  /**
+   * Remove a previously delivered post, given the exact `ref` `publish` returned
+   * for it. Optional — only implemented by channels whose `publish` can return a
+   * ref. Must not throw: a message already gone (deleted by hand, a stale ref) is
+   * not a failure the registry should retry forever over.
+   */
+  retract?(ref: Record<string, unknown>): Promise<void>;
 }
