@@ -26,10 +26,10 @@ const uploadCalls: { filename: string; options: UploadImageOptions | undefined }
 const fakeUploadService: UploadService = {
   async uploadImage(_buffer, filename, _contentType, options) {
     uploadCalls.push({ filename, options });
-    return { url: `https://cdn.example.test/articles/${filename}` };
+    return { url: `https://cdn.example.test/articles/${filename}`, variants: [] };
   },
   async storeImage(_buffer, filename, _contentType, keyPrefix) {
-    return { url: `https://cdn.example.test/${keyPrefix}${filename}` };
+    return { url: `https://cdn.example.test/${keyPrefix}${filename}`, variants: [] };
   },
 };
 

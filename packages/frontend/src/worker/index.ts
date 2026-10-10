@@ -34,6 +34,7 @@ import { articleDataScript } from '../lib/serverData';
 import { fetchJson } from './edgeCache';
 import { escapeHtml, firstParagraphText, markdownToHtml } from './markdown';
 import { subscribeWithGoogleTags } from './subscribeWithGoogle';
+import { IMAGE_SIZES, responsiveImage, type ResponsiveImageProps } from '../lib/responsiveImage';
 
 const SITE_NAME = 'The Global World Journal';
 const DEFAULT_SITE_URL = 'https://globalworldjournal.com';
@@ -213,7 +214,8 @@ interface MetaTagOptions {
   extraMeta?: { property: string; content: string }[];
   lang: Language;
   hreflang: string;
-  preloadImage?: string;
+  /** The image the page paints first (the article hero), fetched with the HTML. */
+  preloadImage?: ResponsiveImageProps;
   /** `<meta name="robots">`; every page allows large image previews by default. */
   robots?: string;
 }
@@ -222,8 +224,15 @@ function buildMetaTags(options: MetaTagOptions): string {
   const { title, description, url, image, type, jsonLd, lang, hreflang } = options;
   const tags = [`<title>${escapeHtml(title)}</title>`];
   if (options.preloadImage) {
+    // With the same srcset/sizes as the <img>, so the browser preloads the
+    // rendition it will paint, not the full-size file as well.
+    const { src, srcSet, sizes } = options.preloadImage;
+    const responsive =
+      srcSet && sizes
+        ? ` imagesrcset="${escapeHtml(srcSet)}" imagesizes="${escapeHtml(sizes)}"`
+        : '';
     tags.push(
-      `<link rel="preload" as="image" fetchpriority="high" href="${escapeHtml(options.preloadImage)}" />`,
+      `<link rel="preload" as="image" fetchpriority="high" href="${escapeHtml(src)}"${responsive} />`,
     );
   }
   tags.push(
@@ -519,7 +528,9 @@ async function handleArticle(
     extraMeta,
     lang,
     hreflang: articleHreflangLinks(config.siteUrl, article),
-    preloadImage: image,
+    preloadImage: article.heroImage
+      ? responsiveImage(article.heroImage, IMAGE_SIZES.articleHero, 1200, 800)
+      : undefined,
   });
   // Server-render the article text into #root so crawlers (and Google News) get
   // the full content without executing JS; React replaces it on mount.
