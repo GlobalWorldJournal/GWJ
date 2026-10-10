@@ -62,7 +62,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
           );
         }}
         aria-label="Language"
-        className="label cursor-pointer bg-transparent text-[0.75rem] tracking-[0.06em] text-ink outline-none transition-colors hover:text-accent"
+        className="label cursor-pointer bg-transparent text-[0.75rem] tracking-[0.06em] text-ink transition-colors hover:text-accent"
       >
         {SUPPORTED_LANGUAGES.map((code) => (
           <option key={code} value={code}>

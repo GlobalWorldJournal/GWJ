@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CATEGORIES, categorySlug, type Category } from '@gwj/shared-types';
 import { useLang } from '../lib/i18n';
 import { LocaleLink, LocaleNavLink } from '../lib/locale';
@@ -28,15 +28,25 @@ export function SectionNav() {
   const { lang, t } = useLang();
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState<Category | null>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   return (
     <nav
       className="sticky top-0 z-20 border-b border-ink bg-paper"
       onMouseLeave={() => setHovered(null)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        setHovered(null);
+        if (open) {
+          setOpen(false);
+          toggleRef.current?.focus();
+        }
+      }}
     >
       <div className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-2">
         <div className="flex items-center gap-4">
           <button
+            ref={toggleRef}
             type="button"
             className="label text-[0.75rem] text-ink md:hidden"
             aria-expanded={open}

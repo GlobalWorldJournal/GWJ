@@ -11,6 +11,7 @@ import type { Category, Language } from '@gwj/shared-types';
 export const DICT: Record<Language, Record<string, string>> = {
   en: {
     search: 'Search',
+    skipToContent: 'Skip to content',
     onTelegram: 'The Global World Journal on Telegram',
     onMention: 'The Global World Journal on Mention',
     sections: 'Sections',
@@ -67,6 +68,7 @@ export const DICT: Record<Language, Record<string, string>> = {
   },
   es: {
     search: 'Buscar',
+    skipToContent: 'Saltar al contenido',
     onTelegram: 'The Global World Journal en Telegram',
     onMention: 'The Global World Journal en Mention',
     sections: 'Secciones',
@@ -120,6 +122,7 @@ export const DICT: Record<Language, Record<string, string>> = {
   },
   fr: {
     search: 'Rechercher',
+    skipToContent: 'Aller au contenu',
     onTelegram: 'The Global World Journal sur Telegram',
     onMention: 'The Global World Journal sur Mention',
     sections: 'Rubriques',
