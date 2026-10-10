@@ -3,14 +3,16 @@ import { LocaleLink } from '../lib/locale';
 
 interface WhatsNewsProps {
   articles: Article[];
+  /** The module heading, in the edition's language. */
+  title: string;
   className?: string;
 }
 
 /**
- * "What's News" rail — a bordered box in the 300px right column, mirroring WSJ.
- * Heavy top rule, boxed, bulleted brief items.
+ * "What's News" — a bordered box of one-line briefs in the front page's left
+ * column, mirroring WSJ. Heavy top rule, boxed, bulleted brief items.
  */
-export function WhatsNews({ articles, className }: WhatsNewsProps) {
+export function WhatsNews({ articles, title, className }: WhatsNewsProps) {
   if (articles.length === 0) {
     return null;
   }
@@ -18,7 +20,7 @@ export function WhatsNews({ articles, className }: WhatsNewsProps) {
   return (
     <aside className={`border border-rule ${className ?? ''}`}>
       <div className="border-t-3 border-ink px-4 pt-3 pb-2">
-        <h2 className="headline text-2xl text-ink">What&rsquo;s News</h2>
+        <h2 className="headline text-2xl text-ink">{title}</h2>
       </div>
       <ul className="flex flex-col px-4 pb-2">
         {articles.map((article) => (
