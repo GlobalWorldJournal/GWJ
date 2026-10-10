@@ -8,7 +8,7 @@ interface WhatsNewsProps {
 }
 
 /**
- * "What's News" rail — a bordered box in the 300px right column, mirroring WSJ.
+ * "What's News" — a bordered box of one-line briefs in the front page's left column, mirroring WSJ.
  * Heavy top rule, boxed, bulleted brief items.
  */
 export function WhatsNews({ articles, className }: WhatsNewsProps) {
