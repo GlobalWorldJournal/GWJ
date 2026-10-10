@@ -131,3 +131,40 @@ describe('ArticlePage', () => {
     expect(screen.queryByRole('heading', { name: 'Most Popular' })).not.toBeInTheDocument();
   });
 });
+
+describe('ArticlePage reader extras', () => {
+  beforeEach(() => {
+    getArticle.mockReset();
+    getArticles.mockReset();
+    getArticles.mockResolvedValue(paginate([]));
+  });
+
+  it('shows reading time, the update time, corrections, topics and sharing', async () => {
+    getArticle.mockResolvedValueOnce(
+      makeArticle({
+        body: Array.from({ length: 460 }, () => 'word').join(' '),
+        publishedAt: '2026-06-23T12:00:00.000Z',
+        updatedAt: '2026-06-24T09:30:00.000Z',
+        tags: ['NATO', 'Ukraine'],
+        corrections: [
+          { at: '2026-06-24T09:30:00.000Z', text: 'An earlier version misstated the date.' },
+        ],
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByText('· 2 min read')).toBeInTheDocument();
+    expect(screen.getByText(/^Updated June 24, 2026/)).toBeInTheDocument();
+    expect(screen.getByText('An earlier version misstated the date.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ukraine' }).getAttribute('href')).toBe('/tag/Ukraine');
+    const onX = screen.getByRole('link', { name: 'Share on X' });
+    expect(onX.getAttribute('href')).toContain(encodeURIComponent('/article/lead-story'));
+  });
+
+  it('formats dates and the section in the edition language', async () => {
+    getArticle.mockResolvedValueOnce(makeArticle({ language: 'es' }));
+    renderPage('es');
+    expect(await screen.findByText('· 23 de junio de 2026')).toBeInTheDocument();
+    expect(screen.getByText('· Mundo')).toBeInTheDocument();
+  });
+});
