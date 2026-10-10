@@ -21,7 +21,7 @@ const stored: UploadResponse = {
 };
 
 function fakeUploads(): UploadService & { uploadImage: ReturnType<typeof vi.fn> } {
-  return { uploadImage: vi.fn(async () => stored) };
+  return { uploadImage: vi.fn(async () => stored), addRenditions: vi.fn(async () => null) };
 }
 
 const input = (overrides: Partial<ArticleInput> = {}): ArticleInput => ({

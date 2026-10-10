@@ -22,6 +22,9 @@ const fakeUploadService: UploadService = {
   async uploadImage(_buffer, filename) {
     return { url: `https://cdn.example.test/articles/${filename}`, variants: [] };
   },
+  async addRenditions() {
+    return null;
+  },
 };
 
 function setTestEnv(): Env {

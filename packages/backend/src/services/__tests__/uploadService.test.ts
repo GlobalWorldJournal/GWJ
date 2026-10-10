@@ -23,17 +23,28 @@ const captured: CapturedPut[] = [];
 
 // Capture every PutObjectCommand input via a mocked S3 client. The command
 // class is a thin holder for its input, mirroring the real SDK.
+/** Objects the mocked bucket holds, by key (for GetObject). */
+const bucket = new Map<string, Buffer>();
+
 vi.mock('@aws-sdk/client-s3', () => {
   class PutObjectCommand {
     constructor(public readonly input: CapturedPut) {}
   }
+  class GetObjectCommand {
+    constructor(public readonly input: { Bucket: string; Key: string }) {}
+  }
   class S3Client {
-    async send(command: PutObjectCommand): Promise<unknown> {
+    async send(command: PutObjectCommand | GetObjectCommand): Promise<unknown> {
+      if (command instanceof GetObjectCommand) {
+        const bytes = bucket.get(command.input.Key);
+        if (!bytes) throw new Error(`NoSuchKey ${command.input.Key}`);
+        return { Body: { transformToByteArray: async () => new Uint8Array(bytes) } };
+      }
       captured.push(command.input);
       return {};
     }
   }
-  return { S3Client, PutObjectCommand };
+  return { S3Client, PutObjectCommand, GetObjectCommand };
 });
 
 const { createUploadService } = await import('../uploadService');
@@ -159,6 +170,40 @@ describe('createUploadService image optimization', () => {
     await expect(
       service.uploadImage(Buffer.from('<html></html>'), 'page.png', 'image/png'),
     ).rejects.toThrow(/Rejected image upload/i);
+    expect(captured).toHaveLength(0);
+  });
+});
+
+describe('createUploadService.addRenditions (backfill of older uploads)', () => {
+  beforeEach(() => {
+    captured.length = 0;
+    bucket.clear();
+  });
+
+  it('stores renditions beside an existing object and reports its size; the object is untouched', async () => {
+    const service = createUploadService(env);
+    bucket.set(
+      'articles/old-hero.webp',
+      await sharp(await largeJpeg(1600, 1000))
+        .webp()
+        .toBuffer(),
+    );
+
+    const result = await service.addRenditions('https://cdn.example.test/articles/old-hero.webp');
+
+    expect(result?.width).toBe(1600);
+    expect(result?.height).toBe(1000);
+    expect(result?.variants.map((variant) => variant.url)).toEqual([
+      'https://cdn.example.test/articles/old-hero.w400.webp',
+      'https://cdn.example.test/articles/old-hero.w800.webp',
+      'https://cdn.example.test/articles/old-hero.w1200.webp',
+    ]);
+    expect(captured.map((put) => put.Key)).not.toContain('articles/old-hero.webp');
+  });
+
+  it('is null for an image that is not on our CDN', async () => {
+    const service = createUploadService(env);
+    expect(await service.addRenditions('https://elsewhere.example/a.jpg')).toBeNull();
     expect(captured).toHaveLength(0);
   });
 });
