@@ -448,8 +448,12 @@ describe('telegram channel', () => {
 });
 
 describe('telegram channel — language routing through the registry', () => {
-  it('an en article triggers a Telegram send; an es article does not', async () => {
-    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123', TELEGRAM_CHANNEL: '@GWJOfficial' });
+  it('an en article sends only to the English channel; an es article only to the Spanish one', async () => {
+    const env = makeEnv({
+      TELEGRAM_BOT_TOKEN: 'BOT123',
+      TELEGRAM_CHANNEL: '@GWJOfficial',
+      TELEGRAM_CHANNEL_ES: '@gwj_ES',
+    });
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
@@ -459,18 +463,26 @@ describe('telegram channel — language routing through the registry', () => {
     await publishArticle({ title: 'English Story', language: 'en' });
     await publishArticle({ title: 'Spanish Story', language: 'es' });
 
-    // Exactly one Telegram send — for the English article only. Wait for it, then
-    // give the Spanish one (which must NOT send) the same chance to show up.
+    // One send per edition, each to its own channel — never the other's. Wait
+    // for both, then confirm nothing extra shows up a moment later.
     const telegramCalls = () =>
       fetchSpy.mock.calls.filter(([url]) => String(url).startsWith('https://api.telegram.org/'));
-    await vi.waitFor(() => expect(telegramCalls()).toHaveLength(1));
+    await vi.waitFor(() => expect(telegramCalls()).toHaveLength(2));
     await flush();
-    expect(telegramCalls()).toHaveLength(1);
-    const init = telegramCalls()[0]?.[1] as RequestInit | undefined;
-    const body = JSON.parse(String(init?.body));
-    expect(body.caption ?? body.text).toContain('<b>English Story</b>');
-    expect(body.caption ?? body.text).toContain(
+    expect(telegramCalls()).toHaveLength(2);
+
+    const bodies = telegramCalls().map(([, init]) =>
+      JSON.parse(String((init as RequestInit | undefined)?.body)),
+    );
+    const english = bodies.find((b) => (b.caption ?? b.text)?.includes('English Story'));
+    const spanish = bodies.find((b) => (b.caption ?? b.text)?.includes('Spanish Story'));
+    expect(english?.chat_id).toBe('@GWJOfficial');
+    expect(english?.caption ?? english?.text).toContain(
       'Read: https://globalworldjournal.com/article/english-story',
+    );
+    expect(spanish?.chat_id).toBe('@gwj_ES');
+    expect(spanish?.caption ?? spanish?.text).toContain(
+      'Read: https://globalworldjournal.com/es/article/spanish-story',
     );
     stop();
   });
