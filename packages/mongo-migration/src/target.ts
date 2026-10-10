@@ -11,7 +11,14 @@ import { followers } from '@gwj/backend/src/db/schema/followers';
 import { takedownRequests } from '@gwj/backend/src/db/schema/takedownRequests';
 import { canonicalJson } from './canonical';
 import { naturalKey, type LogicalDocument, type SourceCollection } from './normalize';
-import { actorKeyRow, articleRow, followerRow, takedownRequestRow, userRow } from './rows';
+import {
+  ARTICLE_SOURCE_FIELDS,
+  actorKeyRow,
+  articleRow,
+  followerRow,
+  takedownRequestRow,
+  userRow,
+} from './rows';
 import { PORTED_COLLECTIONS, type SourceSnapshot } from './source';
 
 type Executor = Pick<Database, 'select' | 'insert' | 'update' | 'execute'>;
@@ -26,15 +33,10 @@ export async function readTarget(
   const followerRows = await db.select().from(followers).orderBy(followers.id);
   const takedownRows = await db.select().from(takedownRequests).orderBy(takedownRequests.id);
   return {
-    // Derived, not Mongo data: the generated search vector, plus firstPublishedAt
-    // and translationGroupId (which `articleRow` derives on every write).
-    articles: articleRows.map(
-      ({
-        searchVector: _derived,
-        firstPublishedAt: _derivedFirst,
-        translationGroupId: _derivedGroup,
-        ...row
-      }) => row,
+    // Only the fields Mongo had: columns added since the port (derived or new)
+    // are not source data to compare.
+    articles: articleRows.map((row) =>
+      Object.fromEntries(ARTICLE_SOURCE_FIELDS.map((field) => [field, row[field]])),
     ),
     users: userRows.map((row) => ({ ...row })),
     actorkeys: keyRows.map((row) => ({ ...row })),

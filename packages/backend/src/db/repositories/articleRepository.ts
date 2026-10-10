@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, ne, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, gt, lte, ne, sql, type SQL } from 'drizzle-orm';
 import {
   SUPPORTED_LANGUAGES,
   type Article,
@@ -59,6 +59,7 @@ export function rowToArticle(row: ArticleRow): Article {
     source,
     publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
     firstPublishedAt: row.firstPublishedAt ? row.firstPublishedAt.toISOString() : null,
+    scheduledAt: row.scheduledAt ? row.scheduledAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -334,6 +335,16 @@ export async function findTranslations(
     .from(articles)
     .where(and(...conditions))
     .orderBy(articles.language);
+}
+
+/** Ids of drafts whose scheduled time has come, oldest schedule first. */
+export async function findDueScheduledIds(now: Date): Promise<string[]> {
+  const rows = await getDb()
+    .select({ id: articles.id })
+    .from(articles)
+    .where(and(eq(articles.status, 'draft'), lte(articles.scheduledAt, now)))
+    .orderBy(articles.scheduledAt);
+  return rows.map((row) => row.id);
 }
 
 /** The CURRENT slug of the published article that once used `oldSlug`, if any. */

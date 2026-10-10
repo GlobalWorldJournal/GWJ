@@ -145,6 +145,14 @@ export const ArticleInputSchema = z.object({
   source: SourceSchema.optional().describe(
     'Internal provenance only — never shown to readers. Record this on every article the newsroom writes from an outside source, so the story and its photo can be traced and re-attributed later.',
   ),
+  scheduledAt: z
+    .string()
+    .datetime()
+    .nullable()
+    .optional()
+    .describe(
+      'Publish automatically at this time (ISO 8601, e.g. "2026-10-11T07:00:00Z"). Only for drafts: the article stays a draft until then, then goes live (within about a minute). On update, null cancels the schedule.',
+    ),
   translationOf: z
     .string()
     .optional()

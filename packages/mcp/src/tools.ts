@@ -133,7 +133,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'create_article',
     {
       description:
-        'Create and PUBLISH a new article immediately (pass draft:true to hold it back instead). The byline is auto-assigned from the writer roster by category when `author` is omitted. Returns the published article.',
+        'Create and PUBLISH a new article immediately (pass draft:true to hold it back, or scheduledAt to publish it automatically at that time). The byline is auto-assigned from the writer roster by category when `author` is omitted. Returns the article.',
       inputSchema: CreateArticleShape,
     },
     (args) => {
@@ -141,11 +141,9 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
       const author = rest.author ?? pickWriter(rest.category, rest.title).name;
       // One request creates the article directly in its final state: a failure
       // can never leave an orphan draft that a retry would then duplicate.
-      return guard(async () =>
-        jsonResult(
-          await client.createArticle({ ...rest, author, status: draft ? 'draft' : 'published' }),
-        ),
-      );
+      // A scheduled story waits as a draft until its time comes.
+      const status = draft || rest.scheduledAt ? 'draft' : 'published';
+      return guard(async () => jsonResult(await client.createArticle({ ...rest, author, status })));
     },
   );
 

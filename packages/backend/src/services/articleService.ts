@@ -7,6 +7,7 @@ import {
   type PaginatedArticles,
   type ArticleRevision,
   type ArticleRevisionSummary,
+  type ArticleStatus,
   type Language,
   type Seo,
   slugify,
@@ -23,6 +24,7 @@ import {
   listArticles,
   recordSlugChange,
   findRedirectSlug,
+  findDueScheduledIds,
   findTranslations,
   rowToArticle,
   updateArticle,
@@ -37,6 +39,7 @@ import {
   snapshotOf,
 } from '../db/repositories/revisionRepository';
 import { BadRequestError, ConflictError, NotFoundError } from '../errors';
+import { errorFields, logger } from '../logger';
 
 /** Fallback slug stem when a title slugifies to an empty string (e.g. all symbols). */
 const FALLBACK_SLUG = 'article';
@@ -149,7 +152,23 @@ function publishStamps(
   now: Date,
 ): Partial<NewArticleRow> {
   const first = current.firstPublishedAt ?? now;
-  return { status: 'published', publishedAt: first, firstPublishedAt: first };
+  // Going live fulfils (or overrides) any schedule.
+  return { status: 'published', publishedAt: first, firstPublishedAt: first, scheduledAt: null };
+}
+
+/** The actor recorded when the scheduler publishes a due draft. */
+export const SCHEDULER_ACTOR = 'scheduler';
+
+/** A schedule is only meaningful on a draft: refuse it on a live article. */
+function assertSchedulable(scheduledAt: string | null | undefined, status: ArticleStatus): void {
+  if (scheduledAt && status === 'published') {
+    throw new BadRequestError(
+      'Only a draft can be scheduled: this article is (or is being) published',
+      {
+        scheduledAt,
+      },
+    );
+  }
 }
 
 /**
@@ -312,6 +331,8 @@ export interface ArticleService {
   search(q: string, query: ArticleListQuery): Promise<PaginatedArticles>;
   /** The current slug of the PUBLISHED article that used to live at `oldSlug`. */
   findRedirectSlug(oldSlug: string): Promise<string | null>;
+  /** Publish every draft whose schedule has come; returns the ids it published. */
+  publishDue(now?: Date): Promise<string[]>;
 }
 
 export const articleService: ArticleService = {
@@ -357,6 +378,7 @@ export const articleService: ArticleService = {
   },
 
   async create(input) {
+    assertSchedulable(input.scheduledAt, input.status);
     const db = getDb();
     const now = new Date();
     const id = newRecordId(now);
@@ -384,6 +406,7 @@ export const articleService: ArticleService = {
       source: input.source,
       publishedAt: input.status === 'published' ? now : null,
       firstPublishedAt: input.status === 'published' ? now : null,
+      scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
       createdAt: now,
       updatedAt: now,
     });
@@ -450,6 +473,11 @@ export const articleService: ArticleService = {
           Object.assign(changes, publishStamps(current, new Date()));
         else Object.assign(changes, { status: patch.status, publishedAt: null });
       }
+
+      if (patch.scheduledAt !== undefined) {
+        assertSchedulable(patch.scheduledAt, changes.status ?? current.status);
+        changes.scheduledAt = patch.scheduledAt ? new Date(patch.scheduledAt) : null;
+      }
       return changes;
     });
     const article = rowToArticle(after);
@@ -479,6 +507,27 @@ export const articleService: ArticleService = {
 
   async findRedirectSlug(oldSlug) {
     return findRedirectSlug(oldSlug);
+  },
+
+  async publishDue(now = new Date()) {
+    const published: string[] = [];
+    for (const id of await findDueScheduledIds(now)) {
+      try {
+        // Re-checked under the row lock: a schedule cancelled or moved since the
+        // lookup is respected, and two backend tasks running this at once publish
+        // (and fan out) each article exactly once.
+        const { before, after } = await mutateArticle(id, SCHEDULER_ACTOR, async (current) =>
+          current.status === 'draft' && current.scheduledAt !== null && current.scheduledAt <= now
+            ? publishStamps(current, now)
+            : {},
+        );
+        if (isFirstPublish(before, after)) emitArticlePublished(rowToArticle(after));
+        if (after.status === 'published' && before.status !== 'published') published.push(id);
+      } catch (err) {
+        logger.error('scheduled publish failed', { articleId: id, ...errorFields(err) });
+      }
+    }
+    return published;
   },
 
   async listRevisions(id) {
