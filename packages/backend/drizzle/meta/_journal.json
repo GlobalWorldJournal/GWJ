@@ -85,6 +85,13 @@
       "when": 1791659462002,
       "tag": "0011_channel_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791661241496,
+      "tag": "0012_article_views",
+      "breakpoints": true
     }
   ]
 }

@@ -1,12 +1,16 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   CATEGORIES,
   categorySlug,
+  PopularArticlesQuerySchema,
   PublicArticleListQuerySchema,
   TakedownRequestInputSchema,
   type Article,
   type PaginatedArticles,
   type PaginatedPublicArticles,
+  type PopularArticles,
+  type PopularArticlesQuery,
   type PublicArticle,
   type PublicArticleListQuery,
   type TakedownRequestInput,
@@ -39,6 +43,10 @@ function toPublicPage(page: PaginatedArticles): PaginatedPublicArticles {
  */
 const PUBLIC_CACHE_CONTROL = 'public, max-age=60, stale-while-revalidate=300';
 
+/** Views one client may report per window — a reader's session, not a script's loop. */
+const VIEW_WINDOW_MS = 15 * 60 * 1000;
+const VIEW_MAX = 60;
+
 export function createPublicRouter(): Router {
   const router = Router();
 
@@ -55,6 +63,32 @@ export function createPublicRouter(): Router {
       res.json(toPublicPage(result));
     },
   );
+
+  // Declared before `/articles/:slug`, which would otherwise take "popular" as a slug.
+  router.get(
+    '/articles/popular',
+    validate(PopularArticlesQuerySchema, 'query'),
+    async (req: Request, res: Response) => {
+      const query = req.validatedQuery as PopularArticlesQuery;
+      const body: PopularArticles = {
+        data: (await articleService.popular(query)).map(toPublicArticle),
+      };
+      res.json(body);
+    },
+  );
+
+  // A reader opened an article (the reader app's beacon). Only a per-day count
+  // is kept; a client past its allowance is refused, so a loop cannot pad it.
+  const viewLimiter = rateLimit({
+    windowMs: VIEW_WINDOW_MS,
+    limit: VIEW_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  router.post('/articles/:id/view', viewLimiter, async (req: Request, res: Response) => {
+    await articleService.recordView(requireParam(req, 'id'));
+    res.status(204).end();
+  });
 
   router.get('/articles/:slug', async (req: Request, res: Response) => {
     const slug = requireParam(req, 'slug');

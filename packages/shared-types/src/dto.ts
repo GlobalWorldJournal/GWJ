@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CategorySchema } from './category';
-import { LanguageSchema } from './language';
+import { DEFAULT_LANGUAGE, LanguageSchema } from './language';
 import { ArticleSchema, ArticleStatusSchema, PublicArticleSchema } from './article';
 
 export const LoginInputSchema = z.object({
@@ -73,6 +73,18 @@ export const PaginatedPublicArticlesSchema = z.object({
   pagination: PaginationSchema,
 });
 export type PaginatedPublicArticles = z.infer<typeof PaginatedPublicArticlesSchema>;
+
+/** `GET /api/articles/popular`: an edition's most read stories over recent days. */
+export const PopularArticlesQuerySchema = z.object({
+  language: LanguageSchema.default(DEFAULT_LANGUAGE),
+  /** The window, in days counting today (UTC). */
+  days: z.coerce.number().int().min(1).max(30).default(2),
+  limit: z.coerce.number().int().min(1).max(20).default(6),
+});
+export type PopularArticlesQuery = z.infer<typeof PopularArticlesQuerySchema>;
+
+export const PopularArticlesSchema = z.object({ data: z.array(PublicArticleSchema) });
+export type PopularArticles = z.infer<typeof PopularArticlesSchema>;
 
 /**
  * Copy a remote image onto our CDN. The BACKEND downloads it (behind its SSRF

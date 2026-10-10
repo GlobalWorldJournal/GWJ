@@ -669,3 +669,45 @@ describe('GWJ API', () => {
     });
   });
 });
+
+describe('Most Popular API', () => {
+  async function publish(title: string): Promise<{ id: string; slug: string }> {
+    const token = await loginToken();
+    const res = await request(app)
+      .post('/api/admin/articles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validArticle(), title, status: 'published' });
+    expect(res.status).toBe(201);
+    return res.body;
+  }
+
+  it('counts beacon views and ranks the edition by them (no internal fields)', async () => {
+    const first = await publish('First Story');
+    const second = await publish('Second Story');
+    for (const id of [second.id, second.id, first.id]) {
+      const res = await request(app).post(`/api/articles/${id}/view`);
+      expect(res.status).toBe(204);
+    }
+
+    const res = await request(app).get('/api/articles/popular?language=en&days=1&limit=5');
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toContain('public');
+    expect(res.body.data.map((a: { title: string }) => a.title)).toEqual([
+      'Second Story',
+      'First Story',
+    ]);
+    expect(res.body.data[0]).not.toHaveProperty('source');
+  });
+
+  it('"popular" is not taken for an article slug, and bad windows are refused', async () => {
+    expect((await request(app).get('/api/articles/popular')).status).toBe(200);
+    expect((await request(app).get('/api/articles/popular?days=0')).status).toBe(400);
+    expect((await request(app).get('/api/articles/popular?limit=500')).status).toBe(400);
+  });
+
+  it('a view of something that is not a published article is accepted and ignored', async () => {
+    expect((await request(app).post('/api/articles/nope/view')).status).toBe(204);
+    const res = await request(app).get('/api/articles/popular');
+    expect(res.body.data).toEqual([]);
+  });
+});
