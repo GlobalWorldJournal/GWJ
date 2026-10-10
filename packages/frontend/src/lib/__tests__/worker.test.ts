@@ -104,6 +104,32 @@ describe('worker locale parsing', () => {
     expect(html).toContain('"slug":"hola-mundo"');
   });
 
+  it('preloads the hero rendition the page paints (same srcset and sizes)', async () => {
+    const article = apiArticle({
+      slug: 'pictured',
+      seo: { ogImage: 'https://cdn.example.test/social-card.jpg' },
+      heroImage: {
+        url: 'https://cdn.example.test/hero.webp',
+        alt: '',
+        width: 1600,
+        height: 1067,
+        variants: [{ width: 800, url: 'https://cdn.example.test/hero.w800.webp' }],
+      },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(article), { status: 200 })),
+    );
+    const html = await (await get('/article/pictured')).text();
+    expect(html).toContain(
+      '<link rel="preload" as="image" fetchpriority="high" href="https://cdn.example.test/hero.webp" imagesrcset="https://cdn.example.test/hero.w800.webp 800w, https://cdn.example.test/hero.webp 1600w" imagesizes="(min-width: 1024px) 760px, 100vw" />',
+    );
+    // The social card is for sharing, not painted: it is not preloaded.
+    expect(html).not.toContain(
+      'rel="preload" as="image" fetchpriority="high" href="https://cdn.example.test/social-card.jpg"',
+    );
+  });
+
   it('only article pages load Subscribe with Google, in the edition language', async () => {
     const article = apiArticle({ slug: 'hola-mundo', title: 'Hola Mundo', language: 'es' });
     vi.stubGlobal(

@@ -61,6 +61,13 @@ export async function readImageMetadata(input: Buffer): Promise<ImageMetadata> {
   };
 }
 
+/**
+ * Narrower renditions made beside the main image, for `srcset`: a phone or a
+ * card thumbnail downloads one of these instead of the full-size image. Only
+ * widths below the main image's are made (never an enlargement).
+ */
+export const VARIANT_WIDTHS = [400, 800, 1200] as const;
+
 /** Outcome of optimizing an image buffer. */
 export interface OptimizedImage {
   /** The optimized WebP bytes. */
@@ -95,4 +102,31 @@ export async function optimizeToWebp(input: Buffer): Promise<OptimizedImage> {
     .webp({ quality: WEBP_QUALITY })
     .toBuffer({ resolveWithObject: true });
   return { buffer: data, width: info.width, height: info.height };
+}
+
+/** The main WebP rendition of an image and its narrower {@link VARIANT_WIDTHS}. */
+export interface OptimizedImageSet {
+  main: OptimizedImage;
+  variants: OptimizedImage[];
+}
+
+/**
+ * {@link optimizeToWebp}, plus a WebP rendition at each {@link VARIANT_WIDTHS}
+ * width narrower than the main image — each made from the source, not from the
+ * already-compressed main image. Same input rules and failures as
+ * {@link optimizeToWebp}.
+ */
+export async function optimizeWithVariants(input: Buffer): Promise<OptimizedImageSet> {
+  const main = await optimizeToWebp(input);
+  const variants = await Promise.all(
+    VARIANT_WIDTHS.filter((width) => width < main.width).map(async (width) => {
+      const { data, info } = await sharp(input, { failOn: 'error' })
+        .rotate()
+        .resize({ width })
+        .webp({ quality: WEBP_QUALITY })
+        .toBuffer({ resolveWithObject: true });
+      return { buffer: data, width: info.width, height: info.height };
+    }),
+  );
+  return { main, variants };
 }

@@ -43,6 +43,7 @@ import { BadRequestError, ConflictError, NotFoundError } from '../errors';
 import { errorFields, logger } from '../logger';
 import { enqueueJobs } from '../channels/jobRepository';
 import { findMostViewed, recordView, utcDay } from '../db/repositories/viewRepository';
+import { withImageMetadata } from './mediaService';
 import type { ChannelJobAction } from '../db/schema/channelJobs';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -79,6 +80,20 @@ const DISTRIBUTED_FIELDS = [
   'corrections',
 ] as const;
 
+/**
+ * A field as a distributed post shows it. The hero image's size and renditions
+ * are server metadata (recorded on upload, backfilled for older images): a post
+ * shows the picture, its words and credit, so only those count as a change.
+ */
+function distributedValue(
+  state: DistributionState,
+  field: (typeof DISTRIBUTED_FIELDS)[number],
+): unknown {
+  if (field !== 'heroImage' || !state.heroImage) return state[field];
+  const { url, alt, caption, credit } = state.heroImage;
+  return { url, alt, caption, credit };
+}
+
 type DistributionState = Pick<
   ArticleRow,
   'status' | 'language' | (typeof DISTRIBUTED_FIELDS)[number]
@@ -111,7 +126,9 @@ function distributionPlan(
       { language: after.language, action: 'publish' },
     ];
   }
-  const changed = DISTRIBUTED_FIELDS.some((field) => !sameValue(before[field], after[field]));
+  const changed = DISTRIBUTED_FIELDS.some(
+    (field) => !sameValue(distributedValue(before, field), distributedValue(after, field)),
+  );
   return changed ? [{ language: after.language, action: 'update' }] : [];
 }
 
@@ -442,7 +459,7 @@ export const articleService: ArticleService = {
         language: input.language,
         author: input.author,
         body: input.body,
-        heroImage: input.heroImage,
+        heroImage: input.heroImage ? await withImageMetadata(input.heroImage) : input.heroImage,
         status: input.status,
         featured: input.featured,
         tags: input.tags,
@@ -471,7 +488,7 @@ export const articleService: ArticleService = {
         language: patch.language,
         author: patch.author,
         body: patch.body,
-        heroImage: patch.heroImage,
+        heroImage: patch.heroImage ? await withImageMetadata(patch.heroImage) : patch.heroImage,
         featured: patch.featured,
         tags: patch.tags,
         seo: patch.seo ? mergeSeo(current.seo, patch.seo) : undefined,

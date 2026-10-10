@@ -20,7 +20,7 @@ const ADMIN_PASSWORD = 'super-secret-pw';
 
 const fakeUploadService: UploadService = {
   async uploadImage(_buffer, filename) {
-    return { url: `https://cdn.example.test/articles/${filename}` };
+    return { url: `https://cdn.example.test/articles/${filename}`, variants: [] };
   },
 };
 
@@ -644,7 +644,7 @@ describe('GWJ API', () => {
         .set('authorization', `Bearer ${token}`)
         .send({ url: 'https://images.example.com/news/rig.png' });
       expect(res.status).toBe(201);
-      expect(res.body).toEqual({ url: 'https://cdn.example.test/articles/rig.png' });
+      expect(res.body).toEqual({ url: 'https://cdn.example.test/articles/rig.png', variants: [] });
     });
 
     it('POST /upload/from-url requires a token and a valid url', async () => {

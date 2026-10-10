@@ -66,7 +66,8 @@ describe('createUploadService image optimization', () => {
 
     const result = await service.uploadImage(original, 'hero.jpg', 'image/jpeg');
 
-    expect(captured).toHaveLength(1);
+    // The main image plus a narrower rendition at each srcset width below it.
+    expect(captured).toHaveLength(4);
     const put = captured[0];
     if (!put) throw new Error('no PutObject captured');
     expect(put.ContentType).toBe('image/webp');
@@ -79,6 +80,30 @@ describe('createUploadService image optimization', () => {
     expect(Math.max(meta.width ?? 0, meta.height ?? 0)).toBe(1600);
     // WebP at q80 of a flat image is dramatically smaller than the source JPEG.
     expect(put.Body.byteLength).toBeLessThan(original.byteLength);
+  });
+
+  it('stores srcset renditions beside the main image and reports them', async () => {
+    const service = createUploadService(env);
+    const result = await service.uploadImage(await largeJpeg(1920, 1280), 'hero.jpg', 'image/jpeg');
+
+    expect(result.width).toBe(1600);
+    expect(result.height).toBe(1067);
+    expect(result.variants.map((variant) => variant.width)).toEqual([400, 800, 1200]);
+    const main = captured[0];
+    if (!main) throw new Error('no PutObject captured');
+    for (const variant of result.variants) {
+      const put = captured.find((candidate) => variant.url.endsWith(candidate.Key));
+      if (!put) throw new Error(`variant ${variant.width} not stored`);
+      expect(put.Key).toBe(main.Key.replace(/\.webp$/, `.w${variant.width}.webp`));
+      expect(put.ContentType).toBe('image/webp');
+      expect((await sharp(put.Body).metadata()).width).toBe(variant.width);
+    }
+  });
+
+  it('makes only the renditions narrower than the image itself', async () => {
+    const service = createUploadService(env);
+    const result = await service.uploadImage(await largeJpeg(900, 600), 'mid.jpg', 'image/jpeg');
+    expect(result.variants.map((variant) => variant.width)).toEqual([400, 800]);
   });
 
   it('downscales a large PNG to a smaller WebP', async () => {

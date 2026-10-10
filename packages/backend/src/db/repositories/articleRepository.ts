@@ -29,7 +29,16 @@ function queryTsConfig(language: Language): SQL {
 export function rowToArticle(row: ArticleRow): Article {
   const hero = row.heroImage;
   const heroImage: HeroImage | undefined = hero
-    ? { url: hero.url, caption: hero.caption, credit: hero.credit, alt: hero.alt ?? '' }
+    ? {
+        url: hero.url,
+        caption: hero.caption,
+        credit: hero.credit,
+        alt: hero.alt ?? '',
+        // Server-recorded size and srcset renditions (see mediaService).
+        ...(hero.width ? { width: hero.width } : {}),
+        ...(hero.height ? { height: hero.height } : {}),
+        ...(hero.variants?.length ? { variants: hero.variants } : {}),
+      }
     : undefined;
   const seo: Seo = {
     metaTitle: row.seo.metaTitle,

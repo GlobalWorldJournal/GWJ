@@ -66,4 +66,31 @@ describe('ArticleCard', () => {
       screen.getByRole('heading', { name: 'Global Equities Climb Again' }),
     ).toBeInTheDocument();
   });
+
+  it('a list thumbnail asks for the smallest rendition through srcset/sizes', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <LanguageProvider>
+          <ArticleCard
+            variant="list"
+            showImage
+            article={makeArticle({
+              heroImage: {
+                url: 'https://cdn.test/h.webp',
+                alt: 'A trader',
+                width: 1600,
+                height: 1067,
+                variants: [{ width: 400, url: 'https://cdn.test/h.w400.webp' }],
+              },
+            })}
+          />
+        </LanguageProvider>
+      </MemoryRouter>,
+    );
+    const img = container.querySelector('img');
+    expect(img?.getAttribute('srcset')).toBe(
+      'https://cdn.test/h.w400.webp 400w, https://cdn.test/h.webp 1600w',
+    );
+    expect(img?.getAttribute('sizes')).toBe('72px');
+  });
 });
