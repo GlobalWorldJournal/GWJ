@@ -1,9 +1,12 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import {
+  ActiveAdQuerySchema,
   CATEGORIES,
   categorySlug,
   PublicArticleListQuerySchema,
   TakedownRequestInputSchema,
+  type ActiveAdQuery,
+  type ActiveAdResponse,
   type Article,
   type PaginatedArticles,
   type PaginatedPublicArticles,
@@ -11,6 +14,7 @@ import {
   type PublicArticleListQuery,
   type TakedownRequestInput,
 } from '@gwj/shared-types';
+import { adCampaignService } from '../services/adCampaignService';
 import { articleService } from '../services/articleService';
 import { takedownService } from '../services/takedownService';
 import { validate } from '../middleware/validate';
@@ -38,6 +42,12 @@ function toPublicPage(page: PaginatedArticles): PaginatedPublicArticles {
  * for five more: a newly published story shows up within a minute.
  */
 const PUBLIC_CACHE_CONTROL = 'public, max-age=60, stale-while-revalidate=300';
+
+/**
+ * The slot answer is cached for a minute but never served stale: a paused or
+ * ended campaign leaves the page within a minute, not six.
+ */
+const AD_CACHE_CONTROL = 'public, max-age=60';
 
 export function createPublicRouter(): Router {
   const router = Router();
@@ -88,6 +98,20 @@ export function createPublicRouter(): Router {
       if (!q) throw new BadRequestError('Query parameter "q" is required');
       const result = await articleService.search(q, query);
       res.json(toPublicPage(result));
+    },
+  );
+
+  // Which directly sold campaign (if any) fills this slot right now. `campaign`
+  // is null rather than a 404 when there is none: that is the normal case, and
+  // the reader site then renders AdSense.
+  router.get(
+    '/ad-campaigns/active',
+    validate(ActiveAdQuerySchema, 'query'),
+    async (req: Request, res: Response) => {
+      const { variant } = req.validatedQuery as ActiveAdQuery;
+      const body: ActiveAdResponse = { campaign: await adCampaignService.findActive(variant) };
+      res.set('Cache-Control', AD_CACHE_CONTROL);
+      res.json(body);
     },
   );
 

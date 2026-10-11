@@ -1,6 +1,11 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import {
+  AD_CREATIVE_MIN_HEIGHT,
+  AD_CREATIVE_MIN_WIDTH,
+  AdCampaignInputSchema,
+  AdCampaignListQuerySchema,
+  AdCampaignUpdateSchema,
   ArticleInputSchema,
   ArticleListQuerySchema,
   ArticleUpdateSchema,
@@ -9,6 +14,9 @@ import {
   TakedownActionSchema,
   TakedownListQuerySchema,
   UploadFromUrlInputSchema,
+  type AdCampaignInput,
+  type AdCampaignListQuery,
+  type AdCampaignUpdate,
   type ArticleInput,
   type ArticleListQuery,
   type ArticleUpdate,
@@ -18,10 +26,11 @@ import {
   type TakedownListQuery,
   type UploadFromUrlInput,
 } from '@gwj/shared-types';
-import { validateImageBuffer } from '@gwj/shared-types/image-validation';
+import { validateImageBuffer, type ValidateImageOptions } from '@gwj/shared-types/image-validation';
+import { adCampaignService } from '../services/adCampaignService';
 import { articleService } from '../services/articleService';
 import { takedownService } from '../services/takedownService';
-import { type UploadService } from '../services/uploadService';
+import type { UploadImageOptions, UploadService } from '../services/uploadService';
 import { fetchRemoteImage, type RemoteImageOptions } from '../services/remoteImageService';
 import {
   assertScope,
@@ -49,6 +58,35 @@ function revisionIdOf(req: Request): number {
   if (!Number.isSafeInteger(value) || value < 1) throw new NotFoundError('Revision not found');
   return value;
 }
+
+/**
+ * The uploaded file, validated at the request boundary so a bad upload gets an
+ * actionable 422 (the agent/admin can re-source the image) before any S3 work.
+ * The upload service validates again as the authoritative last line of defense.
+ */
+function requireImageFile(
+  req: Request,
+  dimensions: Pick<ValidateImageOptions, 'minWidth' | 'minHeight'> = {},
+): Express.Multer.File {
+  const file = req.file;
+  if (!file) throw new BadRequestError('No file uploaded (expected field "file")');
+  const validation = validateImageBuffer(file.buffer, {
+    declaredMime: file.mimetype,
+    ...dimensions,
+  });
+  if (!validation.ok) {
+    throw new UnprocessableEntityError(`Rejected image upload: ${validation.message}`, {
+      reason: validation.reason,
+    });
+  }
+  return file;
+}
+
+/** Ad creatives are banner-sized, far below the article-image floor. */
+const AD_CREATIVE_DIMENSIONS: UploadImageOptions = {
+  minWidth: AD_CREATIVE_MIN_WIDTH,
+  minHeight: AD_CREATIVE_MIN_HEIGHT,
+};
 
 export function createAdminRouter(
   jwtSecret: string,
@@ -176,20 +214,8 @@ export function createAdminRouter(
     requireScope('media:upload'),
     upload.single('file'),
     async (req: Request, res: Response) => {
-      const file = req.file;
-      if (!file) throw new BadRequestError('No file uploaded (expected field "file")');
-
-      // Validate at the request boundary so a bad upload gets an actionable 422
-      // (the agent/admin can re-source the image) before any S3 work. The upload
-      // service validates again as the authoritative last line of defense.
       // Defaults enforce the canonical min width/height and byte cap.
-      const validation = validateImageBuffer(file.buffer, { declaredMime: file.mimetype });
-      if (!validation.ok) {
-        throw new UnprocessableEntityError(`Rejected image upload: ${validation.message}`, {
-          reason: validation.reason,
-        });
-      }
-
+      const file = requireImageFile(req);
       const result = await uploadService.uploadImage(file.buffer, file.originalname, file.mimetype);
       res.status(201).json(result);
     },
@@ -238,6 +264,55 @@ export function createAdminRouter(
       res.json(record);
     },
   );
+
+  // Directly sold ads carry advertisers' contacts and the paper's revenue:
+  // people only, never an agent token, whatever its scopes.
+  router.use('/ad-campaigns', requireUser());
+  router.get(
+    '/ad-campaigns',
+    validate(AdCampaignListQuerySchema, 'query'),
+    async (req: Request, res: Response) => {
+      res.json(await adCampaignService.list(req.validatedQuery as AdCampaignListQuery));
+    },
+  );
+  router.post(
+    '/ad-campaigns',
+    validate(AdCampaignInputSchema),
+    async (req: Request, res: Response) => {
+      res.status(201).json(await adCampaignService.create(req.body as AdCampaignInput));
+    },
+  );
+  // The creative goes through the same S3/CDN pipeline as article images, with
+  // the banner-sized floor; the returned URL is then saved as `imageUrl`.
+  router.post(
+    '/ad-campaigns/creative',
+    upload.single('file'),
+    async (req: Request, res: Response) => {
+      const file = requireImageFile(req, AD_CREATIVE_DIMENSIONS);
+      const result = await uploadService.uploadImage(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+        AD_CREATIVE_DIMENSIONS,
+      );
+      res.status(201).json(result);
+    },
+  );
+  router.get('/ad-campaigns/:id', async (req: Request, res: Response) => {
+    res.json(await adCampaignService.getById(requireParam(req, 'id')));
+  });
+  router.patch(
+    '/ad-campaigns/:id',
+    validate(AdCampaignUpdateSchema),
+    async (req: Request, res: Response) => {
+      const patch = req.body as AdCampaignUpdate;
+      res.json(await adCampaignService.update(requireParam(req, 'id'), patch));
+    },
+  );
+  router.delete('/ad-campaigns/:id', async (req: Request, res: Response) => {
+    await adCampaignService.remove(requireParam(req, 'id'));
+    res.status(204).end();
+  });
 
   // Agent credentials are managed by people only, never by an agent.
   router.get('/tokens', requireUser(), async (_req: Request, res: Response) => {

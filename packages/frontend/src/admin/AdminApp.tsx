@@ -8,6 +8,7 @@ import { Login } from './Login';
 import { Dashboard } from './Dashboard';
 import { Editor } from './Editor';
 import { Takedowns } from './Takedowns';
+import { AdCampaigns } from './AdCampaigns';
 import { NotFound } from '../pages/NotFound';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -96,6 +97,14 @@ export function AdminApp() {
             element={
               <RequireAuth>
                 <Takedowns />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="ad-campaigns"
+            element={
+              <RequireAuth>
+                <AdCampaigns />
               </RequireAuth>
             }
           />

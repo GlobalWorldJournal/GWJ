@@ -58,6 +58,12 @@ export function Dashboard() {
         <div className="flex items-center gap-4">
           <span className="label text-[0.6875rem] text-muted">{user?.username}</span>
           <Link
+            to="/admin/ad-campaigns"
+            className="label text-[0.75rem] text-ink-soft transition-colors hover:text-accent"
+          >
+            Advertising
+          </Link>
+          <Link
             to="/admin/takedown-requests"
             className="label text-[0.75rem] text-ink-soft transition-colors hover:text-accent"
           >

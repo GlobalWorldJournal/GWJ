@@ -85,6 +85,9 @@ describe('indexes exist (no functional test can detect a missing index)', () => 
     'followers_actor_username_followed_at_idx',
     'takedown_requests_pkey',
     'takedown_requests_status_created_at_idx',
+    'ad_campaigns_pkey',
+    'ad_campaigns_live_idx',
+    'ad_campaigns_status_created_at_idx',
   ];
 
   it('every ported index is present by name, and a bogus name is absent', async () => {

@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import type { AdVariant, PublicAdCampaign } from '@gwj/shared-types';
+import { getActiveAdCampaign } from '../lib/api';
 import { useLang } from '../lib/i18n';
-
-type AdVariant = 'leaderboard' | 'mrec' | 'inline';
 
 interface AdSlotProps {
   variant?: AdVariant;
@@ -44,19 +45,74 @@ declare global {
 }
 
 /**
- * A labelled, real AdSense unit. AdSense's script renders one `<ins>` per
- * `push({})` call — in an SPA, that has to happen again on every mount (a
- * single page-load script tag only ever renders the first one it finds), so
- * each slot pushes its own request once it's in the DOM.
+ * A real AdSense unit. AdSense's script renders one `<ins>` per `push({})`
+ * call — in an SPA, that has to happen again on every mount (a single
+ * page-load script tag only ever renders the first one it finds), so each
+ * unit pushes its own request once it's in the DOM.
  */
-export function AdSlot({ variant = 'mrec', sticky = true, className }: AdSlotProps) {
-  const { t } = useLang();
+function AdSenseUnit({ variant }: { variant: AdVariant }) {
   const unit = AD_UNITS[variant];
 
   useEffect(() => {
     window.adsbygoogle = window.adsbygoogle || [];
-    window.adsbygoogle.push({});
+    try {
+      window.adsbygoogle.push({});
+    } catch (error) {
+      // Once adsbygoogle.js has loaded, its `push` throws synchronously when it
+      // cannot fill a unit (no unfilled <ins> left, zero available width). An
+      // unfilled ad must never unmount the page around it: report the error
+      // and leave this slot empty.
+      window.reportError(error);
+    }
   }, []);
+
+  return (
+    <ins
+      className={`adsbygoogle block ${SIZE[variant]}`}
+      style={{ display: 'block' }}
+      data-ad-client={ADSENSE_CLIENT}
+      data-ad-slot={unit.slot}
+      data-ad-format={unit.format}
+      data-ad-layout-key={unit.layoutKey}
+      data-full-width-responsive={unit.layoutKey ? undefined : 'true'}
+    />
+  );
+}
+
+/** A directly sold creative. `sponsored`: a paid link must not pass search ranking. */
+function DirectAd({ campaign, variant }: { campaign: PublicAdCampaign; variant: AdVariant }) {
+  return (
+    <a
+      href={campaign.clickUrl}
+      target="_blank"
+      rel="sponsored noopener noreferrer"
+      className={`flex items-center justify-center overflow-hidden ${SIZE[variant]}`}
+    >
+      <img
+        src={campaign.imageUrl}
+        alt={campaign.advertiserName}
+        loading="lazy"
+        className="max-h-full max-w-full object-contain"
+      />
+    </a>
+  );
+}
+
+/**
+ * A labelled ad slot. A directly sold campaign scheduled for this variant
+ * takes the slot; otherwise (none booked, or the lookup failed) AdSense fills
+ * it. AdSense is only mounted once that answer is in, so it never requests an
+ * ad for a slot a direct campaign then takes over.
+ */
+export function AdSlot({ variant = 'mrec', sticky = true, className }: AdSlotProps) {
+  const { t } = useLang();
+  const { data, isPending } = useQuery({
+    queryKey: ['ad-campaign', 'active', variant],
+    queryFn: ({ signal }) => getActiveAdCampaign(variant, signal),
+    // A failed lookup falls straight back to AdSense rather than holding the slot empty.
+    retry: false,
+  });
+  const campaign = data?.campaign ?? null;
 
   return (
     <aside
@@ -65,15 +121,13 @@ export function AdSlot({ variant = 'mrec', sticky = true, className }: AdSlotPro
       <span className="label mb-1 text-[0.5625rem] tracking-[0.18em] text-muted">
         {t('advertisement')}
       </span>
-      <ins
-        className={`adsbygoogle block ${SIZE[variant]}`}
-        style={{ display: 'block' }}
-        data-ad-client={ADSENSE_CLIENT}
-        data-ad-slot={unit.slot}
-        data-ad-format={unit.format}
-        data-ad-layout-key={unit.layoutKey}
-        data-full-width-responsive={unit.layoutKey ? undefined : 'true'}
-      />
+      {isPending ? (
+        <div className={`block ${SIZE[variant]}`} aria-hidden="true" />
+      ) : campaign ? (
+        <DirectAd campaign={campaign} variant={variant} />
+      ) : (
+        <AdSenseUnit variant={variant} />
+      )}
     </aside>
   );
 }

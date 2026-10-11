@@ -31,8 +31,19 @@ function withExtension(filename: string, extension: string): string {
   return `${withoutExt}.${extension}`;
 }
 
+/** Per-call overrides of the image-validation floor (the article-image defaults otherwise). */
+export interface UploadImageOptions {
+  minWidth?: number;
+  minHeight?: number;
+}
+
 export interface UploadService {
-  uploadImage(buffer: Buffer, filename: string, contentType: string): Promise<UploadResponse>;
+  uploadImage(
+    buffer: Buffer,
+    filename: string,
+    contentType: string,
+    options?: UploadImageOptions,
+  ): Promise<UploadResponse>;
   /**
    * Store an already-correctly-encoded image exactly as given, under its own
    * key prefix — no resize, no re-encode to WebP. For bytes a caller has
@@ -80,12 +91,16 @@ export function createUploadService(env: Env): UploadService {
   }
 
   return {
-    async uploadImage(buffer, filename, contentType) {
+    async uploadImage(buffer, filename, contentType, options = {}) {
       // Authoritative server-side validation: never store an image that is not a
       // complete, decodable file of an allowed type at a usable size. This is the
       // single chokepoint in front of S3, so it protects every caller (admin UI,
       // MCP/agents, scripts) regardless of what the client claims the file is.
-      const validation = validateImageBuffer(buffer, { declaredMime: contentType });
+      const validation = validateImageBuffer(buffer, {
+        declaredMime: contentType,
+        minWidth: options.minWidth,
+        minHeight: options.minHeight,
+      });
       if (!validation.ok) {
         throw new UnprocessableEntityError(`Rejected image upload: ${validation.message}`, {
           reason: validation.reason,

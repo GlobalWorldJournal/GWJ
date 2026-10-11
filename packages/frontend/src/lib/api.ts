@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import {
+  ActiveAdResponseSchema,
+  AdCampaignSchema,
+  PaginatedAdCampaignsSchema,
   ArticleRevisionSummarySchema,
   ArticleSchema,
   PaginatedArticlesSchema,
@@ -29,6 +32,13 @@ import {
   type PaginatedTakedownRequests,
   type TakedownAction,
   type TakedownStatus,
+  type ActiveAdResponse,
+  type AdCampaign,
+  type AdCampaignInput,
+  type AdCampaignStatus,
+  type AdCampaignUpdate,
+  type AdVariant,
+  type PaginatedAdCampaigns,
 } from '@gwj/shared-types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -288,11 +298,11 @@ export function unpublishArticle(token: string, id: string): Promise<Article> {
   });
 }
 
-export async function uploadImage(token: string, file: File): Promise<UploadResponse> {
+async function uploadFile(path: string, token: string, file: File): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(buildUrl('/api/admin/upload'), {
+  const response = await fetch(buildUrl(path), {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
@@ -305,9 +315,13 @@ export async function uploadImage(token: string, file: File): Promise<UploadResp
   const payload: unknown = await response.json();
   const parsed = UploadResponseSchema.safeParse(payload);
   if (!parsed.success) {
-    throw new ApiContractError('/api/admin/upload', parsed.error.issues);
+    throw new ApiContractError(path, parsed.error.issues);
   }
   return parsed.data;
+}
+
+export function uploadImage(token: string, file: File): Promise<UploadResponse> {
+  return uploadFile('/api/admin/upload', token, file);
 }
 
 /** Public submission; the server deliberately echoes back only `{ id, status }`, never the full record. */
@@ -356,4 +370,69 @@ export function actionTakedownRequest(
       token,
     },
   );
+}
+
+/** The directly sold campaign filling this slot right now; `campaign: null` means AdSense. */
+export function getActiveAdCampaign(
+  variant: AdVariant,
+  signal?: AbortSignal,
+): Promise<ActiveAdResponse> {
+  return request('/api/ad-campaigns/active', ActiveAdResponseSchema, {
+    params: { variant },
+    signal,
+  });
+}
+
+export interface AdminAdCampaignsQuery {
+  status?: AdCampaignStatus;
+  page?: number;
+  limit?: number;
+}
+
+export function getAdminAdCampaigns(
+  token: string,
+  query: AdminAdCampaignsQuery = {},
+  signal?: AbortSignal,
+): Promise<PaginatedAdCampaigns> {
+  return request('/api/admin/ad-campaigns', PaginatedAdCampaignsSchema, {
+    token,
+    params: { status: query.status, page: query.page, limit: query.limit },
+    signal,
+  });
+}
+
+export function createAdCampaign(token: string, input: AdCampaignInput): Promise<AdCampaign> {
+  return request('/api/admin/ad-campaigns', AdCampaignSchema, {
+    method: 'POST',
+    body: input,
+    token,
+  });
+}
+
+export function updateAdCampaign(
+  token: string,
+  id: string,
+  patch: AdCampaignUpdate,
+): Promise<AdCampaign> {
+  return request(`/api/admin/ad-campaigns/${encodeURIComponent(id)}`, AdCampaignSchema, {
+    method: 'PATCH',
+    body: patch,
+    token,
+  });
+}
+
+/** Permanently delete a campaign (the server answers 204 No Content). */
+export async function deleteAdCampaign(token: string, id: string): Promise<void> {
+  const response = await fetch(buildUrl(`/api/admin/ad-campaigns/${encodeURIComponent(id)}`), {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw await readError(response);
+  }
+}
+
+/** Upload a creative through the S3/CDN pipeline with the banner-sized floor. */
+export function uploadAdCreative(token: string, file: File): Promise<UploadResponse> {
+  return uploadFile('/api/admin/ad-campaigns/creative', token, file);
 }
