@@ -61,6 +61,11 @@ data "aws_iam_policy_document" "ecs_task_s3" {
     actions = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
     resources = [
       "${aws_s3_bucket.media.arn}/articles/*",
+      # Instagram's generated headline-card images (instagramChannel.ts's
+      # SOCIAL_CARD_KEY_PREFIX) — never granted here when that channel
+      # shipped, so every Instagram publish has been failing outright on
+      # s3:PutObject, confirmed live in production logs.
+      "${aws_s3_bucket.media.arn}/social-cards/*",
     ]
   }
   statement {
@@ -70,7 +75,7 @@ data "aws_iam_policy_document" "ecs_task_s3" {
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
-      values   = ["articles/*"]
+      values   = ["articles/*", "social-cards/*"]
     }
   }
 }
