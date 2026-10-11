@@ -39,8 +39,8 @@ export const followerService: FollowerService = {
         target: [followers.actorUsername, followers.actorId],
         set: {
           inbox: sql`excluded.inbox`,
-          // Mongo's `$set: { sharedInbox: undefined }` was a NO-OP, so a re-Follow
-          // that omits the shared inbox kept the one already stored. Writing
+          // A re-Follow that omits the shared inbox keeps the one already stored:
+          // an absent field is "not stated", not "removed". Writing
           // `excluded.shared_inbox` (NULL) would silently erase it.
           sharedInbox: sql`coalesce(excluded.shared_inbox, ${followers.sharedInbox})`,
           updatedAt: now,

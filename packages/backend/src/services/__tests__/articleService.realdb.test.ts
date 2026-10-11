@@ -131,8 +131,8 @@ describe('articleService', () => {
   });
 });
 
-describe('articleService — PostgreSQL port semantics', () => {
-  it('mints 24-hex ids (the ObjectId shape every existing id already has)', async () => {
+describe('articleService — PostgreSQL semantics', () => {
+  it('mints 24-hex ids (the record id format, see db/ids.ts)', async () => {
     const article = await articleService.create(baseInput());
     expect(article.id).toMatch(/^[0-9a-f]{24}$/);
   });
@@ -150,7 +150,7 @@ describe('articleService — PostgreSQL port semantics', () => {
     );
   });
 
-  it('omits absent optional fields from the DTO, as the Mongo mapping did', async () => {
+  it('omits absent optional fields from the DTO', async () => {
     const article = await articleService.create(baseInput());
     expect('deck' in article && article.deck !== undefined).toBe(false);
     expect(article.heroImage).toBeUndefined();

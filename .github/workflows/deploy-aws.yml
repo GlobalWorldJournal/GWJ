@@ -111,21 +111,6 @@ jobs:
           scripts/ecs-oneshot.sh "${{ matrix.service }}" "migrate-pre-${GITHUB_SHA::12}" -- \
             bun run src/db/migrate.ts --phase=pre "--target-database=$PG_DATABASE"
 
-      # ONE-TIME, for the MongoDB -> PostgreSQL cutover only (docs/POSTGRES-CUTOVER.md).
-      # Runs only while the repository variable GWJ_PG_CUTOVER is exactly `copy`;
-      # copies Mongo into the freshly migrated schema and verifies it by checksum
-      # BEFORE the new image takes traffic, so no task ever serves an empty database.
-      # It refuses (and fails the deploy) on a target that has diverged, so a
-      # forgotten variable cannot overwrite PostgreSQL writes. Deleted with Mongo.
-      - name: Cutover — copy MongoDB into PostgreSQL and verify (one-shot)
-        if: matrix.app == 'backend' && vars.GWJ_PG_CUTOVER == 'copy'
-        env:
-          TASK_DEFINITION: ${{ steps.release.outputs.task-definition }}
-        run: |
-          scripts/ecs-oneshot.sh "${{ matrix.service }}" "pg-cutover-${GITHUB_SHA::12}" -- \
-            bun run /app/packages/mongo-migration/src/cli.ts copy \
-            --source-database=gwj "--target-database=$PG_DATABASE"
-
       - name: Roll out the release
         run: |
           aws ecs update-service \

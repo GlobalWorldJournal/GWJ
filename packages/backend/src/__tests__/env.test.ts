@@ -23,7 +23,6 @@ const AWS_KEYS = [
   'NODE_ENV',
   'PORT',
   'DATABASE_URL',
-  'MONGO_URI',
   'JWT_SECRET',
   'ADMIN_USERNAME',
   'ADMIN_PASSWORD',
@@ -127,18 +126,11 @@ describe('env — PostgreSQL connection string', () => {
     expect(() => loadEnv()).toThrow(/DATABASE_URL/);
   });
 
-  it("rejects the placeholder '-' and a non-postgres URL (e.g. a leftover mongodb:// value)", () => {
+  it("rejects the placeholder '-' and a non-postgres URL", () => {
     applyEnv({ ...baseEnv(), DATABASE_URL: '-' });
     expect(() => loadEnv()).toThrow(/DATABASE_URL/);
-    applyEnv({ ...baseEnv(), DATABASE_URL: 'mongodb://10.20.1.92:27017/gwj' });
+    applyEnv({ ...baseEnv(), DATABASE_URL: 'mysql://gwj:gwj@localhost:3306/gwj' });
     expect(() => loadEnv()).toThrow(/DATABASE_URL must be a postgres/);
-  });
-
-  it('boots while the task definition still carries MONGO_URI (cutover transition) and ignores it', () => {
-    applyEnv({ ...baseEnv(), MONGO_URI: 'mongodb://10.20.1.92:27017/gwj' });
-    const env = loadEnv();
-    expect(env.DATABASE_URL).toBe('postgres://gwj:gwj@localhost:5432/gwj_test');
-    expect(Object.keys(env)).not.toContain('MONGO_URI');
   });
 });
 

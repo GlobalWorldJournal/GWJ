@@ -1,10 +1,10 @@
 # Global World Journal (GWJ) — Design Spec
 
-> **Historical (design spec of 2026-06-23).** Kept as the record of the original v1 intent; it is NOT the current architecture. It predates the PostgreSQL port (MongoDB/Mongoose below are gone), the OIDC/SSM secret model and the CI-gated, digest-pinned deploys. Current sources of truth: `AGENTS.md`, `docs/DATABASE.md`, `docs/INFRA.md`, `infra/`.
+> **Historical (design spec of 2026-06-23).** Kept as the record of the original v1 intent; it is NOT the current architecture. Its database choice is stated as it is now (PostgreSQL + Drizzle, `DATABASE_URL`); it predates the OIDC/SSM secret model and the CI-gated, digest-pinned deploys. Current sources of truth: `AGENTS.md`, `docs/DATABASE.md`, `docs/INFRA.md`, `infra/`.
 
 **Date:** 2026-06-23
 **Domain:** globalworldjournal.com (Cloudflare DNS)
-**Goal:** A WSJ-style news site for "Global World Journal" — public reader site + admin CMS + an MCP server so AI agents can manage the newspaper. Vite + Tailwind frontend, MongoDB + Zod backend, deployed on AWS (backend) + Cloudflare Pages (frontend).
+**Goal:** A WSJ-style news site for "Global World Journal" — public reader site + admin CMS + an MCP server so AI agents can manage the newspaper. Vite + Tailwind frontend, PostgreSQL (Drizzle) + Zod backend, deployed on AWS (backend) + Cloudflare Pages (frontend).
 
 ## Scope (v1)
 - **Reader site** — public homepage (WSJ-style dense grid) + article pages + category pages + search.
@@ -20,7 +20,7 @@ Bun monorepo, `packages/` layout. One Zod source of truth shared by API, MCP, an
 GWJ/
   packages/
     shared-types/   @gwj/shared-types — Zod schemas + inferred TS types (Article, Category, User, DTOs)
-    backend/        @gwj/backend     — Express 5 + Mongoose 8 + Zod; REST API; admin JWT; S3 upload
+    backend/        @gwj/backend     — Express 5 + Drizzle (PostgreSQL) + Zod; REST API; admin JWT; S3 upload
     mcp/            @gwj/mcp         — @modelcontextprotocol/sdk HTTP server; tools call backend service layer
     frontend/       @gwj/frontend    — Vite 6 + React 19 + TS + Tailwind 4 (SPA) + public/_worker.js (SEO)
   bunfig.toml       # linker = "hoisted"
@@ -28,9 +28,9 @@ GWJ/
   tsconfig.base.json
 ```
 
-Data flow: agents/admin → (MCP tools | admin REST) → backend service layer → MongoDB / S3. Readers → SPA → public REST. Crawlers → CF `_worker.js` → prerendered HTML + JSON-LD.
+Data flow: agents/admin → (MCP tools | admin REST) → backend service layer → PostgreSQL / S3. Readers → SPA → public REST. Crawlers → CF `_worker.js` → prerendered HTML + JSON-LD.
 
-## Data model (Zod in shared-types → Mongoose models)
+## Data model (Zod in shared-types → Drizzle tables)
 **Article**
 - `slug` (string, unique, kebab) · `title` · `deck` (subhead) · `kicker` (eyebrow label) · `category` (enum) · `author` (string)
 - `body`: ordered array of content blocks — `{type:'paragraph', text}` | `{type:'heading', text}` | `{type:'image', url, caption?, credit?}` | `{type:'quote', text, attribution?}` | `{type:'list', ordered, items[]}`
@@ -85,15 +85,15 @@ Tools call the backend **service layer** directly (same process or internal HTTP
 
 ## Infra / deploy
 - **Backend + MCP:** Docker ARM64 → ECR → ECS Fargate (mirror Oxy pattern). ALB host rules: `api.globalworldjournal.com` → backend:PORT, `mcp.globalworldjournal.com` → mcp:PORT. (Or single service exposing both; decide in plan.)
-- **DB:** MongoDB Atlas M0 (new, free, isolated from Oxy). `MONGO_URI` secret.
+- **DB:** PostgreSQL 17 — own database `gwj` (own role `gwj`) on the shared RDS instance `oxy-postgres`; no data shared with Oxy. `DATABASE_URL` secret.
 - **Media:** S3 bucket `gwj-media` + CloudFront `cdn.globalworldjournal.com`. Public read via CDN; uploads via signed backend.
 - **Frontend:** Cloudflare Pages, `globalworldjournal.com` + `www`. Build = `bun run build` (Vite) producing `dist/` with `_worker.js`.
-- **Secrets:** GitHub Actions repo secrets → SSM `/gwj/*`. `JWT_SECRET`, `MONGO_URI`, `MCP_TOKEN`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `AWS_*`, `S3_BUCKET`, `CDN_BASE_URL`. Never commit values; guard placeholders.
+- **Secrets:** GitHub Actions repo secrets → SSM `/gwj/*`. `JWT_SECRET`, `DATABASE_URL`, `MCP_TOKEN`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `AWS_*`, `S3_BUCKET`, `CDN_BASE_URL`. Never commit values; guard placeholders.
 - **CI:** `.github/workflows/deploy-aws.yml` (build+push+ECS deploy) · `deploy-cloudflare.yml` (Pages). Pin `bun-version` consistently across CI + Dockerfile.
 
 ## Stack & quality
 - TypeScript strict everywhere. No `as any`, no `@ts-ignore`, no `!`, no silent catches, no hardcoded secrets (per AGENTS.md).
-- Vite 6, React 19, Tailwind 4, Express 5, Mongoose 8, Zod, `@modelcontextprotocol/sdk`, bcrypt, jsonwebtoken, multer + `@aws-sdk/client-s3`.
+- Vite 6, React 19, Tailwind 4, Express 5, Drizzle ORM + postgres.js, Zod, `@modelcontextprotocol/sdk`, bcrypt, jsonwebtoken, multer + `@aws-sdk/client-s3`.
 - **Tests:** Vitest (Zod schema validation, service-layer logic, slug generation, JSON-LD builder) + supertest (API routes incl. auth + validation failures). MCP tool smoke tests against the service layer.
 
 ## Repo
@@ -103,5 +103,5 @@ New repo under the dedicated company GitHub org `GlobalWorldJournal/GWJ` (NOT ox
 - Rendering: A (SPA + `_worker.js` SEO). ✅
 - MCP transport: A (remote HTTP, bearer). ✅
 - Media: A (new S3 + CloudFront). ✅
-- DB: MongoDB Atlas M0 new. ✅
+- DB: PostgreSQL (`gwj` on `oxy-postgres`). ✅
 - Typography: A (Playfair / Libre Franklin / PT Serif). ✅

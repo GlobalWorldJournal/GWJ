@@ -25,7 +25,7 @@ afterAll(async () => {
 const ALICE = 'https://remote.example/users/alice';
 
 describe('followerService (PostgreSQL)', () => {
-  it('a repeat Follow updates the inbox and KEEPS a stored shared inbox it omits (Mongo $set undefined was a no-op)', async () => {
+  it('a repeat Follow updates the inbox and KEEPS a stored shared inbox it omits', async () => {
     await followerService.upsert({
       actorUsername: 'news',
       actorId: ALICE,
@@ -115,7 +115,7 @@ describe('followerService (PostgreSQL)', () => {
 });
 
 describe('resolveActorKeyPair (PostgreSQL)', () => {
-  it('returns a persisted key VERBATIM (keys copied from Mongo must survive)', async () => {
+  it('returns a persisted key VERBATIM (remote servers cached its public half)', async () => {
     await getDb()
       .insert(actorKeys)
       .values({ username: 'news', privateKeyPem: 'PRIVATE-PEM', publicKeyPem: 'PUBLIC-PEM' });

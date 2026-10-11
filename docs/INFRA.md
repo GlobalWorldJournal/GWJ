@@ -8,7 +8,7 @@
 | Reader SPA + SEO worker (`_worker.js`) | Cloudflare Pages project `gwj` → `globalworldjournal.com` + `www` | CI (`deploy-cloudflare.yml`) |
 | Backend `gwj-backend` (port 4000, 2–4 tasks, CPU autoscaling) | ECS Fargate arm64 on the shared `oxy-cluster`, behind `oxy-alb` (`api.globalworldjournal.com`) | terraform (`infra/ecs.tf`) + CI deploys |
 | MCP `gwj-mcp` (port 4100, 1 task) | same, `mcp.globalworldjournal.com` | same |
-| Database | logical db `gwj`, role `gwj`, on `oxy-postgres` (`postgres.internal.oxy.so:5432`, TLS) | created out-of-band (`docs/POSTGRES-CUTOVER.md` §1.2); schema by the deploy's migration one-shots |
+| Database | logical db `gwj`, role `gwj`, on `oxy-postgres` (`postgres.internal.oxy.so:5432`, TLS) | created out-of-band on the instance; schema by the deploy's migration one-shots |
 | Media | private S3 `gwj-media-usw2-<acct>` (versioned) + CloudFront `cdn.globalworldjournal.com` | terraform (`infra/cdn.tf`) |
 | Secrets | SSM `/gwj/*` | terraform-seeded (`infra/ssm.tf`); `DATABASE_URL`, `TELEGRAM_BOT_TOKEN` set out-of-band and imported |
 | Alarms | CloudWatch → SNS `gwj-alerts` | terraform (`infra/monitoring.tf`) |
@@ -31,7 +31,7 @@ Both services log JSON lines. The backend tags each request with an `x-request-i
 
 ## GitHub configuration
 - **Secrets:** `CLOUDFLARE_API_TOKEN` (Pages:Edit), `CLOUDFLARE_ACCOUNT_ID`. Nothing else: AWS access is OIDC, app secrets live in SSM.
-- **Variables:** `VITE_API_BASE_URL` (optional; defaults to `https://api.globalworldjournal.com`). `GWJ_PG_CUTOVER` only during the one-time cutover (now unset).
+- **Variables:** `VITE_API_BASE_URL` (optional; defaults to `https://api.globalworldjournal.com`).
 
 ## Cloudflare Pages runtime variables
 The SEO worker reads `API_BASE_URL` (`https://api.globalworldjournal.com`) and `SITE_URL` (`https://globalworldjournal.com`) — set in the Pages project → Settings → Environment variables (Production). They are distinct from the build-time `VITE_API_BASE_URL`.

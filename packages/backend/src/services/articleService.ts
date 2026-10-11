@@ -268,9 +268,9 @@ function buildPaginated(
 }
 
 /**
- * Compare the way Mongoose decided a path was modified: by value. A JSON round
- * trip drops `undefined` keys first, so `{ url, caption: undefined }` from a patch
- * equals the stored `{ url }`.
+ * Decide whether a field was modified by comparing values, not references. A JSON
+ * round trip drops `undefined` keys first, so `{ url, caption: undefined }` from a
+ * patch equals the stored `{ url }`.
  */
 function sameValue(a: unknown, b: unknown): boolean {
   const normalize = (v: unknown): unknown =>
@@ -285,8 +285,8 @@ function sameValue(a: unknown, b: unknown): boolean {
  * Run a read-modify-write on one article inside a transaction with the row locked
  * (`SELECT … FOR UPDATE`), so two concurrent publishes cannot both observe "draft"
  * and both fan out. Only columns whose value actually changes are written, and
- * `updated_at` moves only when something did — a re-save of identical values was
- * a no-op `save()` under Mongoose and stays one here.
+ * `updated_at` moves only when something did — a re-save of identical values is a
+ * no-op.
  */
 /** The actor recorded for changes no person or agent made directly. */
 export const SYSTEM_ACTOR = 'system';

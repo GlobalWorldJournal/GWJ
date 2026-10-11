@@ -4,13 +4,13 @@ import { UserRoleSchema, type UserRole } from '@gwj/shared-types';
 import { RECORD_ID_SQL_PATTERN } from '../ids';
 import { sqlInList } from '../sqlLiterals';
 
-/** CMS admin accounts. `id` keeps the ObjectId shape: it is the JWT `sub`. */
+/** CMS admin accounts. `id` is a 24-hex record id: it is the JWT `sub`. */
 export const users = pgTable(
   'users',
   {
     id: text().primaryKey(),
     username: text().notNull(),
-    /** bcrypt hash, copied verbatim from Mongo. Never serialized. */
+    /** bcrypt hash. Never serialized. */
     passwordHash: text().notNull(),
     role: text().$type<UserRole>().notNull().default('admin'),
     createdAt: timestamp({ withTimezone: true, mode: 'date' }).notNull().defaultNow(),

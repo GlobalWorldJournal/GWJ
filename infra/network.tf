@@ -25,26 +25,3 @@ resource "aws_security_group" "tasks" {
   }
   tags = { Name = "${var.prefix}-tasks-sg" }
 }
-
-# Dedicated Mongo SG: 27017 reachable ONLY from the GWJ tasks SG. No public/SSH
-# ingress (instance access is via SSM).
-resource "aws_security_group" "mongo" {
-  name        = "${var.prefix}-mongo-sg"
-  description = "GWJ self-hosted mongodb - from GWJ Fargate tasks only"
-  vpc_id      = local.vpc_id
-
-  ingress {
-    description     = "mongo from gwj fargate tasks"
-    from_port       = 27017
-    to_port         = 27017
-    protocol        = "tcp"
-    security_groups = [aws_security_group.tasks.id]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = { Name = "${var.prefix}-mongo-sg" }
-}

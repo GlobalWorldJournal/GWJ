@@ -40,9 +40,6 @@ resource "aws_ecs_task_definition" "backend" {
     ]
     secrets = [
       { name = "DATABASE_URL", valueFrom = aws_ssm_parameter.database_url.arn },
-      # Read ONLY by the one-time cutover copy (packages/mongo-migration); the
-      # PostgreSQL backend ignores it. Removed at the Mongo decommission.
-      { name = "MONGO_URI", valueFrom = aws_ssm_parameter.mongo_uri.arn },
       { name = "JWT_SECRET", valueFrom = aws_ssm_parameter.jwt_secret.arn },
       { name = "ADMIN_USERNAME", valueFrom = aws_ssm_parameter.admin_username.arn },
       { name = "ADMIN_PASSWORD", valueFrom = aws_ssm_parameter.admin_password.arn },

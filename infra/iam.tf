@@ -81,94 +81,6 @@ resource "aws_iam_role_policy" "ecs_task_s3" {
   policy = data.aws_iam_policy_document.ecs_task_s3.json
 }
 
-# === EC2 role + instance profile for the dedicated Mongo box ===
-data "aws_iam_policy_document" "mongo_ec2_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["ec2.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_role" "mongo" {
-  name               = "${var.prefix}-mongo"
-  assume_role_policy = data.aws_iam_policy_document.mongo_ec2_assume.json
-}
-
-# SSM-managed instance access (no SSH; matches Oxy's "access via SSM" posture):
-# Session Manager and Run Command only. Not AmazonSSMManagedInstanceCore, whose
-# `ssm:GetParameter(s)` on `*` let this host read every parameter in the
-# account; the host reads only /gwj/mongo_* (below).
-data "aws_iam_policy_document" "mongo_session_manager" {
-  statement {
-    sid = "SessionManager"
-    actions = [
-      "ssm:UpdateInstanceInformation",
-      "ssmmessages:CreateControlChannel",
-      "ssmmessages:CreateDataChannel",
-      "ssmmessages:OpenControlChannel",
-      "ssmmessages:OpenDataChannel",
-      "ec2messages:AcknowledgeMessage",
-      "ec2messages:DeleteMessage",
-      "ec2messages:FailMessage",
-      "ec2messages:GetEndpoint",
-      "ec2messages:GetMessages",
-      "ec2messages:SendReply",
-    ]
-    resources = ["*"]
-  }
-}
-
-resource "aws_iam_role_policy" "mongo_session_manager" {
-  name   = "gwj-mongo-session-manager"
-  role   = aws_iam_role.mongo.id
-  policy = data.aws_iam_policy_document.mongo_session_manager.json
-}
-
-# Read the Mongo admin creds from /gwj/mongo_* + write backups to the media
-# bucket under mongo-backups/. (Backups are optional/lean; the grant is here so
-# a future backup timer can use the role without an IAM change.)
-data "aws_iam_policy_document" "mongo_ec2" {
-  statement {
-    sid       = "ReadMongoCreds"
-    actions   = ["ssm:GetParameter", "ssm:GetParameters"]
-    resources = ["arn:aws:ssm:${var.region}:${var.account_id}:parameter/gwj/mongo_*"]
-  }
-  statement {
-    sid       = "DecryptSsm"
-    actions   = ["kms:Decrypt"]
-    resources = ["arn:aws:kms:${var.region}:${var.account_id}:alias/aws/ssm"]
-  }
-  statement {
-    sid       = "MongoBackupsList"
-    actions   = ["s3:ListBucket"]
-    resources = [aws_s3_bucket.media.arn]
-    condition {
-      test     = "StringLike"
-      variable = "s3:prefix"
-      values   = ["mongo-backups/*"]
-    }
-  }
-  statement {
-    sid       = "MongoBackupsRW"
-    actions   = ["s3:PutObject", "s3:GetObject"]
-    resources = ["${aws_s3_bucket.media.arn}/mongo-backups/*"]
-  }
-}
-
-resource "aws_iam_role_policy" "mongo_ec2" {
-  name   = "${var.prefix}-mongo"
-  role   = aws_iam_role.mongo.id
-  policy = data.aws_iam_policy_document.mongo_ec2.json
-}
-
-resource "aws_iam_instance_profile" "mongo" {
-  name = "${var.prefix}-mongo"
-  role = aws_iam_role.mongo.name
-}
-
 # === GitHub OIDC deploy role (CI: ECR push + ecs:UpdateService) ===
 # ARN goes to GitHub secret AWS_DEPLOY_ROLE_ARN (see INFRA.md §5).
 data "aws_iam_policy_document" "github_deploy_assume" {
@@ -220,7 +132,7 @@ data "aws_iam_policy_document" "github_deploy" {
   }
   # NOTE: CI does NOT write SSM. App secrets under /gwj/* are owned by Terraform
   # (ssm.tf); the deploy role intentionally has NO ssm:PutParameter so a
-  # compromised workflow can't overwrite JWT_SECRET / ADMIN_PASSWORD / MONGO_URI.
+  # compromised workflow can't overwrite JWT_SECRET / ADMIN_PASSWORD / DATABASE_URL.
   statement {
     sid     = "EcsDeploy"
     actions = ["ecs:UpdateService", "ecs:DescribeServices"]

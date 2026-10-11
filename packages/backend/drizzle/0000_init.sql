@@ -1,5 +1,5 @@
 -- oxy:deploy-phase=pre
--- Initial schema: the four tables ported from MongoDB (articles, users, actor_keys, followers).
+-- Initial schema: the four core tables (articles, users, actor_keys, followers).
 CREATE TABLE "actor_keys" (
 	"username" text PRIMARY KEY NOT NULL,
 	"private_key_pem" text NOT NULL,

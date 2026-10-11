@@ -1,5 +1,5 @@
 -- oxy:deploy-phase=pre
--- takedown_requests: the notice-and-takedown collection (feat/takedown-requests), ported from MongoDB.
+-- takedown_requests: the notice-and-takedown queue (feat/takedown-requests).
 CREATE TABLE "takedown_requests" (
 	"id" text PRIMARY KEY NOT NULL,
 	"requester_name" text NOT NULL,

@@ -58,7 +58,7 @@ async function resolveArticleId(input: TakedownRequestInput): Promise<string | n
     inArray(sql`${articles.source}->>'articleUrl'`, urls),
     inArray(sql`${articles.source}->>'imageUrl'`, urls),
   ];
-  // Oldest first: Mongo's un-sorted findOne returned the first in insertion order.
+  // Oldest first, so the match is deterministic when several articles carry the URL.
   const [byProvenance] = await db
     .select({ id: articles.id })
     .from(articles)
@@ -144,8 +144,8 @@ export const takedownService: TakedownService = {
       else if (action.apply === 'clear-hero-image') {
         // articleService.update()'s partial-patch semantics treat an absent field as
         // "leave it alone", so there is no way through it to unset one — this is the
-        // one case that genuinely needs its own direct, minimal operation. (Mongo's
-        // `$unset` via updateOne also stamped updatedAt through Mongoose timestamps.)
+        // one case that genuinely needs its own direct, minimal operation. It stamps
+        // updatedAt like every other article write.
         await getDb()
           .update(articles)
           .set({ heroImage: null, updatedAt: new Date() })
@@ -156,7 +156,7 @@ export const takedownService: TakedownService = {
     if (action.status !== current.status) changes.status = action.status;
     if (action.resolution !== undefined && action.resolution !== current.resolution)
       changes.resolution = action.resolution;
-    // No change, no write: a no-op save() did not move updatedAt under Mongoose.
+    // No change, no write: re-applying the same decision does not move updatedAt.
     if (Object.keys(changes).length === 0) return takedownRequestToDTO(current);
     const [row] = await getDb()
       .update(takedownRequests)

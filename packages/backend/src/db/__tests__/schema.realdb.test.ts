@@ -90,7 +90,7 @@ describe('indexes exist (no functional test can detect a missing index)', () => 
     'ad_campaigns_status_created_at_idx',
   ];
 
-  it('every ported index is present by name, and a bogus name is absent', async () => {
+  it('every expected index is present by name, and a bogus name is absent', async () => {
     const rows = await getDb().execute<{ indexname: string }>(
       sql`select indexname from pg_indexes where schemaname = 'public'`,
     );
@@ -152,7 +152,7 @@ describe('constraints', () => {
     expect(pgErrorCode(err)).toBe('23505');
     expect(constraintNameOf(err)).toBe('articles_slug_unique');
 
-    // …and the central error handler answers it as 409 (was Mongo E11000 → 409).
+    // …and the central error handler answers it as 409.
     let status = 0;
     let body: unknown;
     const res = {
@@ -175,7 +175,7 @@ describe('constraints', () => {
 });
 
 describe('search vector', () => {
-  it('stems each row with its own language, like the Mongo language_override', async () => {
+  it('stems each row with its own language column', async () => {
     const es = newRecordId();
     const en = newRecordId();
     await getDb()

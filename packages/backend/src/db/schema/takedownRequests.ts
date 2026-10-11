@@ -13,9 +13,9 @@ import { sqlInList } from '../sqlLiterals';
  * Notice-and-takedown requests (public submission, admin review).
  *
  * `articleId` is the article the submitted URL(s) resolved to at submission time.
- * Deliberately NO foreign key, as in Mongo (a `ref` there validated nothing): a
- * request keeps naming the article it was about even after that article is
- * deleted, and the admin action on a vanished article fails as a 404.
+ * Deliberately NO foreign key: a request keeps naming the article it was about
+ * even after that article is deleted, and the admin action on a vanished article
+ * fails as a 404.
  */
 export const takedownRequests = pgTable(
   'takedown_requests',
@@ -46,7 +46,7 @@ export const takedownRequests = pgTable(
     ),
     // The only writer accepts `goodFaithAssertion: z.literal(true)`.
     check('takedown_requests_good_faith_check', sql`${t.goodFaithAssertion}`),
-    // The Mongo index { status: 1, createdAt: -1 }.
+    // The review queue: by status, newest first.
     index('takedown_requests_status_created_at_idx').on(t.status, t.createdAt.desc()),
   ],
 );

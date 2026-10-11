@@ -1,16 +1,14 @@
 /**
- * The primary key format for `articles` and `users`: 24 lowercase hex characters,
- * the exact textual form of a MongoDB ObjectId.
+ * The primary key format for `articles` and `users`: 24 lowercase hex characters.
  *
- * Kept on purpose after the port. Every row copied from Mongo keeps its ObjectId
- * as its id, because that id already left the database: it is embedded in every
- * federated ActivityPub Note/Create/Announce id (`noteId(author, article.id)`),
- * in admin URLs, in MCP agents' tool history and in issued JWT `sub` claims. A
- * new id scheme would silently re-identify every published Note on the fediverse.
+ * The format is fixed because an id, once issued, has left the database: it is
+ * embedded in every federated ActivityPub Note/Create/Announce id
+ * (`noteId(author, article.id)`), in admin URLs, in MCP agents' tool history and
+ * in issued JWT `sub` claims. A new id scheme would silently re-identify every
+ * published Note on the fediverse.
  *
- * New rows get an id of the same shape — a 4-byte big-endian seconds timestamp
- * followed by 8 random bytes — so one format holds for the whole table and ids
- * still sort roughly by creation time, as ObjectIds did.
+ * An id is a 4-byte big-endian seconds timestamp followed by 8 random bytes, so
+ * one format holds for the whole table and ids sort roughly by creation time.
  */
 import { randomBytes } from 'node:crypto';
 

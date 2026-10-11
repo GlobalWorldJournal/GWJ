@@ -139,7 +139,7 @@ describe('takedownService', () => {
   });
 });
 
-describe('takedownService — PostgreSQL port semantics', () => {
+describe('takedownService — PostgreSQL semantics', () => {
   it('resolves by source.articleUrl too (all three jsonb provenance paths are searched)', async () => {
     const article = await articleService.create(baseArticle());
     const record = await takedownService.create(
@@ -155,7 +155,7 @@ describe('takedownService — PostgreSQL port semantics', () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
-  it('clear-hero-image stamps the article updatedAt (Mongoose timestamps applied to updateOne)', async () => {
+  it('clear-hero-image stamps the article updatedAt', async () => {
     const article = await articleService.create(baseArticle());
     const record = await takedownService.create(
       baseInput({ imageUrl: 'https://example.com/photo.jpg' }),
