@@ -9,8 +9,19 @@ import { logger, errorFields } from '../logger';
 const RESOURCE = 'mention';
 /** The protected resource this grant is for — baked into both the authorize and every refresh request (RFC 8707). */
 const RESOURCE_URI = 'https://mcp.mention.earth';
-/** Scopes GWJ actually needs: post as @gwj, and read enough to confirm which account a grant is for. Intersected with whatever the resource actually advertises. */
-const WANTED_SCOPES = ['social.accounts.read', 'social.posts.publish'];
+/**
+ * Scopes GWJ actually needs: post as @gwj, retract a post when an article is
+ * unpublished or deleted, and read enough to confirm which account a grant
+ * is for. Intersected with whatever the resource actually advertises.
+ *
+ * `social.posts.delete` was missing on the first live authorization —
+ * confirmed live: publishing worked on the first real test, but retracting
+ * that same test post failed with "This tool requires: social.posts.delete."
+ * Scopes are fixed at authorization time, so this fix alone doesn't widen
+ * the grant already stored; re-authorizing (Dashboard's "Connect Mention")
+ * does.
+ */
+const WANTED_SCOPES = ['social.accounts.read', 'social.posts.publish', 'social.posts.delete'];
 /** Refresh this long before expiry, so a token already in flight never lapses mid-call. */
 const EXPIRY_MARGIN_MS = 120_000;
 
