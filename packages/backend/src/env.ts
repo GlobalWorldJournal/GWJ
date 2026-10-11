@@ -131,6 +131,23 @@ const EnvSchema = z.object({
     .transform((v) => v.trim())
     .transform((v) => (v.length === 0 ? TELEGRAM_CHANNEL_HANDLE_ES : v))
     .default(TELEGRAM_CHANNEL_HANDLE_ES),
+
+  // --- Facebook distribution channels ---
+  // Unlike Telegram's one bot across channels, a Facebook Page Access Token is
+  // tied to a single Page — each edition needs its own id + token pair. Both
+  // OPTIONAL per edition: absent/empty disables that edition's channel, same
+  // "boots fine without it" rule as Telegram.
+  FACEBOOK_PAGE_ID: optionalSecret('FACEBOOK_PAGE_ID'),
+  FACEBOOK_PAGE_TOKEN: optionalSecret('FACEBOOK_PAGE_TOKEN'),
+  FACEBOOK_PAGE_ID_ES: optionalSecret('FACEBOOK_PAGE_ID_ES'),
+  FACEBOOK_PAGE_TOKEN_ES: optionalSecret('FACEBOOK_PAGE_TOKEN_ES'),
+
+  // --- Instagram distribution channels ---
+  // Posted through the same Graph API as the linked Facebook Page, authorized
+  // by that Page's own token (FACEBOOK_PAGE_TOKEN(_ES) above) — only the
+  // Instagram Business account id is Instagram's own. OPTIONAL per edition.
+  INSTAGRAM_ACCOUNT_ID: optionalSecret('INSTAGRAM_ACCOUNT_ID'),
+  INSTAGRAM_ACCOUNT_ID_ES: optionalSecret('INSTAGRAM_ACCOUNT_ID_ES'),
 });
 
 /**
