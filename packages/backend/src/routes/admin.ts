@@ -32,6 +32,8 @@ import { validateImageBuffer, type ValidateImageOptions } from '@gwj/shared-type
 import { adCampaignService } from '../services/adCampaignService';
 import { articleService } from '../services/articleService';
 import { takedownService } from '../services/takedownService';
+import { beginAuthorization } from '../channels/mentionOauthService';
+import type { Env } from '../env';
 import type { UploadImageOptions, UploadService } from '../services/uploadService';
 import { fetchRemoteImage, type RemoteImageOptions } from '../services/remoteImageService';
 import {
@@ -105,6 +107,7 @@ function creativeDimensionsFor(rawVariant: unknown): UploadImageOptions {
 }
 
 export function createAdminRouter(
+  env: Env,
   jwtSecret: string,
   uploadService: UploadService,
   remoteImage: RemoteImageOptions = {},
@@ -345,6 +348,16 @@ export function createAdminRouter(
   );
   router.post('/tokens/:id/revoke', requireUser(), async (req: Request, res: Response) => {
     res.json(await apiTokenService.revoke(requireParam(req, 'id')));
+  });
+
+  // One-time (or, if the grant is ever genuinely revoked, occasional) setup:
+  // an admin visits this, opens the returned URL, and approves it signed in
+  // as @gwj. From then on the Mention channel renews itself forever — see
+  // channels/mentionOauthService.ts. The callback itself (routes/mentionOauth.ts)
+  // is NOT on this router: Mention's own redirect lands straight from the
+  // admin's browser, carrying no admin session of ours to require.
+  router.get('/mention/connect', requireUser(), async (_req: Request, res: Response) => {
+    res.json(await beginAuthorization(env));
   });
 
   return router;

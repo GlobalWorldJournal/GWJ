@@ -7,6 +7,7 @@ import { parseCorsOrigins, type Env } from './env';
 import { createPublicRouter } from './routes/public';
 import { createAuthRouter } from './routes/auth';
 import { createAdminRouter } from './routes/admin';
+import { createMentionOauthRouter } from './routes/mentionOauth';
 import { createUploadService, type UploadService } from './services/uploadService';
 import type { RemoteImageOptions } from './services/remoteImageService';
 import { sql } from 'drizzle-orm';
@@ -17,6 +18,7 @@ import { errorFields, logger } from './logger';
 import { createActivityPub, type ActivityPubModule, type ActivityPubOptions } from './activitypub';
 import { buildChannels } from './channels';
 import { registerChannels } from './channels/registry';
+import { startMentionGrantCache } from './channels/mentionOauthService';
 import type { PublishChannel } from './channels/types';
 
 const RATE_WINDOW_MS = 15 * 60 * 1000;
@@ -144,7 +146,15 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
 
   // Article changes queue their distribution to these channels, by edition.
   const channels = buildChannels(env, activityPub, uploadService);
-  const stopChannels = registerChannels(channels);
+  const unregisterChannels = registerChannels(channels);
+  // Mention's own `isEnabled()` must answer synchronously (the registry calls
+  // it inside the transaction that queues each change's delivery jobs), so
+  // whether a grant is stored is cached in-process rather than looked up live.
+  const stopMentionGrantCache = startMentionGrantCache();
+  const stopChannels = (): void => {
+    unregisterChannels();
+    stopMentionGrantCache();
+  };
 
   app.use(express.json({ limit: '1mb' }));
 
@@ -154,8 +164,12 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   app.use(
     '/api/admin',
     adminLimiter,
-    createAdminRouter(env.JWT_SECRET, uploadService, options.remoteImage),
+    createAdminRouter(env, env.JWT_SECRET, uploadService, options.remoteImage),
   );
+  // Public: Mention's own redirect lands here directly, carrying no admin
+  // session of ours (see routes/mentionOauth.ts for why `state` alone is
+  // this route's real security control).
+  app.use('/api/mention', publicLimiter, createMentionOauthRouter(env));
   app.use('/api', publicLimiter, createPublicRouter());
 
   app.use(notFoundHandler);

@@ -148,6 +148,20 @@ const EnvSchema = z.object({
   // Instagram Business account id is Instagram's own. OPTIONAL per edition.
   INSTAGRAM_ACCOUNT_ID: optionalSecret('INSTAGRAM_ACCOUNT_ID'),
   INSTAGRAM_ACCOUNT_ID_ES: optionalSecret('INSTAGRAM_ACCOUNT_ID_ES'),
+
+  // --- Mention distribution channel ---
+  // Unlike the static tokens above, Mention's own grant (an MCP OAuth
+  // authorization-code flow, PKCE, single-use rotating refresh token) is minted
+  // by an admin visiting `/api/admin/mention/connect` and approving as @gwj, then
+  // stored (sealed) in the `mention_oauth` table — there is no static secret to
+  // put in env for the grant itself. OPTIONAL: when the seal key is absent, or no
+  // grant has been stored yet, the channel is disabled and publishing is a safe
+  // no-op, same "boots fine without it" rule as every other channel.
+  MENTION_OAUTH_SEAL_KEY: optionalSecret('MENTION_OAUTH_SEAL_KEY'),
+  // Where this backend itself is reachable — the OAuth redirect_uri registered
+  // on every `/connect` is `${this}/api/mention/callback`, so it must be this
+  // backend's own real public origin, not the apex site's.
+  MENTION_REDIRECT_BASE_URL: z.string().default('https://api.globalworldjournal.com'),
 });
 
 /**

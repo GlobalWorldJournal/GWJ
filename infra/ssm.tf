@@ -16,6 +16,13 @@ resource "random_password" "mcp_token" {
   special = false
 }
 
+# 32 raw random bytes, base64 — an AES-256-GCM key, not a human-typed secret,
+# so random_id (byte_length, not random_password's printable-character length)
+# is the right generator.
+resource "random_id" "mention_oauth_seal" {
+  byte_length = 32
+}
+
 resource "random_password" "admin" {
   length = 24
 }
@@ -186,6 +193,22 @@ resource "aws_ssm_parameter" "instagram_account_id_es" {
   name  = "/gwj/INSTAGRAM_ACCOUNT_ID_ES"
   type  = "SecureString"
   value = "set-out-of-band"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+# The Mention channel's own refresh token lives in Postgres (mention_oauth),
+# not here — it's a value this backend itself mints and rotates at runtime,
+# unlike every other channel's human-set token above. This key just seals it
+# at rest. Generated (not externally owned), same as jwt_secret: Terraform
+# creates it, then never rewrites it (a routine apply must not invalidate
+# every already-sealed row).
+resource "aws_ssm_parameter" "mention_oauth_seal_key" {
+  name  = "/gwj/MENTION_OAUTH_SEAL_KEY"
+  type  = "SecureString"
+  value = random_id.mention_oauth_seal.b64_std
 
   lifecycle {
     ignore_changes = [value]
