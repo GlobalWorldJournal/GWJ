@@ -1,7 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Article } from '@gwj/shared-types';
-import { getAdminArticles, publishArticle, unpublishArticle, deleteArticle } from '../lib/api';
+import {
+  beginMentionAuthorization,
+  getAdminArticles,
+  publishArticle,
+  unpublishArticle,
+  deleteArticle,
+} from '../lib/api';
 import { useAuth } from './useAuth';
 import { StatusMessage } from '../components/StatusMessage';
 
@@ -48,6 +54,20 @@ export function Dashboard() {
     onSuccess: invalidate,
   });
 
+  // One-time (or, after a genuine revocation, occasional) setup: opens
+  // Mention's own approval page in a new tab. Nothing is connected until
+  // that's approved there, signed in as @gwj — this call alone only starts
+  // the request.
+  const connectMention = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Not authenticated');
+      return beginMentionAuthorization(token);
+    },
+    onSuccess: ({ url }) => {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    },
+  });
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <header className="mb-8 flex items-center justify-between border-b-3 border-ink pb-4">
@@ -77,6 +97,14 @@ export function Dashboard() {
           </Link>
           <button
             type="button"
+            disabled={connectMention.isPending}
+            onClick={() => connectMention.mutate()}
+            className="label text-[0.75rem] text-ink-soft transition-colors hover:text-accent disabled:opacity-50"
+          >
+            Connect Mention
+          </button>
+          <button
+            type="button"
             onClick={signOut}
             className="label text-[0.75rem] text-ink-soft transition-colors hover:text-accent"
           >
@@ -84,6 +112,14 @@ export function Dashboard() {
           </button>
         </div>
       </header>
+
+      {connectMention.isError ? (
+        <p className="mb-4 text-[0.85rem] text-accent">
+          {connectMention.error instanceof Error
+            ? connectMention.error.message
+            : 'Could not start the Mention authorization.'}
+        </p>
+      ) : null}
 
       {isPending ? (
         <StatusMessage title="Loading articles&hellip;" />

@@ -450,3 +450,13 @@ export function uploadAdCreative(
 ): Promise<UploadResponse> {
   return uploadFile('/api/admin/ad-campaigns/creative', token, file, { variant });
 }
+
+/**
+ * Starts (or restarts, e.g. after a genuine revocation) the one-time Mention
+ * authorization: the returned `url` must be opened signed in as @gwj on
+ * Mention, approved there, and only then does the grant exist — this call
+ * alone does not connect anything.
+ */
+export function beginMentionAuthorization(token: string): Promise<{ url: string }> {
+  return request('/api/admin/mention/connect', z.object({ url: z.string() }), { token });
+}
