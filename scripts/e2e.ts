@@ -39,7 +39,7 @@ process.env.NODE_ENV = 'test';
 
 const { loadEnv } = await import('../packages/backend/src/env');
 const { connectDb, disconnectDb } = await import('../packages/backend/src/db/client');
-const { createApp } = await import('../packages/backend/src/app');
+const { buildApp } = await import('../packages/backend/src/app');
 const { seedAdminUser } = await import('../packages/backend/src/seed');
 const { createGwjClient } = await import('../packages/mcp/src/client');
 
@@ -57,7 +57,13 @@ const env = loadEnv();
 await connectDb(env.DATABASE_URL);
 await seedAdminUser(env);
 
-const app = createApp(env, {
+// buildApp, not createApp: this script runs as a bare process (no test
+// runner forcefully tearing down its worker afterward), so it must stop
+// everything buildApp starts itself — including the Mention channel's
+// grant-cache refresh timer (`stopChannels`) — or the event loop never
+// empties and the script hangs forever. Confirmed live: this exact gap hung
+// CI for over an hour the day the Mention channel's timer first shipped.
+const { app, stopChannels } = buildApp(env, {
   uploadService: {
     uploadImage: async () => ({ url: 'https://cdn.example.com/uploads/fake.jpg' }),
   },
@@ -123,6 +129,7 @@ try {
   const publicFinal = await fetch(`${apiBaseUrl}/api/articles`).then((r) => r.json());
   check('article is gone after delete', publicFinal.data.length === 0);
 } finally {
+  stopChannels();
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await disconnectDb();
   await dropDatabase(target.name);
