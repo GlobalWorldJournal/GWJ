@@ -124,6 +124,74 @@ resource "aws_ssm_parameter" "telegram_bot_token" {
   }
 }
 
+# Facebook Page + Instagram Business credentials (facebookChannel.ts /
+# instagramChannel.ts), one pair of Page id/token per edition — Instagram
+# posting reuses the same Page token, only its own account id is separate.
+# Same externally-owned pattern as TELEGRAM_BOT_TOKEN above: each starts as
+# this placeholder (env.ts's optionalSecret only treats '-'/empty as "not
+# configured", so a channel stays effectively disabled — its calls to Meta's
+# Graph API just fail and retry via the outbox — until the real value is set
+# directly in SSM, out of band, which Terraform then never rewrites).
+resource "aws_ssm_parameter" "facebook_page_id" {
+  name  = "/gwj/FACEBOOK_PAGE_ID"
+  type  = "SecureString"
+  value = "set-out-of-band"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "facebook_page_token" {
+  name  = "/gwj/FACEBOOK_PAGE_TOKEN"
+  type  = "SecureString"
+  value = "set-out-of-band"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "facebook_page_id_es" {
+  name  = "/gwj/FACEBOOK_PAGE_ID_ES"
+  type  = "SecureString"
+  value = "set-out-of-band"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "facebook_page_token_es" {
+  name  = "/gwj/FACEBOOK_PAGE_TOKEN_ES"
+  type  = "SecureString"
+  value = "set-out-of-band"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "instagram_account_id" {
+  name  = "/gwj/INSTAGRAM_ACCOUNT_ID"
+  type  = "SecureString"
+  value = "set-out-of-band"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "instagram_account_id_es" {
+  name  = "/gwj/INSTAGRAM_ACCOUNT_ID_ES"
+  type  = "SecureString"
+  value = "set-out-of-band"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 resource "aws_ssm_parameter" "mongo_admin_user" {
   name  = "/gwj/mongo_admin_user"
   type  = "String"
