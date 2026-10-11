@@ -251,6 +251,40 @@ describe('admin ad-campaign routes', () => {
       .attach('file', validPngBuffer(120, 60), { filename: 'tiny.png', contentType: 'image/png' });
     expect(tooSmall.status).toBe(422);
   });
+
+  it('checks the creative is the right SHAPE for the slot it names, not just big enough', async () => {
+    const admin = await adminHeader();
+
+    // A square logo is well above the size floor but the wrong shape for an
+    // 8.09:1 leaderboard — it would letterbox badly, so it's rejected outright.
+    const square = validPngBuffer(600, 600);
+    const wrongShape = await request(app)
+      .post('/api/admin/ad-campaigns/creative')
+      .set(admin)
+      .field('variant', 'leaderboard')
+      .attach('file', square, { filename: 'square.png', contentType: 'image/png' });
+    expect(wrongShape.status).toBe(422);
+    expect(wrongShape.body.details).toMatchObject({ reason: 'wrong-aspect-ratio' });
+
+    // The same image is fine for `inline`, which has no fixed shape.
+    const forInline = await request(app)
+      .post('/api/admin/ad-campaigns/creative')
+      .set(admin)
+      .field('variant', 'inline')
+      .attach('file', square, { filename: 'square.png', contentType: 'image/png' });
+    expect(forInline.status).toBe(201);
+
+    // And a correctly-shaped banner is accepted for the slot it was made for.
+    const rightShape = await request(app)
+      .post('/api/admin/ad-campaigns/creative')
+      .set(admin)
+      .field('variant', 'leaderboard')
+      .attach('file', validPngBuffer(728, 90), {
+        filename: 'leaderboard.png',
+        contentType: 'image/png',
+      });
+    expect(rightShape.status).toBe(201);
+  });
 });
 
 describe('GET /api/ad-campaigns/active (public)', () => {

@@ -35,6 +35,7 @@ function withExtension(filename: string, extension: string): string {
 export interface UploadImageOptions {
   minWidth?: number;
   minHeight?: number;
+  aspectRatio?: { width: number; height: number; tolerance?: number };
 }
 
 export interface UploadService {
@@ -100,6 +101,7 @@ export function createUploadService(env: Env): UploadService {
         declaredMime: contentType,
         minWidth: options.minWidth,
         minHeight: options.minHeight,
+        aspectRatio: options.aspectRatio,
       });
       if (!validation.ok) {
         throw new UnprocessableEntityError(`Rejected image upload: ${validation.message}`, {

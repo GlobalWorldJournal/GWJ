@@ -110,4 +110,53 @@ describe('validateImageBuffer', () => {
     const result = validateImageBuffer(png);
     expect(result).toMatchObject({ ok: true, format: 'png' });
   });
+
+  it('accepts an image matching the target aspect ratio', () => {
+    // 728x90 is exactly the leaderboard's own 8.09:1 target.
+    const png = makeValidPng(728, 90);
+    const result = validateImageBuffer(png, {
+      minWidth: 300,
+      minHeight: 90,
+      aspectRatio: { width: 728, height: 90 },
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('accepts an image within the aspect-ratio tolerance', () => {
+    // 700x100 (7.0:1) is within the default 15% tolerance of 728:90 (8.09:1).
+    const png = makeValidPng(700, 100);
+    const result = validateImageBuffer(png, {
+      minWidth: 300,
+      minHeight: 90,
+      aspectRatio: { width: 728, height: 90 },
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects an image far outside the aspect-ratio tolerance', () => {
+    // A square logo offered for an 8.09:1 leaderboard slot.
+    const png = makeValidPng(600, 600);
+    const rejected = expectRejected(
+      validateImageBuffer(png, {
+        minWidth: 300,
+        minHeight: 90,
+        aspectRatio: { width: 728, height: 90 },
+      }),
+    );
+    expect(rejected.reason).toBe('wrong-aspect-ratio');
+  });
+
+  it('honors a custom aspect-ratio tolerance', () => {
+    const png = makeValidPng(600, 600); // 1:1, wildly off a 2:1 target
+    expect(
+      validateImageBuffer(png, {
+        aspectRatio: { width: 2, height: 1, tolerance: 1 }, // 100% tolerance accepts anything down to 1:1
+      }).ok,
+    ).toBe(true);
+    expect(
+      validateImageBuffer(png, {
+        aspectRatio: { width: 2, height: 1, tolerance: 0.1 },
+      }).ok,
+    ).toBe(false);
+  });
 });

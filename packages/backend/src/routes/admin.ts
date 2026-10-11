@@ -1,9 +1,11 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import {
+  AD_CREATIVE_ASPECT_RATIOS,
   AD_CREATIVE_MIN_HEIGHT,
   AD_CREATIVE_MIN_WIDTH,
   AdCampaignInputSchema,
+  AdVariantSchema,
   AdCampaignListQuerySchema,
   AdCampaignUpdateSchema,
   ArticleInputSchema,
@@ -66,7 +68,7 @@ function revisionIdOf(req: Request): number {
  */
 function requireImageFile(
   req: Request,
-  dimensions: Pick<ValidateImageOptions, 'minWidth' | 'minHeight'> = {},
+  dimensions: Pick<ValidateImageOptions, 'minWidth' | 'minHeight' | 'aspectRatio'> = {},
 ): Express.Multer.File {
   const file = req.file;
   if (!file) throw new BadRequestError('No file uploaded (expected field "file")');
@@ -87,6 +89,20 @@ const AD_CREATIVE_DIMENSIONS: UploadImageOptions = {
   minWidth: AD_CREATIVE_MIN_WIDTH,
   minHeight: AD_CREATIVE_MIN_HEIGHT,
 };
+
+/**
+ * The creative-upload options for a given slot: the shared size floor, plus
+ * that variant's target shape (if it has one — `inline` doesn't, see
+ * {@link AD_CREATIVE_ASPECT_RATIOS}). An unrecognized/missing `variant` field
+ * just skips the shape check rather than failing the upload, since the
+ * variant isn't known yet at the point a campaign's creative is first picked.
+ */
+function creativeDimensionsFor(rawVariant: unknown): UploadImageOptions {
+  const variant = AdVariantSchema.safeParse(rawVariant);
+  if (!variant.success) return AD_CREATIVE_DIMENSIONS;
+  const aspectRatio = AD_CREATIVE_ASPECT_RATIOS[variant.data];
+  return aspectRatio ? { ...AD_CREATIVE_DIMENSIONS, aspectRatio } : AD_CREATIVE_DIMENSIONS;
+}
 
 export function createAdminRouter(
   jwtSecret: string,
@@ -288,12 +304,13 @@ export function createAdminRouter(
     '/ad-campaigns/creative',
     upload.single('file'),
     async (req: Request, res: Response) => {
-      const file = requireImageFile(req, AD_CREATIVE_DIMENSIONS);
+      const dimensions = creativeDimensionsFor(req.body?.variant);
+      const file = requireImageFile(req, dimensions);
       const result = await uploadService.uploadImage(
         file.buffer,
         file.originalname,
         file.mimetype,
-        AD_CREATIVE_DIMENSIONS,
+        dimensions,
       );
       res.status(201).json(result);
     },

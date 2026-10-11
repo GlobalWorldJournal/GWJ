@@ -71,7 +71,8 @@ export type ImageRejectionReason =
   | 'truncated'
   | 'corrupt'
   | 'undecodable-dimensions'
-  | 'too-small';
+  | 'too-small'
+  | 'wrong-aspect-ratio';
 
 /** Result of validating an image buffer. */
 export type ImageValidationResult =
@@ -106,7 +107,25 @@ export interface ValidateImageOptions {
   minHeight?: number;
   /** Override the maximum byte size. Defaults to {@link MAX_IMAGE_BYTES}. */
   maxBytes?: number;
+  /**
+   * If provided, the image's width:height ratio must be within `tolerance` of
+   * `width:height` (a fraction of the target ratio; defaults to
+   * {@link DEFAULT_ASPECT_RATIO_TOLERANCE}). Unlike the width/height floor, this
+   * catches an upload that's merely the right SIZE but the wrong SHAPE — e.g. a
+   * square logo dropped into a 728×90 leaderboard slot, which a `cover`/`contain`
+   * fit would otherwise crop heavily or letterbox rather than reject outright.
+   */
+  aspectRatio?: { width: number; height: number; tolerance?: number };
 }
+
+/**
+ * Default tolerance for {@link ValidateImageOptions.aspectRatio}: how far the
+ * uploaded image's ratio may drift from the target before it's rejected, as a
+ * fraction of the target ratio. Generous enough that a slightly-off crop still
+ * passes, tight enough to catch a genuinely mismatched shape (e.g. a square
+ * image offered for an 8:1 banner slot).
+ */
+const DEFAULT_ASPECT_RATIO_TOLERANCE = 0.15;
 
 /** Normalize a declared MIME (e.g. `image/jpg`, `image/x-png`) to a canonical form. */
 function normalizeDeclaredMime(mime: string): string {
@@ -197,6 +216,20 @@ export function validateImageBuffer(
       reason: 'too-small',
       message: `Image is ${decoded.width}x${decoded.height}px; minimum is ${minWidth}x${minHeight}px (width x height)`,
     };
+  }
+
+  if (options.aspectRatio) {
+    const { width: targetWidth, height: targetHeight } = options.aspectRatio;
+    const tolerance = options.aspectRatio.tolerance ?? DEFAULT_ASPECT_RATIO_TOLERANCE;
+    const targetRatio = targetWidth / targetHeight;
+    const actualRatio = decoded.width / decoded.height;
+    if (Math.abs(actualRatio - targetRatio) / targetRatio > tolerance) {
+      return {
+        ok: false,
+        reason: 'wrong-aspect-ratio',
+        message: `Image is ${decoded.width}x${decoded.height}px (ratio ${actualRatio.toFixed(2)}:1); this slot needs about ${targetRatio.toFixed(2)}:1 (e.g. ${targetWidth}x${targetHeight}px)`,
+      };
+    }
   }
 
   return {

@@ -24,6 +24,19 @@ export type AdCampaignStatus = z.infer<typeof AdCampaignStatusSchema>;
 export const AD_CREATIVE_MIN_WIDTH = 300;
 export const AD_CREATIVE_MIN_HEIGHT = 90;
 
+/**
+ * The target shape for each variant's creative, enforced (with tolerance) on
+ * upload so a mismatched image is rejected with a clear message rather than
+ * shipped cropped or letterboxed. `inline` has no fixed shape — it renders at
+ * full column width with only a minimum height — so it's left unconstrained.
+ */
+export const AD_CREATIVE_ASPECT_RATIOS: Partial<
+  Record<AdVariant, { width: number; height: number }>
+> = {
+  leaderboard: { width: 728, height: 90 },
+  mrec: { width: 300, height: 250 },
+};
+
 /** Only http(s) links: a `javascript:` click-through would run on our origin. */
 const HttpUrlSchema = z
   .string()

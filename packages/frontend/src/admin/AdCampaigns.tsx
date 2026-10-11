@@ -175,7 +175,7 @@ export function AdCampaigns() {
   const creativeUpload = useMutation({
     mutationFn: (file: File) => {
       if (!token) throw new Error('Not authenticated');
-      return uploadAdCreative(token, file);
+      return uploadAdCreative(token, file, form.variant);
     },
     onSuccess: (response) => update('imageUrl', response.url),
   });

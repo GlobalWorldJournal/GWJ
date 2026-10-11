@@ -298,9 +298,15 @@ export function unpublishArticle(token: string, id: string): Promise<Article> {
   });
 }
 
-async function uploadFile(path: string, token: string, file: File): Promise<UploadResponse> {
+async function uploadFile(
+  path: string,
+  token: string,
+  file: File,
+  fields: Record<string, string> = {},
+): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append('file', file);
+  for (const [key, value] of Object.entries(fields)) formData.append(key, value);
 
   const response = await fetch(buildUrl(path), {
     method: 'POST',
@@ -432,7 +438,15 @@ export async function deleteAdCampaign(token: string, id: string): Promise<void>
   }
 }
 
-/** Upload a creative through the S3/CDN pipeline with the banner-sized floor. */
-export function uploadAdCreative(token: string, file: File): Promise<UploadResponse> {
-  return uploadFile('/api/admin/ad-campaigns/creative', token, file);
+/**
+ * Upload a creative through the S3/CDN pipeline with the banner-sized floor.
+ * `variant` lets the server also check the image is the right SHAPE for that
+ * slot (leaderboard/mrec), not just big enough — see `AD_CREATIVE_ASPECT_RATIOS`.
+ */
+export function uploadAdCreative(
+  token: string,
+  file: File,
+  variant: AdVariant,
+): Promise<UploadResponse> {
+  return uploadFile('/api/admin/ad-campaigns/creative', token, file, { variant });
 }
