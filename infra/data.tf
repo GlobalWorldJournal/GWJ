@@ -38,12 +38,6 @@ data "aws_subnets" "oxy_private" {
   }
 }
 
-# A concrete single public subnet for the Mongo EC2 box + its EBS volume (the
-# volume must be in the SAME AZ as the instance). Pinned to oxy-public-a.
-data "aws_subnet" "oxy_public_a" {
-  id = "subnet-08f5cc132b3cab15c"
-}
-
 # Oxy's shared ALB + its HTTPS listener (GWJ SNI-attaches a cert + host rules).
 data "aws_lb" "oxy" {
   name = "oxy-alb"
@@ -64,11 +58,6 @@ data "aws_security_group" "oxy_alb" {
 # Oxy's shared ECS cluster (GWJ runs its services on it).
 data "aws_ecs_cluster" "oxy" {
   cluster_name = "oxy-cluster"
-}
-
-# Latest Amazon Linux 2023 ARM64 AMI (for the Graviton t4g Mongo box).
-data "aws_ssm_parameter" "al2023_arm" {
-  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64"
 }
 
 # The account-global GitHub OIDC provider (one per account) — referenced so the

@@ -20,9 +20,8 @@ import type { FederationFetchOptions } from './remoteActor';
  * The wired multi-actor ActivityPub feature: an Express router to mount and the
  * steps that federate an article: deliver it, update it, delete it.
  *
- * (The boot-time `initialize()` that re-scoped legacy single-actor follower rows
- * is gone: `followers.actor_username` is NOT NULL in PostgreSQL, and the one-time
- * Mongo → Postgres copy assigns such a row to the default edition while copying.)
+ * Every follower row names the actor it follows: `followers.actor_username` is
+ * NOT NULL, so no boot-time re-scoping step is needed.
  *
  * The module does not watch articles itself: the Mastodon distribution channel
  * calls these steps from the distribution outbox (channels/outbox.ts), alongside

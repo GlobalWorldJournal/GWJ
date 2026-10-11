@@ -61,14 +61,6 @@ output "alb_dns" {
   description = "Shared ALB DNS — point api/mcp.globalworldjournal.com here via CNAME (DNS-only)."
 }
 
-output "mongo_private_ip" {
-  value = aws_instance.mongo.private_ip
-}
-
-output "mongo_instance_id" {
-  value = aws_instance.mongo.id
-}
-
 # Task/execution role ARNs (handy for one-shot seed tasks).
 output "ecs_task_role_arn" {
   value = aws_iam_role.ecs_task.arn

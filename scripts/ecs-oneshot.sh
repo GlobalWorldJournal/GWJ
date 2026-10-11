@@ -7,7 +7,7 @@
 #     scripts/ecs-oneshot.sh gwj-backend migrate-pre -- \
 #     bun run src/db/migrate.ts --phase=pre --target-database=gwj
 #
-# Used by .github/workflows/deploy-aws.yml and by docs/POSTGRES-CUTOVER.md.
+# Used by .github/workflows/deploy-aws.yml.
 #
 # Why each step is shaped the way it is:
 # - The network configuration is READ from the live service, never hardcoded:

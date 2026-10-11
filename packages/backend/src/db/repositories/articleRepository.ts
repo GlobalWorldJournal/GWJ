@@ -67,12 +67,12 @@ export function rowToArticle(row: ArticleRow): Article {
 }
 
 /**
- * A parsed `$text`-style search string. The port keeps MongoDB's `$search`
- * semantics rather than Postgres' default AND:
+ * A parsed search string. Its semantics are deliberately broader than Postgres'
+ * default AND:
  *
  * - bare terms are OR-ed (any term matches),
- * - a `"quoted phrase"` must match; with any phrase present, bare terms only
- *   affect ranking (Mongo: "only matches documents that include the phrase"),
+ * - a `"quoted phrase"` must match; with any phrase present, only documents that
+ *   include the phrase match, and bare terms only affect ranking,
  * - a `-term` excludes documents containing it,
  * - a search made only of exclusions (or of stop words) matches NOTHING.
  */
@@ -82,7 +82,7 @@ export interface ParsedSearch {
   excluded: string[];
 }
 
-/** Split on anything that is not a letter or digit — Mongo's term delimiters. */
+/** Split on anything that is not a letter or digit: those are the term delimiters. */
 function words(text: string): string[] {
   return text.split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 0);
 }
@@ -181,8 +181,8 @@ export interface ArticlePage {
 /**
  * One page of articles plus the total. With `q`, ordered by relevance then
  * newest; otherwise by featured weight, newest publication, newest creation.
- * `published_at` sorts NULLS LAST, where Mongo's descending sort put a null; an
- * `id` tie-break makes pagination deterministic.
+ * `published_at` sorts NULLS LAST, so never-published rows follow every dated
+ * one; an `id` tie-break makes pagination deterministic.
  */
 export async function listArticles(
   filter: ArticleFilter,

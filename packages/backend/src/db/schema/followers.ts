@@ -4,9 +4,9 @@ import { bigint, index, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-
  * A fediverse account (`actorId`, REMOTE) following ONE local actor
  * (`actorUsername`, an edition or a writer). One row per pair.
  *
- * `id` is an identity column, not a copied ObjectId: nothing outside the database
- * ever saw a follower's id. It exists as the deterministic tie-break for the
- * newest-first follower listing, the role `_id` played in Mongo.
+ * `id` is an identity column, not a 24-hex record id: nothing outside the
+ * database ever sees a follower's id. It exists as the deterministic tie-break for
+ * the newest-first follower listing.
  */
 export const followers = pgTable(
   'followers',

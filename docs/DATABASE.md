@@ -5,8 +5,7 @@ postgres.js. Production is the logical database **`gwj`**, owned by the login
 role **`gwj`**, on the shared RDS instance `oxy-postgres`
 (`postgres.internal.oxy.so:5432`, TLS required); the connection string is SSM
 `/gwj/DATABASE_URL`. GWJ shares that INSTANCE only — no database, role, table or
-row with any other application. It replaced the self-managed MongoDB
-(`gwj-mongo`) on the cutover described in `docs/POSTGRES-CUTOVER.md`.
+row with any other application.
 
 ## Layout
 
@@ -20,7 +19,6 @@ packages/backend/
   src/db/migrate.ts            the CLI: the ONLY way a migration is applied
   src/db/repositories/         article queries (incl. search)
   src/test/postgres.ts         realdb harness: one throwaway database per test file
-packages/mongo-migration/      ONE-TIME Mongo → Postgres copy + verify (deleted at decommission)
 ```
 
 ## Commands
@@ -68,43 +66,51 @@ TEST_POSTGRES_URL=postgres://gwj:gwj@127.0.0.1:5432/postgres bun run test
   real server (`TEST_POSTGRES_URL`); there is no mock and no skip. Each file gets
   its own migrated database, so `truncateAll()` in a hook is safe.
 
-## Schema and how each Mongo collection maps
+## Schema
 
-| Mongo | PostgreSQL | key | notes |
-|---|---|---|---|
-| `articles` | `articles` | `id` text, 24-hex | ids are the original ObjectId hex: they are inside every federated Note/Create/Announce id, admin URLs and MCP history. New ids keep that shape (`src/db/ids.ts`). `heroImage`, `seo`, `source` are `jsonb`; `tags` is `text[]`. |
-| `users` | `users` | `id` text, 24-hex | id is the JWT `sub`; bcrypt hash copied verbatim |
-| `actorkeys` | `actor_keys` | `username` | RSA keypairs copied verbatim; generated lazily with `ON CONFLICT DO NOTHING` |
-| `followers` | `followers` | identity `id`; unique `(actor_username, actor_id)` | `id` is the newest-first tie-break `_id` used to be |
-| `takedownrequests` | `takedown_requests` | `id` text, 24-hex | `articleId` (an ObjectId ref) becomes its hex string; no FK, as before (a request keeps naming a deleted article) |
-| `categories` | — | — | not ported: never read; the closed `CATEGORIES` tuple serves `/api/categories` and backs `articles_category_check` |
+| table | key | notes |
+|---|---|---|
+| `articles` | `id` text, 24-hex | The id is embedded in every federated Note/Create/Announce id, admin URLs and MCP history, so its format is fixed (`src/db/ids.ts`). `heroImage`, `seo`, `source`, `corrections` are `jsonb`; `tags` is `text[]`; `translation_group_id` links the language editions of one story (unique per language); `search_vector` is a generated `tsvector`. |
+| `article_slug_history` | `slug` | former slugs, kept so old URLs 301 to the current one; FK to `articles`, cascade |
+| `article_revisions` | identity `id` | the editable state before each change and who made it, written in the same transaction; FK to `articles`, cascade |
+| `article_channel_posts` | identity `id`; unique `(article_id, channel)` | where each article was delivered per distribution channel; no FK (a retraction runs after the article row is gone) |
+| `channel_jobs` | identity `id` | the distribution outbox, written in the same transaction as the article change; no FK, for the same reason |
+| `users` | `id` text, 24-hex | id is the JWT `sub`; bcrypt hash, never serialized |
+| `api_tokens` | `id` text, 24-hex | one per agent, scoped and revocable; only the SHA-256 of the secret is stored |
+| `actor_keys` | `username` | RSA keypair per ActivityPub actor, used verbatim; generated lazily with `ON CONFLICT DO NOTHING` |
+| `followers` | identity `id`; unique `(actor_username, actor_id)` | `id` is the newest-first listing tie-break and never leaves the database |
+| `takedown_requests` | `id` text, 24-hex | `article_id` is a plain 24-hex string with no FK: a request keeps naming a deleted article |
+| `ad_campaigns` | `id` text, 24-hex | directly sold bookings, one slot variant each; `ends_at > starts_at` |
+| `mention_oauth` | `resource` | the single sealed OAuth grant for the Mention channel |
 
-Constraints made structural (each enforced by every writer before, and with zero
-violating rows in production): slug unique; status/category/language/role sets;
-`featured >= 0`; `(status = 'published') = (published_at IS NOT NULL)`.
+Categories are not a table: the closed `CATEGORIES` tuple serves `/api/categories`
+and backs `articles_category_check`.
 
-Indexes, ported one-for-one: `(status, published_at DESC NULLS LAST)`,
-`(language, status, published_at DESC NULLS LAST)`,
-`(category, published_at DESC NULLS LAST)`, GIN on `search_vector`; followers
-`(actor_username, followed_at DESC, id DESC)`; takedown_requests
-`(status, created_at DESC)`.
+Structural constraints: slug unique; status/category/language/role sets;
+`featured >= 0`; `(status = 'published') = (published_at IS NOT NULL)`; a
+scheduled article is a draft.
 
-## Behaviour carried over from Mongo on purpose
+Article listing indexes put `published_at DESC NULLS LAST` after their filter
+columns (`status`, `language, status`, `category`, `author`, and the published
+feed `language, featured DESC`); GIN on `search_vector` and on `tags`; a partial
+index on `scheduled_at`. Followers: `(actor_username, followed_at DESC, id DESC)`;
+takedown_requests and ad_campaigns: `(status, created_at DESC)`, plus a live-window index on ad_campaigns.
+`schema.realdb.test.ts` asserts the core indexes by name.
 
-- **Ordering**: `published_at DESC NULLS LAST` everywhere Mongo sorted it
-  descending (Postgres would otherwise put NULL first), plus an `id` tie-break.
-- **Search** (`articleRepository.parseSearch`) keeps `$text` semantics: bare
-  terms are OR-ed; a `"quoted phrase"` must match (terms then only rank); `-term`
-  excludes; only exclusions or only stop words match nothing. Fields: title +
-  deck (the old index), NOT body. Each row is stemmed with its own language
-  (`en`/`es`/`fr`, like Mongo's `language_override`); queries are parsed as
-  English (the index `default_language`). Known consequence, unchanged from
-  Mongo: an inflected Spanish/French query term may not match a Spanish/French
-  article; passing the edition's configuration would be a deliberate behaviour
-  change, not part of the port.
+## Behaviour
+
+- **Ordering**: `published_at DESC NULLS LAST` (Postgres would otherwise put NULL
+  first), plus an `id` tie-break so pagination is deterministic.
+- **Search** (`articleRepository.parseSearch`): bare terms are OR-ed; a
+  `"quoted phrase"` must match (terms then only rank); `-term` excludes; only
+  exclusions or only stop words match nothing. Fields: title (weight A), deck
+  (B) and body (C). Each row is stemmed with its own language
+  (`en`/`es`/`fr` → `english`/`spanish`/`french`), and the query is parsed once
+  per edition in that edition's language, so an inflected word finds the article
+  written in that language.
 - **No-op saves**: an update that changes no value writes nothing and does not
-  move `updated_at` (Mongoose's `save()` on an unmodified document).
+  move `updated_at`.
 - **Follower upsert** keeps a stored `sharedInbox` when a repeat Follow omits it
-  (Mongo's `$set: { x: undefined }` was a no-op).
+  (an absent field is not a removal).
 - **Edits are serialized** per article (`SELECT … FOR UPDATE`), so concurrent
   publishes fan out to the fediverse exactly once.

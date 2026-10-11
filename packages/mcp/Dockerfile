@@ -7,8 +7,6 @@ COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/backend/package.json packages/backend/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/frontend/package.json packages/frontend/
-# Every workspace in bun.lock must be present, or --frozen-lockfile refuses.
-COPY packages/mongo-migration/package.json packages/mongo-migration/
 # Production dependencies of the workspaces this image runs, nothing else (no
 # test/build tooling, no frontend). Every manifest above is still copied: the
 # frozen lockfile describes the whole workspace.

@@ -22,7 +22,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-24.04
-    # The backend and mongo-migration suites run against a REAL PostgreSQL (each
+    # The backend suites run against a REAL PostgreSQL (each
     # *.realdb.test.ts file creates, migrates and drops its own database). There
     # is no skip: without TEST_POSTGRES_URL those suites fail, by design.
     services:

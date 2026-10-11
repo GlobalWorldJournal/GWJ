@@ -59,7 +59,7 @@ export const ARTICLE_SEARCH_VECTOR_SQL = sql`setweight(to_tsvector(${ROW_TS_CONF
 export const articles = pgTable(
   'articles',
   {
-    /** 24-hex id; see `ids.ts` for why it keeps the ObjectId shape. */
+    /** 24-hex id; see `ids.ts` for why the format is fixed. */
     id: text().primaryKey(),
     slug: text().notNull(),
     title: text().notNull(),
@@ -106,7 +106,7 @@ export const articles = pgTable(
     check('articles_status_check', sql`${t.status} IN ${sqlInList(ArticleStatusSchema.options)}`),
     check('articles_category_check', sql`${t.category} IN ${sqlInList(CATEGORIES)}`),
     check('articles_language_check', sql`${t.language} IN ${sqlInList(SUPPORTED_LANGUAGES)}`),
-    // Mongoose `min: 0`, which ran on every save() — the only article write path.
+    // `featured` is a non-negative weight; every article write path upholds it.
     check('articles_featured_check', sql`${t.featured} >= 0`),
     // Every writer (create, update, publish, unpublish) stamps publishedAt exactly
     // when the article is published and clears it on the way back to draft; the
@@ -115,8 +115,9 @@ export const articles = pgTable(
       'articles_published_at_check',
       sql`(${t.status} = 'published') = (${t.publishedAt} IS NOT NULL)`,
     ),
-    // The four Mongo indexes, ported one-for-one (publishedAt DESC with NULLS LAST,
-    // which is where Mongo's descending order puts a null).
+    // The listing indexes (publishedAt DESC with NULLS LAST, matching the listing
+    // order, where a never-published row sorts after every dated one) and the
+    // full-text index.
     index('articles_status_published_at_idx').on(t.status, t.publishedAt.desc().nullsLast()),
     index('articles_language_status_published_at_idx').on(
       t.language,
