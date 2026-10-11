@@ -137,13 +137,16 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   const activityPub = createActivityPub(env, options.activityPub);
   app.use(federationLimiter, activityPub.router);
 
+  // Built before the channels: Instagram's channel reuses this exact
+  // instance to store its generated social cards, rather than opening a
+  // second S3 client.
+  const uploadService = options.uploadService ?? createUploadService(env);
+
   // Article changes queue their distribution to these channels, by edition.
-  const channels = buildChannels(env, activityPub);
+  const channels = buildChannels(env, activityPub, uploadService);
   const stopChannels = registerChannels(channels);
 
   app.use(express.json({ limit: '1mb' }));
-
-  const uploadService = options.uploadService ?? createUploadService(env);
 
   // Specific mounts first so their dedicated limiters apply without the public
   // limiter also counting the request.

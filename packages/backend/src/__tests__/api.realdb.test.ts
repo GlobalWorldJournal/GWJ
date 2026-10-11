@@ -9,7 +9,7 @@ import { getDb } from '../db/client';
 import { newRecordId } from '../db/ids';
 import { users } from '../db/schema/users';
 import { useTestDatabase, type TestDatabase } from '../test/postgres';
-import { type UploadService } from '../services/uploadService';
+import type { UploadService } from '../services/uploadService';
 import { tooSmallPngBuffer, truncatedPngBuffer, validPngBuffer } from './imageFixtures';
 
 let testDb: TestDatabase;
@@ -21,6 +21,9 @@ const ADMIN_PASSWORD = 'super-secret-pw';
 const fakeUploadService: UploadService = {
   async uploadImage(_buffer, filename) {
     return { url: `https://cdn.example.test/articles/${filename}` };
+  },
+  async storeImage(_buffer, filename, _contentType, keyPrefix) {
+    return { url: `https://cdn.example.test/${keyPrefix}${filename}` };
   },
 };
 

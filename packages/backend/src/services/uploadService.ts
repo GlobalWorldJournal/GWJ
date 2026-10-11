@@ -1,8 +1,8 @@
 import { PutObjectCommand, S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
-import { type UploadResponse } from '@gwj/shared-types';
+import type { UploadResponse } from '@gwj/shared-types';
 import { validateImageBuffer } from '@gwj/shared-types/image-validation';
-import { type Env } from '../env';
+import type { Env } from '../env';
 import { UnprocessableEntityError } from '../errors';
 import { logger } from '../logger';
 import { WEBP_MIME, optimizeToWebp } from './imageOptimizer';
@@ -33,6 +33,19 @@ function withExtension(filename: string, extension: string): string {
 
 export interface UploadService {
   uploadImage(buffer: Buffer, filename: string, contentType: string): Promise<UploadResponse>;
+  /**
+   * Store an already-correctly-encoded image exactly as given, under its own
+   * key prefix — no resize, no re-encode to WebP. For bytes a caller has
+   * already composed at the exact format/size it needs (e.g. a generated
+   * social-card JPEG, which the destination platform requires verbatim),
+   * where `uploadImage`'s WebP re-encode would defeat the point.
+   */
+  storeImage(
+    buffer: Buffer,
+    filename: string,
+    contentType: string,
+    keyPrefix: string,
+  ): Promise<UploadResponse>;
 }
 
 /**
@@ -107,6 +120,20 @@ export function createUploadService(env: Env): UploadService {
         // client-declared content type, so the stored content-type stays truthful.
         return put(`${prefix}${safeName}`, buffer, validation.mime);
       }
+    },
+
+    async storeImage(buffer, filename, contentType, keyPrefix) {
+      // Same structural chokepoint as uploadImage — even bytes this process
+      // generated itself are worth proving decodable before they're stored and
+      // handed to an external platform.
+      const validation = validateImageBuffer(buffer, { declaredMime: contentType });
+      if (!validation.ok) {
+        throw new UnprocessableEntityError(`Rejected image upload: ${validation.message}`, {
+          reason: validation.reason,
+        });
+      }
+      const safeName = safeFilename(filename);
+      return put(`${keyPrefix}${uuidv4()}-${safeName}`, buffer, validation.mime);
     },
   };
 }

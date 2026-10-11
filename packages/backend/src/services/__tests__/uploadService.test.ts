@@ -137,3 +137,36 @@ describe('createUploadService image optimization', () => {
     expect(captured).toHaveLength(0);
   });
 });
+
+describe('createUploadService raw storage (storeImage)', () => {
+  beforeEach(() => {
+    captured.length = 0;
+  });
+
+  it('stores bytes exactly as given, under the given key prefix, with no re-encode', async () => {
+    const service = createUploadService(env);
+    const original = await largeJpeg(1080, 1350);
+
+    const result = await service.storeImage(original, 'card.jpg', 'image/jpeg', 'social-cards/');
+
+    expect(captured).toHaveLength(1);
+    const put = captured[0];
+    if (!put) throw new Error('no PutObject captured');
+    expect(put.ContentType).toBe('image/jpeg');
+    expect(put.Key).toMatch(/^social-cards\/.+-card\.jpg$/);
+    expect(result.url).toBe(`https://cdn.example.test/${put.Key}`);
+    // Byte-for-byte identical — unlike uploadImage, this never re-encodes.
+    expect(Buffer.compare(put.Body, original)).toBe(0);
+    const meta = await sharp(put.Body).metadata();
+    expect(meta.width).toBe(1080);
+    expect(meta.height).toBe(1350);
+  });
+
+  it('rejects a structurally invalid image before any S3 write', async () => {
+    const service = createUploadService(env);
+    await expect(
+      service.storeImage(Buffer.from('not an image'), 'card.jpg', 'image/jpeg', 'social-cards/'),
+    ).rejects.toThrow(/Rejected image upload/i);
+    expect(captured).toHaveLength(0);
+  });
+});

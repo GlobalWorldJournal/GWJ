@@ -7,6 +7,8 @@ import {
 } from '@gwj/shared-types';
 import type { Env } from '../env';
 import { logger } from '../logger';
+import { generateInstagramCard } from '../services/socialCardService';
+import type { UploadService } from '../services/uploadService';
 import type { PublishChannel } from './types';
 
 /** Facebook Graph API base — Instagram Business posting goes through the same API. */
@@ -18,6 +20,12 @@ const INSTAGRAM_TIMEOUT_MS = 10_000;
 /** How long to wait for a media container to finish fetching the image before publishing it. */
 const CONTAINER_POLL_INTERVAL_MS = 1_500;
 const CONTAINER_POLL_ATTEMPTS = 5;
+
+/** `heroImage.url` is always our own CDN (uploaded via uploadService, never a raw external url). */
+const HERO_FETCH_TIMEOUT_MS = 15_000;
+
+/** Key prefix for generated social cards, kept separate from article body images in the bucket. */
+const SOCIAL_CARD_KEY_PREFIX = 'social-cards/';
 
 /**
  * One Instagram Business account binding: a single edition (`language`)
@@ -125,16 +133,56 @@ async function waitUntilFinished(containerId: string, token: string): Promise<vo
 }
 
 /**
+ * Download the article's hero photo from our own CDN and composite it into a
+ * branded headline card, then store that card and return its own CDN url —
+ * the way most news accounts actually post to Instagram, rather than the
+ * bare hero photo. Rejects (not a no-op) on any failure: the outbox retries
+ * the publish job rather than falling back to posting the unbranded photo.
+ */
+async function buildAndUploadCard(
+  article: Article,
+  heroImageUrl: string,
+  uploadService: UploadService,
+): Promise<string> {
+  let photoRes: Response;
+  try {
+    photoRes = await fetch(heroImageUrl, { signal: AbortSignal.timeout(HERO_FETCH_TIMEOUT_MS) });
+  } catch (err) {
+    throw new InstagramError(
+      'social-card',
+      `could not fetch hero image: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (!photoRes.ok) {
+    throw new InstagramError('social-card', `hero image fetch failed (HTTP ${photoRes.status})`);
+  }
+  const photo = Buffer.from(await photoRes.arrayBuffer());
+  const card = await generateInstagramCard({ photo, headline: article.title });
+  const { url } = await uploadService.storeImage(
+    card,
+    'instagram-card.jpg',
+    'image/jpeg',
+    SOCIAL_CARD_KEY_PREFIX,
+  );
+  return url;
+}
+
+/**
  * Build one Instagram Business account channel from an
  * {@link InstagramAccountConfig} entry. Instagram has no text-only post, so an
  * article with no hero image is skipped for this channel, not an error.
- * Publishing is two calls: create a media container, then publish it.
- * There is no supported way to edit a published post's image or caption
- * through this API, so this channel has no `update` — a visible edit simply
- * leaves the Instagram post as originally posted, the same honest limitation
- * Telegram's own channel documents for its pre-edit-tracking posts.
+ * Publishing is three steps: build+upload the branded card, create a media
+ * container from it, then publish the container. There is no supported way
+ * to edit a published post's image or caption through this API, so this
+ * channel has no `update` — a visible edit simply leaves the Instagram post
+ * as originally posted, the same honest limitation Telegram's own channel
+ * documents for its pre-edit-tracking posts.
  */
-function buildInstagramChannel(env: Env, config: InstagramAccountConfig): PublishChannel {
+function buildInstagramChannel(
+  env: Env,
+  config: InstagramAccountConfig,
+  uploadService: UploadService,
+): PublishChannel {
   const accountId = config.resolveAccountId(env);
   const token = config.resolveToken(env);
   const { language } = config;
@@ -150,12 +198,13 @@ function buildInstagramChannel(env: Env, config: InstagramAccountConfig): Publis
       if (articleLanguage !== language) return;
       if (!article.heroImage?.url) return; // No image, no Instagram post — nothing to skip to, it's a no-op.
 
+      const cardUrl = await buildAndUploadCard(article, article.heroImage.url, uploadService);
       const caption = buildCaption(
         article,
         articlePublicUrl(env.FEDIVERSE_DOMAIN, language, article.slug),
       );
       const container = await callGraph(`/${accountId}/media`, token, 'POST', {
-        image_url: article.heroImage.url,
+        image_url: cardUrl,
         caption,
       });
       const containerId = container?.id as string | undefined;
@@ -181,8 +230,10 @@ function buildInstagramChannel(env: Env, config: InstagramAccountConfig): Publis
 /**
  * Build every configured Instagram account channel (one per edition in
  * {@link INSTAGRAM_ACCOUNTS}). Each self-disables when its account id or
- * (shared, Page-level) token env var is absent.
+ * (shared, Page-level) token env var is absent. `uploadService` stores each
+ * generated social card — the same service instance the admin API uploads
+ * article images through, not a second S3 client.
  */
-export function instagramChannels(env: Env): PublishChannel[] {
-  return INSTAGRAM_ACCOUNTS.map((config) => buildInstagramChannel(env, config));
+export function instagramChannels(env: Env, uploadService: UploadService): PublishChannel[] {
+  return INSTAGRAM_ACCOUNTS.map((config) => buildInstagramChannel(env, config, uploadService));
 }
