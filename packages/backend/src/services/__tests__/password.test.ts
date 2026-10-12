@@ -37,6 +37,12 @@ describe('password hashing', () => {
     expect(await verifyPassword('a'.repeat(71), hash)).toBe(false);
   });
 
+  it('matches no password against a malformed stored hash instead of throwing', async () => {
+    for (const hash of ['not-a-bcrypt-hash', '$2a$12$truncated', `$2b$04$${'x'.repeat(53)}`]) {
+      expect(await verifyPassword('anything', hash)).toBe(false);
+    }
+  });
+
   it('round-trips its own hashes at the requested cost', async () => {
     const hash = await hashPassword('s3cret', FAST_COST);
     expect(hash).toMatch(/^\$2b\$04\$/);

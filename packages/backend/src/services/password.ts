@@ -1,3 +1,5 @@
+import { errorFields, logger } from '../logger';
+
 /**
  * Password hashing on Bun's native bcrypt (`Bun.password`).
  *
@@ -23,7 +25,16 @@ export function hashPassword(password: string, cost: number = BCRYPT_COST): Prom
   return Bun.password.hash(bcryptKey(password), { algorithm: 'bcrypt', cost });
 }
 
-/** Check a password against a bcrypt hash (`$2a$` or `$2b$`). */
-export function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return Bun.password.verify(bcryptKey(password), hash, 'bcrypt');
+/**
+ * Check a password against a bcrypt hash (`$2a$` or `$2b$`). A stored hash that
+ * is not valid bcrypt matches no password, as with bcryptjs: `Bun.password`
+ * throws on one, which would turn a failed login into a 500.
+ */
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  try {
+    return await Bun.password.verify(bcryptKey(password), hash, 'bcrypt');
+  } catch (err) {
+    logger.warn('stored password hash is not valid bcrypt', errorFields(err));
+    return false;
+  }
 }
