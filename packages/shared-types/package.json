@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json --emitDeclarationOnly false --noEmit",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "bun check",
     "test": "bun test --isolate"
   },
   "dependencies": {
