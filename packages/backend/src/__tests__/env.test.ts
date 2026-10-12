@@ -33,6 +33,9 @@ const AWS_KEYS = [
   'TRUST_PROXY_HOPS',
   'TELEGRAM_BOT_TOKEN',
   'TELEGRAM_CHANNEL',
+  'STRIPE_SECRET_KEY',
+  'STRIPE_WEBHOOK_SECRET',
+  'PUBLIC_SITE_URL',
 ];
 
 function applyEnv(values: Record<string, string>): void {
@@ -116,6 +119,41 @@ describe('env — Telegram channel config (optional)', () => {
   it("rejects the placeholder '-' for a non-empty TELEGRAM_BOT_TOKEN", () => {
     applyEnv({ ...baseEnv(), TELEGRAM_BOT_TOKEN: '-' });
     expect(() => loadEnv()).toThrow(/TELEGRAM_BOT_TOKEN/);
+  });
+});
+
+describe('env — Stripe / self-serve ads (optional)', () => {
+  it('boots without Stripe config: everything undefined', () => {
+    applyEnv(baseEnv());
+    const env = loadEnv();
+    expect(env.STRIPE_SECRET_KEY).toBeUndefined();
+    expect(env.STRIPE_WEBHOOK_SECRET).toBeUndefined();
+    expect(env.PUBLIC_SITE_URL).toBeUndefined();
+  });
+
+  it("treats blank and the SSM placeholder '-' as not configured", () => {
+    applyEnv({ ...baseEnv(), STRIPE_SECRET_KEY: '-', STRIPE_WEBHOOK_SECRET: '' });
+    const env = loadEnv();
+    expect(env.STRIPE_SECRET_KEY).toBeUndefined();
+    expect(env.STRIPE_WEBHOOK_SECRET).toBeUndefined();
+  });
+
+  it('reads real values and strips a trailing slash from PUBLIC_SITE_URL', () => {
+    applyEnv({
+      ...baseEnv(),
+      STRIPE_SECRET_KEY: 'sk_test_x',
+      STRIPE_WEBHOOK_SECRET: 'whsec_x',
+      PUBLIC_SITE_URL: 'https://example.test/',
+    });
+    const env = loadEnv();
+    expect(env.STRIPE_SECRET_KEY).toBe('sk_test_x');
+    expect(env.STRIPE_WEBHOOK_SECRET).toBe('whsec_x');
+    expect(env.PUBLIC_SITE_URL).toBe('https://example.test');
+  });
+
+  it('rejects a non-http PUBLIC_SITE_URL', () => {
+    applyEnv({ ...baseEnv(), PUBLIC_SITE_URL: 'ftp://example.test' });
+    expect(() => loadEnv()).toThrow(/PUBLIC_SITE_URL/);
   });
 });
 

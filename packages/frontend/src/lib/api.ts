@@ -39,6 +39,21 @@ import {
   type AdCampaignUpdate,
   type AdVariant,
   type PaginatedAdCampaigns,
+  AdAvailabilitySchema,
+  AdBookingResponseSchema,
+  AdQuoteSchema,
+  AdvertiserAuthResponseSchema,
+  AdvertiserCampaignListSchema,
+  AdvertiserSchema,
+  type AdAvailability,
+  type AdBookingInput,
+  type AdBookingResponse,
+  type AdQuote,
+  type Advertiser,
+  type AdvertiserAuthResponse,
+  type AdvertiserCampaignList,
+  type AdvertiserLoginInput,
+  type AdvertiserRegisterInput,
 } from '@gwj/shared-types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -459,4 +474,83 @@ export function uploadAdCreative(
  */
 export function beginMentionAuthorization(token: string): Promise<{ url: string }> {
   return request('/api/admin/mention/connect', z.object({ url: z.string() }), { token });
+}
+
+/* ---------- self-serve advertising ---------- */
+
+export function registerAdvertiser(
+  input: AdvertiserRegisterInput,
+): Promise<AdvertiserAuthResponse> {
+  return request('/api/advertiser/register', AdvertiserAuthResponseSchema, {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export function loginAdvertiser(input: AdvertiserLoginInput): Promise<AdvertiserAuthResponse> {
+  return request('/api/advertiser/login', AdvertiserAuthResponseSchema, {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export function getAdvertiser(token: string, signal?: AbortSignal): Promise<Advertiser> {
+  return request('/api/advertiser/me', AdvertiserSchema, { token, signal });
+}
+
+export function getAdvertiserCampaigns(
+  token: string,
+  signal?: AbortSignal,
+): Promise<AdvertiserCampaignList> {
+  return request('/api/advertiser/campaigns', AdvertiserCampaignListSchema, { token, signal });
+}
+
+/** The days a slot is already taken (held-but-unpaid included) in `[from, to]`. */
+export function getAdAvailability(
+  variant: AdVariant,
+  from: string,
+  to: string,
+  signal?: AbortSignal,
+): Promise<AdAvailability> {
+  return request('/api/ads/availability', AdAvailabilitySchema, {
+    params: { variant, from, to },
+    signal,
+  });
+}
+
+export function getAdQuote(
+  variant: AdVariant,
+  startDate: string,
+  endDate: string,
+  signal?: AbortSignal,
+): Promise<AdQuote> {
+  return request('/api/ads/quote', AdQuoteSchema, {
+    params: { variant, startDate, endDate },
+    signal,
+  });
+}
+
+/** Upload the advertiser's creative; the server checks size and shape for the slot. */
+export function uploadAdvertiserCreative(
+  token: string,
+  file: File,
+  variant: AdVariant,
+): Promise<UploadResponse> {
+  return uploadFile(
+    `/api/advertiser/creative?variant=${encodeURIComponent(variant)}`,
+    token,
+    file,
+    {
+      variant,
+    },
+  );
+}
+
+/** Hold the slot for the dates and get the Stripe Checkout link; 409 when the dates were just taken. */
+export function createAdBooking(token: string, input: AdBookingInput): Promise<AdBookingResponse> {
+  return request('/api/advertiser/bookings', AdBookingResponseSchema, {
+    method: 'POST',
+    body: input,
+    token,
+  });
 }

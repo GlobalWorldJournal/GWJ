@@ -8,6 +8,13 @@ import { createPublicRouter } from './routes/public';
 import { createAuthRouter } from './routes/auth';
 import { createAdminRouter } from './routes/admin';
 import { createMentionOauthRouter } from './routes/mentionOauth';
+import {
+  createAdsPublicRouter,
+  createAdvertiserRouter,
+  stripeWebhookHandler,
+} from './routes/advertiser';
+import { createAdBookingService } from './services/adBookingService';
+import { createStripeGateway, type StripeGateway } from './services/stripeGateway';
 import { createUploadService, type UploadService } from './services/uploadService';
 import type { RemoteImageOptions } from './services/remoteImageService';
 import { sql } from 'drizzle-orm';
@@ -35,6 +42,8 @@ export interface CreateAppOptions {
   activityPub?: ActivityPubOptions;
   /** Test seams (fetch, DNS) for downloading remote images in `upload/from-url`. */
   remoteImage?: RemoteImageOptions;
+  /** Test seam: replaces the Stripe gateway (an external paid API). */
+  stripeGateway?: StripeGateway;
 }
 
 /** The Express app, the ActivityPub module, and the distribution channels. */
@@ -156,6 +165,25 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
     stopMentionGrantCache();
   };
 
+  // Self-serve ads. Payments run only when both Stripe secrets are set.
+  const stripeGateway =
+    options.stripeGateway ??
+    (env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET
+      ? createStripeGateway(env.STRIPE_SECRET_KEY, env.STRIPE_WEBHOOK_SECRET)
+      : null);
+  const adBooking = createAdBookingService({
+    gateway: stripeGateway,
+    siteUrl: env.PUBLIC_SITE_URL ?? `https://${env.FEDIVERSE_DOMAIN}`,
+    cdnBaseUrl: env.CDN_BASE_URL,
+  });
+  // Stripe signs the exact bytes it sends, so the webhook takes a raw body and
+  // must come BEFORE the JSON parser. The signature (not a rate limit) guards it.
+  app.post(
+    '/api/stripe/webhook',
+    express.raw({ type: 'application/json', limit: '1mb' }),
+    stripeWebhookHandler(adBooking),
+  );
+
   app.use(express.json({ limit: '1mb' }));
 
   // Specific mounts first so their dedicated limiters apply without the public
@@ -169,6 +197,8 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   // Public: Mention's own redirect lands here directly, carrying no admin
   // session of ours (see routes/mentionOauth.ts for why `state` alone is
   // this route's real security control).
+  app.use('/api/advertiser', createAdvertiserRouter(env.JWT_SECRET, uploadService, adBooking));
+  app.use('/api/ads', publicLimiter, createAdsPublicRouter(adBooking));
   app.use('/api/mention', publicLimiter, createMentionOauthRouter(env));
   app.use('/api', publicLimiter, createPublicRouter());
 

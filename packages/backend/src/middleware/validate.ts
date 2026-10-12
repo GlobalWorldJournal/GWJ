@@ -1,5 +1,5 @@
-import { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
-import { type ZodTypeAny } from 'zod';
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import type { ZodTypeAny } from 'zod';
 
 type ValidationSource = 'body' | 'query' | 'params';
 

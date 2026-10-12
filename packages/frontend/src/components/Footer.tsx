@@ -59,6 +59,7 @@ const COLUMNS: FooterColumn[] = [
       { labelKey: 'privacy', to: '/privacy' },
       { labelKey: 'cookieNotice', to: '/cookie-notice' },
       { labelKey: 'terms', to: '/terms' },
+      { labelKey: 'advertisingTerms', to: '/advertising-terms' },
       { labelKey: 'accessibility', to: '/accessibility' },
     ],
   },

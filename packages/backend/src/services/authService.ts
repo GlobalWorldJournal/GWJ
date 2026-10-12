@@ -1,5 +1,5 @@
 import jwt, { type SignOptions } from 'jsonwebtoken';
-import { type LoginResponse } from '@gwj/shared-types';
+import type { LoginResponse } from '@gwj/shared-types';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { users } from '../db/schema/users';

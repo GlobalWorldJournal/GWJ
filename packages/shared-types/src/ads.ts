@@ -11,8 +11,16 @@ export type AdVariant = z.infer<typeof AdVariantSchema>;
 /**
  * `active` serves inside its start/end window; `paused` is a reversible hold;
  * `cancelled` ends the booking for good (kept for the record, never served).
+ * Self-serve bookings also pass through `pending` (the slot is held while the
+ * advertiser pays) and end `expired` when the hold lapses unpaid.
  */
-export const AD_CAMPAIGN_STATUSES = ['active', 'paused', 'cancelled'] as const;
+export const AD_CAMPAIGN_STATUSES = [
+  'active',
+  'paused',
+  'cancelled',
+  'pending',
+  'expired',
+] as const;
 export const AdCampaignStatusSchema = z.enum(AD_CAMPAIGN_STATUSES);
 export type AdCampaignStatus = z.infer<typeof AdCampaignStatusSchema>;
 
@@ -63,17 +71,24 @@ function endsAfterStart(value: { startsAt?: string; endsAt?: string }): boolean 
 
 const END_AFTER_START = { message: 'endsAt must be after startsAt', path: ['endsAt'] };
 
+/**
+ * What an admin may set by hand. `pending` and `expired` belong to the self-serve
+ * checkout (a held slot and its lapsed hold): an admin-made `pending` row would
+ * hold no slot and never resolve.
+ */
+export const AdminAdCampaignStatusSchema = z.enum(['active', 'paused', 'cancelled']);
+export type AdminAdCampaignStatus = z.infer<typeof AdminAdCampaignStatusSchema>;
+
 /** Admin create payload. */
 export const AdCampaignInputSchema = AdCampaignFieldsSchema.extend({
-  status: AdCampaignStatusSchema.default('active'),
+  status: AdminAdCampaignStatusSchema.default('active'),
 }).refine(endsAfterStart, END_AFTER_START);
 export type AdCampaignInput = z.infer<typeof AdCampaignInputSchema>;
 
 /** Admin partial update (pause/resume/cancel is a `status` patch). */
-export const AdCampaignUpdateSchema = AdCampaignFieldsSchema.partial().refine(
-  endsAfterStart,
-  END_AFTER_START,
-);
+export const AdCampaignUpdateSchema = AdCampaignFieldsSchema.partial()
+  .extend({ status: AdminAdCampaignStatusSchema.optional() })
+  .refine(endsAfterStart, END_AFTER_START);
 export type AdCampaignUpdate = z.infer<typeof AdCampaignUpdateSchema>;
 
 /** Full record returned to admins. */

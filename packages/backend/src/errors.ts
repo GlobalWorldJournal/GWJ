@@ -60,3 +60,19 @@ export class ForbiddenError extends HttpError {
     this.name = 'ForbiddenError';
   }
 }
+
+/** 502 Bad Gateway — an upstream service we depend on (e.g. the payment processor) failed. */
+export class BadGatewayError extends HttpError {
+  constructor(message = 'Bad gateway') {
+    super(502, message);
+    this.name = 'BadGatewayError';
+  }
+}
+
+/** 503 Service Unavailable — a feature that is not configured on this deployment. */
+export class ServiceUnavailableError extends HttpError {
+  constructor(message = 'Service unavailable') {
+    super(503, message);
+    this.name = 'ServiceUnavailableError';
+  }
+}

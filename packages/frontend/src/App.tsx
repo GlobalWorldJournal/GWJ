@@ -37,6 +37,18 @@ const Careers = lazy(() => import('./pages/static/Careers').then((m) => ({ defau
 const Advertise = lazy(() =>
   import('./pages/static/Advertise').then((m) => ({ default: m.Advertise })),
 );
+const AdvertiseStart = lazy(() =>
+  import('./pages/advertise/AdvertiseStart').then((m) => ({ default: m.AdvertiseStart })),
+);
+const AdvertiserDashboard = lazy(() =>
+  import('./pages/advertise/Dashboard').then((m) => ({ default: m.Dashboard })),
+);
+const AdvertiseSuccess = lazy(() =>
+  import('./pages/advertise/Success').then((m) => ({ default: m.Success })),
+);
+const AdvertisingTerms = lazy(() =>
+  import('./pages/advertise/AdvertisingTerms').then((m) => ({ default: m.AdvertisingTerms })),
+);
 const Corrections = lazy(() =>
   import('./pages/static/Corrections').then((m) => ({ default: m.Corrections })),
 );
@@ -81,6 +93,10 @@ const STATIC_PAGES: { path: string; element: ReactElement }[] = [
   { path: 'about', element: <AboutUs /> },
   { path: 'careers', element: <Careers /> },
   { path: 'advertise', element: <Advertise /> },
+  { path: 'advertise/start', element: <AdvertiseStart /> },
+  { path: 'advertise/dashboard', element: <AdvertiserDashboard /> },
+  { path: 'advertise/success', element: <AdvertiseSuccess /> },
+  { path: 'advertising-terms', element: <AdvertisingTerms /> },
   { path: 'corrections', element: <Corrections /> },
   { path: 'report-content', element: <ReportContent /> },
   { path: 'privacy', element: <PrivacyNotice /> },

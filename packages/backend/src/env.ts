@@ -26,6 +26,17 @@ const optionalSecret = (name: string) =>
     .refine((v) => v !== '-', `${name} must not be the placeholder '-'`)
     .optional();
 
+/**
+ * An optional secret that may sit in SSM as the Terraform placeholder `'-'` until
+ * the real value is put there: empty OR `'-'` means "not configured" (the feature
+ * stays off) rather than a boot failure, so applying the infra before the Stripe
+ * keys exist cannot crash-loop the service.
+ */
+const optionalPlaceholderSecret = z
+  .string()
+  .transform((v) => (v.length === 0 || v === '-' ? undefined : v))
+  .optional();
+
 const DEFAULT_PORT = 4000;
 
 /** Default apex domain where the fediverse handles live (`@<user>@<domain>`). */
@@ -161,6 +172,20 @@ const EnvSchema = z.object({
   // on every `/connect` is `${this}/api/mention/callback`, so it must be this
   // backend's own real public origin, not the apex site's.
   MENTION_REDIRECT_BASE_URL: z.string().default('https://api.globalworldjournal.com'),
+
+  // --- Self-serve advertising (Stripe Checkout) ---
+  // OPTIONAL: while either Stripe secret is unset the booking endpoint answers
+  // 503 'Payments are not configured' and the rest of the app boots normally.
+  STRIPE_SECRET_KEY: optionalPlaceholderSecret,
+  STRIPE_WEBHOOK_SECRET: optionalPlaceholderSecret,
+  // The public reader site, for Checkout's success/cancel return URLs. Absent →
+  // the apex domain (`https://${FEDIVERSE_DOMAIN}`).
+  PUBLIC_SITE_URL: z
+    .string()
+    .transform((v) => v.trim().replace(/\/+$/, ''))
+    .refine((v) => v.length === 0 || /^https?:\/\//.test(v), 'PUBLIC_SITE_URL must be http(s)')
+    .transform((v) => (v.length === 0 ? undefined : v))
+    .optional(),
 });
 
 /**
