@@ -1,5 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Health } from '@gwj/shared-types';
 import { createGwjClient, type BackendCredentials, type GwjClient } from './client.js';
@@ -10,6 +12,10 @@ import { createMcpServer } from './tools.js';
 const MCP_PATH = '/mcp';
 const NANOSECONDS_PER_MILLISECOND = 1_000_000n;
 const JSON_RPC_VERSION = '2.0';
+/** Failed authentications a client may make per window before it is refused. */
+const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_FAILURE_MAX = 20;
+const HTTP_UNAUTHORIZED = 401;
 
 /** Constant-time string comparison that never leaks length via timing-sensitive paths. */
 function tokenEquals(presented: string | undefined, expected: string): boolean {
@@ -82,7 +88,9 @@ function requestLog() {
 
 export function createApp(env: Env, client: GwjClient): express.Express {
   const app = express();
+  app.set('trust proxy', env.TRUST_PROXY_HOPS);
   app.use(requestLog());
+  app.use(helmet());
   app.use(express.json({ limit: '25mb' }));
 
   const health: Health = { ok: true, release: env.GWJ_RELEASE ?? null };
@@ -90,7 +98,26 @@ export function createApp(env: Env, client: GwjClient): express.Express {
     res.json(health);
   });
 
-  app.use(MCP_PATH, requireBearer(env.MCP_TOKEN));
+  // Only refused requests count: a client guessing the token is cut off after
+  // AUTH_FAILURE_MAX tries, while an authenticated agent is never throttled here.
+  const authFailureLimiter = rateLimit({
+    windowMs: AUTH_FAILURE_WINDOW_MS,
+    limit: AUTH_FAILURE_MAX,
+    skipSuccessfulRequests: true,
+    // Only a refused token is a failure: an authenticated agent's own 4xx (a GET
+    // on the stateless endpoint, a malformed JSON-RPC call) must not count.
+    requestWasSuccessful: (_req, res) => res.statusCode !== HTTP_UNAUTHORIZED,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req, res) => {
+      res.status(429).json({
+        jsonrpc: JSON_RPC_VERSION,
+        error: { code: -32029, message: 'Too many failed authentications' },
+        id: null,
+      });
+    },
+  });
+  app.use(MCP_PATH, authFailureLimiter, requireBearer(env.MCP_TOKEN));
 
   app.post(MCP_PATH, async (req, res) => {
     let transport: StreamableHTTPServerTransport | undefined;
