@@ -4,7 +4,7 @@
  * composites and the wrap/truncate logic never overflows the card), decoded
  * back with sharp to assert the real output shape.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import sharp from 'sharp';
 import { CARD_HEIGHT, CARD_WIDTH, generateInstagramCard } from '../socialCardService';
 

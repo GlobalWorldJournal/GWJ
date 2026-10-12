@@ -1,5 +1,8 @@
 import { assertSafeRemoteUrl, SsrfError, type AssertSafeRemoteUrlOptions } from './ssrfGuard';
 
+/** `fetch`'s call signature alone, so an injected double needs nothing else. */
+export type FetchFn = (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>;
+
 /** Thrown when a remote body exceeds its byte cap (declared or actually streamed). */
 export class RemoteBodyTooLargeError extends Error {
   constructor(readonly maxBytes: number) {
@@ -24,7 +27,7 @@ export interface GuardedGetOptions {
   /** Redirect hops to follow, each re-validated by the SSRF guard. */
   maxRedirects: number;
   /** Injectable fetch (tests); defaults to global fetch. */
-  fetch?: typeof fetch;
+  fetch?: FetchFn;
   /** Injectable DNS resolver for the SSRF guard (tests). */
   resolveDns?: AssertSafeRemoteUrlOptions['resolve'];
 }

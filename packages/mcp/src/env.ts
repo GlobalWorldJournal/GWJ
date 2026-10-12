@@ -1,7 +1,4 @@
-import { config as loadDotenv } from 'dotenv';
 import { z } from 'zod';
-
-loadDotenv();
 
 /** A required secret/string that must not be empty or the placeholder `-`. */
 const requiredSecret = (name: string) =>
@@ -40,6 +37,7 @@ export type Env = z.infer<typeof EnvSchema>;
 
 /**
  * Parse and validate `process.env` once at boot.
+ * `.env` files are loaded into `process.env` by Bun itself before any code runs.
  * Throws a readable aggregated error when any required value is missing or invalid.
  */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {

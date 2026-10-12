@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import { CATEGORIES, SUPPORTED_LANGUAGES } from '@gwj/shared-types';
 import { getDb } from '../client';
@@ -112,11 +112,11 @@ describe('constraints', () => {
   // These two are the gate for growing a closed set: adding a category or a
   // language to @gwj/shared-types without `db:generate` + a migration makes the
   // first production write of it fail — and this test fail first.
-  it.each(CATEGORIES)('accepts category %s', async (category) => {
+  it.each([...CATEGORIES])('accepts category %s', async (category) => {
     await getDb().insert(articles).values(article({ category }));
   });
 
-  it.each(SUPPORTED_LANGUAGES)('accepts language %s', async (language) => {
+  it.each([...SUPPORTED_LANGUAGES])('accepts language %s', async (language) => {
     await getDb().insert(articles).values(article({ language }));
   });
 

@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BackendError, createGwjClient, type GwjClientOptions } from '../client.js';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
+import { BackendError, createGwjClient, type FetchFn, type GwjClientOptions } from '../client.js';
 import { makeTruncatedPng, makeValidPng } from './imageFixtures.js';
 
 /** A real, complete PNG large enough to pass the validator's min-dimension gate. */
@@ -12,7 +12,7 @@ type FetchInit = Parameters<typeof fetch>[1];
 type FetchHandler = (url: string, init?: FetchInit) => Response | Promise<Response>;
 
 /** Minimal fetch double whose responses are scripted per call. */
-function scriptedFetch(handlers: FetchHandler[]): typeof fetch {
+function scriptedFetch(handlers: FetchHandler[]): FetchFn {
   let call = 0;
   return async (input: FetchInput, init?: FetchInit): Promise<Response> => {
     const handler = handlers[call++];

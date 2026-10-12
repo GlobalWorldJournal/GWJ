@@ -1,4 +1,3 @@
-import { config as loadDotenv } from 'dotenv';
 import { z } from 'zod';
 import { TELEGRAM_CHANNEL_HANDLE, TELEGRAM_CHANNEL_HANDLE_ES } from '@gwj/shared-types';
 
@@ -188,11 +187,11 @@ let cached: Env | null = null;
  *
  * Lazy by design: configuration is read on first call (typically at bootstrap),
  * not at import time, so tests can inject `process.env` before invoking it.
+ * `.env` files are loaded into `process.env` by Bun itself before any code runs.
  * Throws with a readable message listing every missing/invalid variable.
  */
 export function loadEnv(): Env {
   if (cached) return cached;
-  loadDotenv();
   const parsed = RefinedEnvSchema.safeParse(process.env);
   if (!parsed.success) {
     const issues = parsed.error.issues

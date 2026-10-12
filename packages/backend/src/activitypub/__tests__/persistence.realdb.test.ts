@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { count, eq } from 'drizzle-orm';
 import { getDb } from '../../db/client';
 import { actorKeys } from '../../db/schema/actorKeys';
@@ -136,7 +136,7 @@ describe('resolveActorKeyPair (PostgreSQL)', () => {
       .select()
       .from(actorKeys)
       .where(eq(actorKeys.username, 'noticias'));
-    for (const r of results) expect(r.publicKeyPem).toBe(stored?.publicKeyPem);
+    for (const r of results) expect<string | undefined>(r.publicKeyPem).toBe(stored?.publicKeyPem);
     expect(stored?.privateKeyPem).toMatch(/^-----BEGIN PRIVATE KEY-----/);
   });
 });

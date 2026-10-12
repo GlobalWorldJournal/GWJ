@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'bun:test';
 import type { Article, ArticleInput, Language } from '@gwj/shared-types';
 import { CATEGORIES } from '@gwj/shared-types';
 import { loadEnv, resetEnvCache, type Env } from '../../env';
@@ -157,6 +157,28 @@ const summary = (jobs: Awaited<ReturnType<typeof jobsFor>>) =>
 
 let unregister: () => void = () => undefined;
 
+/** A `globalThis.fetch` stand-in that answers every call with a fresh `respond()`. */
+function fetchAnswering(respond: () => Response): typeof fetch {
+  return Object.assign(async () => respond(), { preconnect: fetch.preconnect });
+}
+
+const WAIT_FOR_TIMEOUT_MS = 1_000;
+const WAIT_FOR_INTERVAL_MS = 50;
+
+/** Retry `assertion` until it passes or the timeout runs out (vitest's `vi.waitFor`). */
+async function waitFor(assertion: () => void): Promise<void> {
+  const deadline = Date.now() + WAIT_FOR_TIMEOUT_MS;
+  for (;;) {
+    try {
+      assertion();
+      return;
+    } catch (err) {
+      if (Date.now() >= deadline) throw err;
+    }
+    await new Promise((resolve) => setTimeout(resolve, WAIT_FOR_INTERVAL_MS));
+  }
+}
+
 beforeAll(async () => {
   testDb = await useTestDatabase();
 });
@@ -262,7 +284,7 @@ describe('outbox worker', () => {
 
     expect(ch.published.map((a) => a.title)).toEqual(['Delivered']);
     const [job] = await jobsFor(article.id);
-    expect(ch.deliveryIds).toEqual([job?.id]);
+    expect<(number | undefined)[]>(ch.deliveryIds).toEqual([job?.id]);
     expect(summary(await jobsFor(article.id))).toEqual(['ch:publish:done']);
     expect((await channelPostsFor(article.id)).map((p) => p.ref)).toEqual([{ messageId: 42 }]);
   });
@@ -427,7 +449,7 @@ describe('outbox worker', () => {
     await publishArticle();
 
     const stop = startOutboxWorker([ch], 10);
-    await vi.waitFor(() => expect(ch.published).toHaveLength(1));
+    await waitFor(() => expect(ch.published).toHaveLength(1));
     stop();
   });
 });
@@ -592,7 +614,9 @@ describe('telegram channel', () => {
     const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
-      .mockImplementation(async () => new Response('{"ok":true,"result":{}}', { status: 200 }));
+      .mockImplementation(
+        fetchAnswering(() => new Response('{"ok":true,"result":{}}', { status: 200 })),
+      );
     const tg = telegramChannels(env)[0];
     if (!tg?.update) throw new Error('telegram channel missing update');
     const hero = { url: 'https://cdn.example.test/new.jpg', alt: '' };
@@ -691,7 +715,7 @@ describe('telegram channel — language routing through the outbox', () => {
       TELEGRAM_CHANNEL: '@GWJOfficial',
       TELEGRAM_CHANNEL_ES: '@gwj_ES',
     });
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => sentReply());
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(fetchAnswering(sentReply));
     // Only the Telegram channels (no Mastodon) so fetch calls map 1:1 to Telegram posts.
     const channels = telegramChannels(env);
     unregister = registerChannels(channels);

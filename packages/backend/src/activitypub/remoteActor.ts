@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ACTIVITY_JSON_TYPE, LD_JSON_TYPE } from '@gwj/shared-types';
 import { assertSafeRemoteUrl, type AssertSafeRemoteUrlOptions } from '../net/ssrfGuard';
-import { guardedGet, readBodyCapped } from '../net/guardedFetch';
+import { guardedGet, readBodyCapped, type FetchFn } from '../net/guardedFetch';
 import { signRequest, type SignRequestOptions } from './httpSignature';
 import { logger } from '../logger';
 
@@ -45,7 +45,7 @@ function evictIfFull(): void {
 
 export interface FederationFetchOptions {
   /** Injectable fetch (tests); defaults to global fetch. */
-  fetch?: typeof fetch;
+  fetch?: FetchFn;
   /** Injectable DNS resolver for the SSRF guard. */
   resolveDns?: AssertSafeRemoteUrlOptions['resolve'];
 }

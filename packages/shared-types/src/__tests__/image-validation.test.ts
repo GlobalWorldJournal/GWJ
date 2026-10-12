@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   MIN_IMAGE_HEIGHT,
   MIN_IMAGE_WIDTH,

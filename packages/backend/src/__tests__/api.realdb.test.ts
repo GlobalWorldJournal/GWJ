@@ -1,5 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import bcrypt from 'bcryptjs';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import request from 'supertest';
 import type { Express } from 'express';
 import { CATEGORIES } from '@gwj/shared-types';
@@ -10,6 +9,7 @@ import { newRecordId } from '../db/ids';
 import { users } from '../db/schema/users';
 import { useTestDatabase, type TestDatabase } from '../test/postgres';
 import type { UploadService } from '../services/uploadService';
+import { hashPassword } from '../services/password';
 import { tooSmallPngBuffer, truncatedPngBuffer, validPngBuffer } from './imageFixtures';
 
 let testDb: TestDatabase;
@@ -72,7 +72,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await testDb.truncateAll();
-  const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+  const passwordHash = await hashPassword(ADMIN_PASSWORD, 10);
   await getDb()
     .insert(users)
     .values({ id: newRecordId(), username: ADMIN_USERNAME, passwordHash, role: 'admin' });

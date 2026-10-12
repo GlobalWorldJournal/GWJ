@@ -1,6 +1,16 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { articleService } from '../articleService';
 import { startScheduler } from '../scheduler';
+
+/**
+ * Advance the fake clock, letting the promise callbacks a tick schedules settle
+ * on both sides of it (the async variant of `advanceTimersByTime`).
+ */
+async function advanceTimersByTimeAsync(ms: number): Promise<void> {
+  await new Promise((resolve) => setImmediate(resolve));
+  vi.advanceTimersByTime(ms);
+  await new Promise((resolve) => setImmediate(resolve));
+}
 
 afterEach(() => {
   vi.useRealTimers();
@@ -19,19 +29,19 @@ describe('startScheduler', () => {
     );
     const stop = startScheduler(1_000);
 
-    await vi.advanceTimersByTimeAsync(1_000);
+    await advanceTimersByTimeAsync(1_000);
     expect(publishDue).toHaveBeenCalledTimes(1);
     // The first tick is still running: the next interval skips instead of overlapping.
-    await vi.advanceTimersByTimeAsync(1_000);
+    await advanceTimersByTimeAsync(1_000);
     expect(publishDue).toHaveBeenCalledTimes(1);
 
     finish([]);
-    await vi.advanceTimersByTimeAsync(1_000);
+    await advanceTimersByTimeAsync(1_000);
     expect(publishDue).toHaveBeenCalledTimes(2);
 
     stop();
     finish([]);
-    await vi.advanceTimersByTimeAsync(5_000);
+    await advanceTimersByTimeAsync(5_000);
     expect(publishDue).toHaveBeenCalledTimes(2);
   });
 });

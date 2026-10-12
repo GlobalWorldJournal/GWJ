@@ -13,14 +13,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.json --emitDeclarationOnly false --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "bun test --isolate"
   },
   "dependencies": {
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.2",
     "@types/node": "^26.0.0",
-    "typescript": "^5.6.3",
-    "vitest": "^2.1.8"
+    "typescript": "^5.6.3"
   }
 }

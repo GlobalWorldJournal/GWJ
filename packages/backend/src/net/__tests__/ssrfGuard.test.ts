@@ -1,5 +1,5 @@
 import type { LookupAddress } from 'node:dns';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { assertSafeRemoteUrl, isUnsafeAddress, SsrfError } from '../ssrfGuard';
 
 /** Build an injectable resolver that always returns the given addresses. */

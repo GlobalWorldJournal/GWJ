@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { CATEGORIES, type ArticleInput, type TakedownRequestInput } from '@gwj/shared-types';
 import { takedownService } from '../takedownService';
 import { NotFoundError } from '../../errors';

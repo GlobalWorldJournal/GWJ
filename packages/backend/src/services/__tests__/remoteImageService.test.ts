@@ -1,5 +1,6 @@
 import type { LookupAddress } from 'node:dns';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
+import type { FetchFn } from '../../net/guardedFetch';
 import { fetchRemoteImage } from '../remoteImageService';
 import { truncatedPngBuffer, validPngBuffer } from '../../__tests__/imageFixtures';
 
@@ -17,9 +18,9 @@ type FetchInit = Parameters<typeof fetch>[1];
 type FetchHandler = (url: string, init?: FetchInit) => Response;
 
 /** A fetch double whose responses are scripted per call; records the URLs it saw. */
-function scriptedFetch(handlers: FetchHandler[]): { fetch: typeof fetch; urls: string[] } {
+function scriptedFetch(handlers: FetchHandler[]): { fetch: FetchFn; urls: string[] } {
   const urls: string[] = [];
-  const fetchImpl: typeof fetch = async (input, init) => {
+  const fetchImpl: FetchFn = async (input, init) => {
     const handler = handlers[urls.length];
     const url = typeof input === 'string' ? input : input.toString();
     urls.push(url);
@@ -126,7 +127,7 @@ describe('fetchRemoteImage', () => {
 
   it('reports a source that never answers as a 422 timeout', async () => {
     // What fetch rejects with when its AbortSignal.timeout() fires.
-    const hanging: typeof fetch = async () => {
+    const hanging: FetchFn = async () => {
       throw new DOMException('The operation timed out.', 'TimeoutError');
     };
     await expect(

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import postgres from 'postgres';
 import { MIGRATIONS_FOLDER } from '../migrationsFolder';
 import {

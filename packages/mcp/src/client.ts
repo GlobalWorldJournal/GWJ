@@ -20,6 +20,9 @@ import {
 import { validateImageBuffer } from '@gwj/shared-types/image-validation';
 import { z } from 'zod';
 
+/** `fetch`'s call signature alone, so an injected double needs nothing else. */
+export type FetchFn = (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>;
+
 /** Thrown when the backend returns a non-2xx response. */
 export class BackendError extends Error {
   constructor(
@@ -45,7 +48,7 @@ export interface GwjClientOptions {
   apiBaseUrl: string;
   credentials: BackendCredentials;
   /** Injectable for testing; defaults to the global `fetch`. */
-  fetch?: typeof fetch;
+  fetch?: FetchFn;
 }
 
 /** A typed client to the GWJ backend admin API. */

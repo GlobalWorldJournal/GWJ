@@ -1,10 +1,10 @@
-import bcrypt from 'bcryptjs';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { type LoginResponse } from '@gwj/shared-types';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { users } from '../db/schema/users';
 import { UnauthorizedError } from '../errors';
+import { verifyPassword } from './password';
 
 const TOKEN_TTL: SignOptions['expiresIn'] = '12h';
 /**
@@ -35,7 +35,7 @@ function isPayload(value: unknown): value is AuthTokenPayload {
 export const authService: AuthService = {
   async login(username, password, jwtSecret) {
     const [user] = await getDb().select().from(users).where(eq(users.username, username)).limit(1);
-    const ok = await bcrypt.compare(password, user?.passwordHash ?? UNKNOWN_USER_HASH);
+    const ok = await verifyPassword(password, user?.passwordHash ?? UNKNOWN_USER_HASH);
     if (!user || !ok) throw new UnauthorizedError('Invalid credentials');
 
     const payload: AuthTokenPayload = {
