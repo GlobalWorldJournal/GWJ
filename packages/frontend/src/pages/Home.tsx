@@ -13,6 +13,7 @@ import { LocaleLink } from '../lib/locale';
 import { categoryLabel } from '../lib/dictionary';
 import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
+import { BalancedColumns, type BalancedItem } from '../components/BalancedColumns';
 import { MostPopular } from '../components/MostPopular';
 import { StatusMessage } from '../components/StatusMessage';
 import { HomeSkeleton } from '../components/Skeletons';
@@ -218,10 +219,10 @@ function SectionBands({
   return (
     <div className="mt-12 flex flex-col gap-10">
       {sections.slice(0, visible).map((category, idx) => {
-        const inCategory = fresh.filter((a) => a.category === category).slice(0, 5);
+        const inCategory = fresh.filter((a) => a.category === category).slice(0, SECTION_STORIES);
         return (
           <Fragment key={category}>
-            <CategorySection name={category} articles={inCategory} lang={lang} t={t} />
+            <CategorySection name={category} fallback={inCategory} lang={lang} t={t} />
             {/* Bounded wrapper: the leaderboard keeps the sticky property but has
                 no taller container to travel within, so it can't float over the
                 following sections. */}
@@ -269,23 +270,69 @@ function OpinionRail({ articles, title }: { articles: Article[]; title: string }
   );
 }
 
+/** Stories a section can show: enough to fill three columns of a busy desk. */
+const SECTION_STORIES = 9;
+/** Fewer than this cannot fill three columns, so the band is left out. */
+const SECTION_MIN_STORIES = 3;
+
 function CategorySection({
   name,
-  articles,
+  fallback,
   lang,
   t,
 }: {
   name: Category;
-  articles: Article[];
+  /** What the home feed already holds for this section: shown at once, then replaced by the section's own latest. */
+  fallback: Article[];
   lang: Language;
   t: Translate;
 }) {
+  // The home feed is the newest stories across every section, so a busy desk
+  // (Politics) crowds the rest out of it and a quiet one is left with a few
+  // stories and gaps in its band; each section asks for its own latest.
+  const { data } = useQuery({
+    queryKey: ['articles', 'home-section', lang, name],
+    queryFn: ({ signal }) =>
+      getArticles(
+        { category: name, language: lang, limit: SECTION_STORIES, sort: 'latest' },
+        signal,
+      ),
+    refetchInterval: HOME_REFETCH_MS,
+  });
+  const now = Date.now();
+  const ownAll = data ? sortForHome(data.data) : [];
+  const own = ownAll.filter((a) => isFresh(a, now));
+  // A quiet desk is topped up with its older stories rather than left with a
+  // half-empty band: fresh ones lead, so the band still reads as current.
+  const topped =
+    own.length >= SECTION_MIN_STORIES ? own : [...own, ...ownAll.filter((a) => !isFresh(a, now))];
+  const articles = topped.length > fallback.length ? topped : fallback;
+  if (articles.length < SECTION_MIN_STORIES) return null;
+
   // Varied card types per band, like WSJ: a photo-led lead, a text story with a
-  // dek, and a thumbnail list of the rest.
+  // dek, and a thumbnail list of the rest. BalancedColumns levels the three
+  // columns by measured height, so the band never ends with a gap.
   const label = categoryLabel(name, lang);
-  const featured = articles[0];
-  const secondary = articles[1];
-  const listed = articles.slice(2);
+  const items: BalancedItem[] = articles.map((article, index) => ({
+    key: article.id,
+    node:
+      index < 2 ? (
+        <ArticleCard
+          article={article}
+          variant="standard"
+          showImage={index === 0 ? Boolean(article.heroImage) : undefined}
+          showByline={false}
+        />
+      ) : (
+        <ArticleCard
+          article={article}
+          variant="list"
+          showImage={Boolean(article.heroImage)}
+          showDeck={false}
+          showByline={false}
+        />
+      ),
+  }));
 
   return (
     <section>
@@ -298,38 +345,7 @@ function CategorySection({
           {t('more', { x: label })}
         </LocaleLink>
       </div>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-        {featured ? (
-          <div>
-            <ArticleCard
-              article={featured}
-              variant="standard"
-              showImage={Boolean(featured.heroImage)}
-              showByline={false}
-            />
-          </div>
-        ) : null}
-        {secondary ? (
-          <div className="border-t border-rule pt-4 sm:border-l sm:border-t-0 sm:border-rule sm:pl-6 sm:pt-0">
-            <ArticleCard article={secondary} variant="standard" showByline={false} />
-          </div>
-        ) : null}
-        {listed.length > 0 ? (
-          <div className="flex flex-col divide-y divide-rule border-t border-rule pt-4 sm:border-l sm:border-t-0 sm:border-rule sm:pl-6 sm:pt-0">
-            {listed.map((article) => (
-              <div key={article.id} className="py-3 first:pt-0">
-                <ArticleCard
-                  article={article}
-                  variant="list"
-                  showImage={Boolean(article.heroImage)}
-                  showDeck={false}
-                  showByline={false}
-                />
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      <BalancedColumns items={items} />
     </section>
   );
 }

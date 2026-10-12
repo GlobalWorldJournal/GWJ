@@ -1,8 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { AdVariant, PublicAdCampaign } from '@gwj/shared-types';
 import { getActiveAdCampaign } from '../lib/api';
 import { useLang } from '../lib/i18n';
+import { HouseAdView } from './ads/HouseAdView';
+import { HOUSE_ADS, type HouseAd } from './ads/houseAds';
 
 interface AdSlotProps {
   variant?: AdVariant;
@@ -99,13 +101,32 @@ function DirectAd({ campaign, variant }: { campaign: PublicAdCampaign; variant: 
 }
 
 /**
+ * House ads rotate across the slots of a page: each slot instance claims the
+ * next ad once and keeps it. Keyed by the slot's own id so React's development
+ * double render (which runs initializers twice) claims one ad, not two.
+ */
+let houseAdCursor = 0;
+const claimedHouseAds = new Map<string, HouseAd>();
+function claimHouseAd(slotId: string): HouseAd | undefined {
+  const claimed = claimedHouseAds.get(slotId);
+  if (claimed) return claimed;
+  const ad = HOUSE_ADS[houseAdCursor % HOUSE_ADS.length];
+  houseAdCursor += 1;
+  if (ad) claimedHouseAds.set(slotId, ad);
+  return ad;
+}
+
+/**
  * A labelled ad slot. A directly sold campaign scheduled for this variant
- * takes the slot; otherwise (none booked, or the lookup failed) AdSense fills
- * it. AdSense is only mounted once that answer is in, so it never requests an
+ * takes the slot; otherwise (none booked, or the lookup failed) one of our own
+ * house ads fills it, whatever the slot's shape, and AdSense only runs if there
+ * are none. AdSense is only mounted once that answer is in, so it never requests an
  * ad for a slot a direct campaign then takes over.
  */
 export function AdSlot({ variant = 'mrec', sticky = true, className }: AdSlotProps) {
   const { t } = useLang();
+  const slotId = useId();
+  const houseAd = claimHouseAd(slotId);
   const { data, isPending } = useQuery({
     queryKey: ['ad-campaign', 'active', variant],
     queryFn: ({ signal }) => getActiveAdCampaign(variant, signal),
@@ -125,6 +146,10 @@ export function AdSlot({ variant = 'mrec', sticky = true, className }: AdSlotPro
         <div className={`block ${SIZE[variant]}`} aria-hidden="true" />
       ) : campaign ? (
         <DirectAd campaign={campaign} variant={variant} />
+      ) : houseAd ? (
+        <div className="w-full">
+          <HouseAdView ad={houseAd} />
+        </div>
       ) : (
         <AdSenseUnit variant={variant} />
       )}
