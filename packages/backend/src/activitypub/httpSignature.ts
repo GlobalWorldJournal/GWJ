@@ -19,8 +19,14 @@ import {
 /** Maximum allowed clock skew for the `Date` header on inbound requests (ms). */
 export const MAX_DATE_SKEW_MS = 5 * 60 * 1000;
 
-/** RSA-SHA256 is the only algorithm we sign/verify with (fediverse default). */
+/** RSA-SHA256 is the algorithm we sign with (fediverse default). */
 const SIGNATURE_ALGORITHM = 'rsa-sha256';
+/**
+ * `hs2019` ("derive the algorithm from the key") is what newer servers
+ * (GoToSocial, Mastodon 4+ with `(created)`) announce; for the RSA keys the
+ * fediverse uses it is the same RSASSA-PKCS1-v1_5 + SHA-256 signature.
+ */
+const DERIVED_ALGORITHM = 'hs2019';
 const NODE_SIGN_ALGORITHM = 'RSA-SHA256';
 
 /** Compute the `Digest` header value (`SHA-256=<base64>`) for a request body. */
@@ -127,12 +133,13 @@ export function signRequest(options: SignRequestOptions): SignedHeaders {
 /** Parse a `Signature` header into its comma-separated `key="value"` parameters. */
 export function parseSignatureHeader(header: string): Record<string, string> {
   const params: Record<string, string> = {};
-  // Match key="value" pairs; values may contain commas/spaces (e.g. base64, header lists).
-  const regex = /([a-zA-Z]+)="([^"]*)"/g;
+  // Match key="value" pairs; values may contain commas/spaces (e.g. base64, header
+  // lists). hs2019's `created`/`expires` are bare integers: key=1402170695.
+  const regex = /([a-zA-Z]+)=(?:"([^"]*)"|(\d+))/g;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(header)) !== null) {
     const key = match[1];
-    const value = match[2];
+    const value = match[2] ?? match[3];
     if (key !== undefined && value !== undefined) params[key] = value;
   }
   return params;
@@ -191,19 +198,32 @@ export function verifySignature(
   if (!keyId || !signatureB64 || !headerList) {
     return { ok: false, reason: 'Malformed Signature header' };
   }
-  if (params.algorithm && params.algorithm.toLowerCase() !== SIGNATURE_ALGORITHM) {
+  const algorithm = params.algorithm?.toLowerCase();
+  if (algorithm && algorithm !== SIGNATURE_ALGORITHM && algorithm !== DERIVED_ALGORITHM) {
     return { ok: false, reason: `Unsupported signature algorithm "${params.algorithm}"` };
   }
 
   const coveredHeaders = headerList.split(' ').filter((h) => h.length > 0);
-  // A signature that does not cover (request-target) and date is replayable.
-  if (!coveredHeaders.includes('(request-target)') || !coveredHeaders.includes('date')) {
-    return { ok: false, reason: 'Signature must cover (request-target) and date' };
+  // The `(created)`/`(expires)` pseudo-headers exist only under hs2019.
+  const usesTimestamps =
+    coveredHeaders.includes('(created)') || coveredHeaders.includes('(expires)');
+  if (usesTimestamps && algorithm !== DERIVED_ALGORITHM) {
+    return { ok: false, reason: '(created)/(expires) require algorithm="hs2019"' };
+  }
+  // A signature that does not cover the target and a time is replayable.
+  const coversTime = coveredHeaders.includes('date') || coveredHeaders.includes('(created)');
+  if (!coveredHeaders.includes('(request-target)') || !coversTime) {
+    return { ok: false, reason: 'Signature must cover (request-target) and date or (created)' };
   }
 
   const method = input.method.toLowerCase();
   const requestTarget = `${method} ${input.path}`;
-  const values: Record<string, string> = { ...headers, '(request-target)': requestTarget };
+  const values: Record<string, string> = {
+    ...headers,
+    '(request-target)': requestTarget,
+    '(created)': params.created ?? '',
+    '(expires)': params.expires ?? '',
+  };
 
   // The request reaches this backend proxied from the apex, so the proxied `Host`
   // header is this origin — NOT what the remote signed. When `host` is covered,
@@ -236,6 +256,31 @@ export function verifySignature(
 
   if (!verified) return { ok: false, reason: 'Invalid signature' };
   return { ok: true, keyId };
+}
+
+/**
+ * Validate an inbound request is fresh: its `Date` header, or — when it sends
+ * none — the hs2019 `created` signature parameter (unix seconds), within the
+ * allowed skew of now, and not past its `expires`.
+ */
+export function assertFreshRequest(
+  dateHeader: string | undefined,
+  signature: Record<string, string>,
+  now = Date.now(),
+): string | null {
+  if (signature.expires !== undefined) {
+    const expires = Number(signature.expires) * 1000;
+    if (!Number.isFinite(expires)) return 'Unparseable signature expires';
+    if (expires < now) return 'Signature has expired';
+  }
+  if (dateHeader !== undefined || signature.created === undefined) {
+    return assertFreshDate(dateHeader, now);
+  }
+  const created = Number(signature.created) * 1000;
+  if (!Number.isFinite(created)) return 'Unparseable signature created';
+  if (Math.abs(now - created) > MAX_DATE_SKEW_MS)
+    return 'Signature created outside the allowed skew';
+  return null;
 }
 
 /** Validate the `Date` header is present and within the allowed skew of now. */
