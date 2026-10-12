@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { loadEnv, resetEnvCache } from '../env';
 
 /** A complete, valid env WITHOUT the optional AWS static keys. */

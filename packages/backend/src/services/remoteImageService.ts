@@ -1,6 +1,7 @@
 import { MAX_IMAGE_BYTES, validateImageBuffer } from '@gwj/shared-types/image-validation';
 import { BadRequestError, UnprocessableEntityError } from '../errors';
 import {
+  type FetchFn,
   guardedGet,
   readBodyCapped,
   RemoteBodyTooLargeError,
@@ -16,7 +17,7 @@ const FALLBACK_FILENAME = 'image';
 
 export interface RemoteImageOptions {
   /** Injectable fetch (tests); defaults to global fetch. */
-  fetch?: typeof fetch;
+  fetch?: FetchFn;
   /** Injectable DNS resolver for the SSRF guard (tests). */
   resolveDns?: AssertSafeRemoteUrlOptions['resolve'];
 }

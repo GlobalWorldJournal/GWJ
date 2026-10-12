@@ -6,7 +6,7 @@
  * without touching the network or real S3. We then decode the captured body
  * with `sharp` to assert the actual stored format/dimensions.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'bun:test';
 import sharp from 'sharp';
 import { validateImageBuffer } from '@gwj/shared-types/image-validation';
 import { validGifBuffer, validPngBuffer } from '../../__tests__/imageFixtures';

@@ -1,5 +1,5 @@
 import { generateKeyPairSync } from 'node:crypto';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'bun:test';
 import request from 'supertest';
 import type { Express } from 'express';
 import { CATEGORIES, type Article, type ArticleInput } from '@gwj/shared-types';

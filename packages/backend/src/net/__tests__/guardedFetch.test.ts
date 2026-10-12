@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { readBodyCapped, RemoteBodyTooLargeError, RemoteBodyTruncatedError } from '../guardedFetch';
 
 const BODY = new Uint8Array(100).fill(7);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { loadEnv, resetEnvCache, type Env } from '../../env';
 import { open, seal } from '../secretSeal';
 

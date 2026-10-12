@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { loadEnv, resetEnvCache, type Env } from '../../env';
 import { getDb } from '../../db/client';

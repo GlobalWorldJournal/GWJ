@@ -32,7 +32,7 @@ packages/
 ```
 
 ## Stack
-TypeScript (strict), Vite 6, React 19, Tailwind 4, Express 5, Drizzle ORM + postgres.js, Zod, `@modelcontextprotocol/sdk`, bcrypt, jsonwebtoken, multer, `@aws-sdk/client-s3`, Vitest, supertest. PostgreSQL 17 (database `gwj` on `oxy-postgres`). S3 `gwj-media` + CloudFront `cdn.globalworldjournal.com`. Backend+MCP on AWS ECS Fargate; frontend on Cloudflare Pages.
+TypeScript (strict), Vite 6, React 19, Tailwind 4, Express 5, Drizzle ORM + postgres.js, Zod, `@modelcontextprotocol/sdk`, bcrypt (`Bun.password`), jsonwebtoken, multer, `@aws-sdk/client-s3`, `bun test` + supertest (frontend: Vitest + jsdom). PostgreSQL 17 (database `gwj` on `oxy-postgres`). S3 `gwj-media` + CloudFront `cdn.globalworldjournal.com`. Backend+MCP on AWS ECS Fargate; frontend on Cloudflare Pages.
 
 ## Database (PostgreSQL) — rules (details: `docs/DATABASE.md`)
 - PostgreSQL is the only datastore. Never add a second database, driver or ORM beside Drizzle/postgres.js; `DATABASE_URL` is the only connection setting.

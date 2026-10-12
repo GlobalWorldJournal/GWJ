@@ -1,5 +1,5 @@
+import { randomUUID } from 'node:crypto';
 import { PutObjectCommand, S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
-import { v4 as uuidv4 } from 'uuid';
 import type { UploadResponse } from '@gwj/shared-types';
 import { validateImageBuffer } from '@gwj/shared-types/image-validation';
 import type { Env } from '../env';
@@ -110,7 +110,7 @@ export function createUploadService(env: Env): UploadService {
       }
 
       const safeName = safeFilename(filename);
-      const prefix = `articles/${uuidv4()}-`;
+      const prefix = `articles/${randomUUID()}-`;
 
       // GIFs may be animated; re-encoding to a single WebP frame would silently
       // drop the animation, so store the validated original bytes as-is (still
@@ -150,7 +150,7 @@ export function createUploadService(env: Env): UploadService {
         });
       }
       const safeName = safeFilename(filename);
-      return put(`${keyPrefix}${uuidv4()}-${safeName}`, buffer, validation.mime);
+      return put(`${keyPrefix}${randomUUID()}-${safeName}`, buffer, validation.mime);
     },
   };
 }

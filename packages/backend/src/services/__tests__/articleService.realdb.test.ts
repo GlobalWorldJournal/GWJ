@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { CATEGORIES, type ArticleInput, type ArticleListQuery } from '@gwj/shared-types';
 import { articleService, setDeliveryPlanner } from '../articleService';
 import { jobsFor } from '../../channels/jobRepository';

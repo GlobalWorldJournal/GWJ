@@ -1,7 +1,7 @@
 import { CATEGORIES, WRITERS, pickWriter, type Article } from '@gwj/shared-types';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, type Mock, vi } from 'bun:test';
 import type { AddressInfo } from 'node:net';
 import { checkBearer, createApp } from '../index.js';
 import { createMcpServer } from '../tools.js';
@@ -28,8 +28,11 @@ function sampleArticle(overrides: Partial<Article> = {}): Article {
   };
 }
 
+/** A GwjClient whose every method is a mock, so calls can be stubbed and asserted. */
+type MockGwjClient = { [K in keyof GwjClient]: Mock<GwjClient[K]> };
+
 /** A fully-mocked GwjClient; each method is a vi.fn so calls can be asserted. */
-function mockClient(): GwjClient {
+function mockClient(): MockGwjClient {
   return {
     listArticles: vi.fn(),
     getArticle: vi.fn(),
@@ -93,7 +96,7 @@ describe('GWJ MCP tools', () => {
   it('create_article validates input and creates the article published, in ONE call', async () => {
     const client = mockClient();
     const created = sampleArticle({ id: 'created-1', status: 'published' });
-    vi.mocked(client.createArticle).mockResolvedValue(created);
+    client.createArticle.mockResolvedValue(created);
     mcpClient = await connect(client);
 
     const result = await mcpClient.callTool({
@@ -109,7 +112,7 @@ describe('GWJ MCP tools', () => {
     expect(client.createArticle).toHaveBeenCalledTimes(1);
     // Atomic: no separate publish call that could fail and strand a draft.
     expect(client.publishArticle).not.toHaveBeenCalled();
-    const passed = vi.mocked(client.createArticle).mock.calls[0]?.[0];
+    const passed = client.createArticle.mock.calls[0]?.[0];
     expect(passed?.title).toBe('Markets rally on rate-cut hopes');
     expect(passed?.category).toBe(CATEGORIES[2]);
     // An explicit author is preserved (not overwritten by the auto-byline).
@@ -126,7 +129,7 @@ describe('GWJ MCP tools', () => {
 
   it('create_article with draft:true creates a draft', async () => {
     const client = mockClient();
-    vi.mocked(client.createArticle).mockResolvedValue(sampleArticle({ id: 'held-1' }));
+    client.createArticle.mockResolvedValue(sampleArticle({ id: 'held-1' }));
     mcpClient = await connect(client);
 
     const result = await mcpClient.callTool({
@@ -141,13 +144,13 @@ describe('GWJ MCP tools', () => {
     });
 
     expect(result.isError).toBeFalsy();
-    expect(vi.mocked(client.createArticle).mock.calls[0]?.[0]?.status).toBe('draft');
+    expect(client.createArticle.mock.calls[0]?.[0]?.status).toBe('draft');
     expect(client.publishArticle).not.toHaveBeenCalled();
   });
 
   it('auto-assigns a roster byline when create_article omits the author', async () => {
     const client = mockClient();
-    vi.mocked(client.createArticle).mockResolvedValue(sampleArticle({ id: 'auto-1' }));
+    client.createArticle.mockResolvedValue(sampleArticle({ id: 'auto-1' }));
     mcpClient = await connect(client);
 
     const title = 'Chipmakers post record quarterly revenue';
@@ -163,7 +166,7 @@ describe('GWJ MCP tools', () => {
 
     expect(result.isError).toBeFalsy();
     expect(client.createArticle).toHaveBeenCalledTimes(1);
-    const passed = vi.mocked(client.createArticle).mock.calls[0]?.[0];
+    const passed = client.createArticle.mock.calls[0]?.[0];
     // The byline is filled in deterministically by pickWriter for the category.
     const expected = pickWriter(category, title);
     expect(passed?.author).toBe(expected.name);
@@ -200,9 +203,7 @@ describe('GWJ MCP tools', () => {
 
   it('update_article splits id from the patch', async () => {
     const client = mockClient();
-    vi.mocked(client.updateArticle).mockResolvedValue(
-      sampleArticle({ id: 'u1', deck: 'new deck' }),
-    );
+    client.updateArticle.mockResolvedValue(sampleArticle({ id: 'u1', deck: 'new deck' }));
     mcpClient = await connect(client);
 
     await mcpClient.callTool({
@@ -215,7 +216,7 @@ describe('GWJ MCP tools', () => {
 
   it('surfaces a client error as an MCP error result', async () => {
     const client = mockClient();
-    vi.mocked(client.publishArticle).mockRejectedValue(new Error('boom'));
+    client.publishArticle.mockRejectedValue(new Error('boom'));
     mcpClient = await connect(client);
 
     const result = await mcpClient.callTool({
@@ -258,14 +259,6 @@ describe('loadEnv', () => {
     ADMIN_USERNAME: 'nate',
     ADMIN_PASSWORD: 'pw',
   };
-
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
-  afterEach(() => {
-    vi.resetModules();
-  });
 
   it('rejects a placeholder dash secret', async () => {
     const { loadEnv } = await import('../env.js');
@@ -341,8 +334,8 @@ describe('MCP request log', () => {
 describe('link_translation', () => {
   it('links an article into another story and returns it with its editions', async () => {
     const client = mockClient();
-    vi.mocked(client.updateArticle).mockResolvedValue(sampleArticle({ id: 'es-1' }));
-    vi.mocked(client.getArticle).mockResolvedValue(
+    client.updateArticle.mockResolvedValue(sampleArticle({ id: 'es-1' }));
+    client.getArticle.mockResolvedValue(
       sampleArticle({
         id: 'es-1',
         translations: [{ id: 'en-1', language: 'en', slug: 'original', status: 'published' }],
@@ -365,9 +358,7 @@ describe('link_translation', () => {
 describe('revision tools', () => {
   it('restore_revision rolls back by article id and revision id', async () => {
     const client = mockClient();
-    vi.mocked(client.restoreRevision).mockResolvedValue(
-      sampleArticle({ id: 'a1', title: 'Old headline' }),
-    );
+    client.restoreRevision.mockResolvedValue(sampleArticle({ id: 'a1', title: 'Old headline' }));
     const mcp = await connect(client);
     const result = await mcp.callTool({
       name: 'restore_revision',
@@ -394,7 +385,7 @@ describe('revision tools', () => {
 describe('create_article scheduling', () => {
   it('a scheduledAt makes the article a draft that waits for its time', async () => {
     const client = mockClient();
-    vi.mocked(client.createArticle).mockResolvedValue(sampleArticle({ id: 'later-1' }));
+    client.createArticle.mockResolvedValue(sampleArticle({ id: 'later-1' }));
     const mcp = await connect(client);
     const result = await mcp.callTool({
       name: 'create_article',
@@ -408,7 +399,7 @@ describe('create_article scheduling', () => {
     });
     await mcp.close();
     expect(result.isError).toBeFalsy();
-    expect(vi.mocked(client.createArticle).mock.calls[0]?.[0]).toMatchObject({
+    expect(client.createArticle.mock.calls[0]?.[0]).toMatchObject({
       status: 'draft',
       scheduledAt: '2026-10-11T07:00:00Z',
     });
@@ -418,7 +409,7 @@ describe('create_article scheduling', () => {
 describe('add_correction', () => {
   it('appends a correction and rejects an empty one without calling the backend', async () => {
     const client = mockClient();
-    vi.mocked(client.addCorrection).mockResolvedValue(sampleArticle({ id: 'a1' }));
+    client.addCorrection.mockResolvedValue(sampleArticle({ id: 'a1' }));
     const mcp = await connect(client);
     const ok = await mcp.callTool({
       name: 'add_correction',
