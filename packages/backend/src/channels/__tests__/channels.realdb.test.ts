@@ -22,6 +22,14 @@ function sentReply(): Response {
   });
 }
 
+/** The Telegram API calls a fetch spy saw: method name and JSON body. */
+function sentCalls(spy: { mock: { calls: unknown[][] } }) {
+  return spy.mock.calls.map(([url, init]) => ({
+    method: String(url).split('/').pop(),
+    body: JSON.parse(String((init as RequestInit).body)),
+  }));
+}
+
 /** The delivery context of a direct channel call (no outbox job behind it). */
 const DELIVERY = { deliveryId: 1 };
 
@@ -304,6 +312,19 @@ describe('outbox worker', () => {
         ref: { messageId: 42 },
       },
     ]);
+  });
+
+  it('records the post an update replaced the original with', async () => {
+    const ch = spyChannel('ch', { ref: { messageId: 1 } });
+    ch.update = async () => ({ messageId: 2 });
+    unregister = registerChannels([ch]);
+
+    const article = await publishArticle();
+    await drain([ch]);
+    await articleService.update(article.id, { title: 'New headline' });
+    await drain([ch]);
+
+    expect((await channelPostsFor(article.id)).map((p) => p.ref)).toEqual([{ messageId: 2 }]);
   });
 
   it('unpublish retracts the post; a later re-publish is a fresh delivery', async () => {
@@ -610,7 +631,7 @@ describe('telegram channel', () => {
     await expect(tg.publish(article, DELIVERY)).rejects.toThrow(/network down/);
   });
 
-  it('update edits the post in place: text, photo and caption, or caption only', async () => {
+  it('update edits the post in place: text, or photo and caption', async () => {
     const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
@@ -620,39 +641,60 @@ describe('telegram channel', () => {
     const tg = telegramChannels(env)[0];
     if (!tg?.update) throw new Error('telegram channel missing update');
     const hero = { url: 'https://cdn.example.test/new.jpg', alt: '' };
-    const sent = () =>
-      fetchSpy.mock.calls.map(([url, init]) => ({
-        method: String(url).split('/').pop(),
-        body: JSON.parse(String((init as RequestInit).body)),
-      }));
 
-    await tg.update(makeArticle({ title: 'Fixed' }), { chatId: -1, messageId: 1, kind: 'text' });
-    await tg.update(makeArticle({ title: 'Fixed', heroImage: hero }), {
+    const asText = await tg.update(makeArticle({ title: 'Fixed' }), {
+      chatId: -1,
+      messageId: 1,
+      kind: 'text',
+    });
+    const asPhoto = await tg.update(makeArticle({ title: 'Fixed', heroImage: hero }), {
       chatId: -1,
       messageId: 2,
       kind: 'photo',
     });
-    await tg.update(makeArticle({ title: 'Fixed' }), { chatId: -1, messageId: 3, kind: 'photo' });
 
-    expect(sent().map((call) => call.method)).toEqual([
+    expect(asText).toBeUndefined();
+    expect(asPhoto).toBeUndefined();
+    expect(sentCalls(fetchSpy).map((call) => call.method)).toEqual([
       'editMessageText',
       'editMessageMedia',
-      'editMessageCaption',
     ]);
-    const [text, media, caption] = sent();
+    const [text, media] = sentCalls(fetchSpy);
     expect(text?.body).toMatchObject({ chat_id: -1, message_id: 1, parse_mode: 'HTML' });
     expect(text?.body.text).toContain('<b>Fixed</b>');
     expect(media?.body.media).toMatchObject({ type: 'photo', media: hero.url, parse_mode: 'HTML' });
-    expect(caption?.body.caption).toContain('<b>Fixed</b>');
   });
 
-  it('update leaves a post recorded before posts carried their kind as posted', async () => {
+  it('update replaces a photo post with a text post once the image is gone', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(fetchAnswering(sentReply));
+    const tg = telegramChannels(env)[0];
+    if (!tg?.update) throw new Error('telegram channel missing update');
+
+    // A post that may carry a photo: recorded as one, or of unknown kind (legacy).
+    const fromPhoto = await tg.update(makeArticle(), { chatId: -1, messageId: 2, kind: 'photo' });
+    const fromLegacy = await tg.update(makeArticle(), { chatId: -1, messageId: 3 });
+
+    expect(sentCalls(fetchSpy).map((call) => [call.method, call.body.message_id])).toEqual([
+      ['deleteMessage', 2],
+      ['sendMessage', undefined],
+      ['deleteMessage', 3],
+      ['sendMessage', undefined],
+    ]);
+    expect(fromPhoto).toEqual({ chatId: -1, messageId: 1, kind: 'text' });
+    expect(fromLegacy).toEqual({ chatId: -1, messageId: 1, kind: 'text' });
+  });
+
+  it('update leaves a legacy post (no recorded kind) that keeps its image as posted', async () => {
     const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const tg = telegramChannels(env)[0];
     if (!tg?.update) throw new Error('telegram channel missing update');
 
-    await tg.update(makeArticle(), { chatId: -1, messageId: 1 });
+    await tg.update(
+      makeArticle({ heroImage: { url: 'https://cdn.example.test/hero.jpg', alt: '' } }),
+      { chatId: -1, messageId: 1 },
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

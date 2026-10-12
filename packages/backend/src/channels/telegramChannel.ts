@@ -81,7 +81,6 @@ type TelegramMethod =
   | 'sendPhoto'
   | 'sendMessage'
   | 'editMessageMedia'
-  | 'editMessageCaption'
   | 'editMessageText'
   | 'deleteMessage';
 
@@ -166,7 +165,8 @@ function isTelegramRef(
  * language) and is gated on its token (`isEnabled()` = token present), so an
  * unconfigured edition is a no-op. With a hero image the post is a `sendPhoto`
  * (Telegram fetches the CDN URL); without one it is a `sendMessage`. An update
- * edits the post in place (photo and caption, or text); a retraction deletes it.
+ * edits the post in place (photo and caption, or text) — or replaces it with a
+ * text post when the image is gone; a retraction deletes it.
  */
 function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishChannel {
   const token = config.resolveToken(env);
@@ -175,6 +175,23 @@ function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishC
 
   const captionFor = (article: Article): string =>
     buildCaption(article, articlePublicUrl(env.FEDIVERSE_DOMAIN, language, article.slug));
+
+  /** Post an article: a photo with a caption when it has a hero image, else text. */
+  const send = async (botToken: string, article: Article): Promise<Record<string, unknown>> => {
+    const caption = captionFor(article);
+    const kind: TelegramPostKind = article.heroImage?.url ? 'photo' : 'text';
+    const method = kind === 'photo' ? 'sendPhoto' : 'sendMessage';
+    const result = await callTelegram(
+      botToken,
+      method,
+      kind === 'photo'
+        ? { chat_id: chatId, photo: article.heroImage?.url, caption, parse_mode: 'HTML' }
+        : { chat_id: chatId, text: caption, parse_mode: 'HTML' },
+    );
+    const ref = parseMessageRef(result);
+    if (!ref) throw new TelegramError(method, 'no message in the reply');
+    return { ...ref, kind };
+  };
 
   return {
     name: `telegram:${language}`,
@@ -187,35 +204,20 @@ function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishC
       if (!token) return;
       const articleLanguage = isLanguage(article.language) ? article.language : DEFAULT_LANGUAGE;
       if (articleLanguage !== language) return;
-
-      const caption = captionFor(article);
-      const kind: TelegramPostKind = article.heroImage?.url ? 'photo' : 'text';
-      const result =
-        kind === 'photo'
-          ? await callTelegram(token, 'sendPhoto', {
-              chat_id: chatId,
-              photo: article.heroImage?.url,
-              caption,
-              parse_mode: 'HTML',
-            })
-          : await callTelegram(token, 'sendMessage', {
-              chat_id: chatId,
-              text: caption,
-              parse_mode: 'HTML',
-            });
-
-      const ref = parseMessageRef(result);
-      if (!ref)
-        throw new TelegramError(
-          kind === 'photo' ? 'sendPhoto' : 'sendMessage',
-          'no message in the reply',
-        );
-      return { ...ref, kind };
+      return send(token, article);
     },
     async update(article: Article, ref: Record<string, unknown>) {
       if (!token || !isTelegramRef(ref)) return;
       const target = { chat_id: ref.chatId, message_id: ref.messageId };
       const caption = captionFor(article);
+      const heroUrl = article.heroImage?.url;
+      if (!heroUrl && ref.kind !== 'text') {
+        // The image left the article (a takedown, an edit), but Telegram cannot
+        // take a photo off a message: replace the post with a text one. The old
+        // one goes first, so a retry never leaves two posts up.
+        await callTelegram(token, 'deleteMessage', target);
+        return send(token, article);
+      }
       if (ref.kind === 'text') {
         await callTelegram(token, 'editMessageText', {
           ...target,
@@ -223,12 +225,10 @@ function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishC
           parse_mode: 'HTML',
         });
       } else if (ref.kind === 'photo') {
-        await (article.heroImage?.url
-          ? callTelegram(token, 'editMessageMedia', {
-              ...target,
-              media: { type: 'photo', media: article.heroImage.url, caption, parse_mode: 'HTML' },
-            })
-          : callTelegram(token, 'editMessageCaption', { ...target, caption, parse_mode: 'HTML' }));
+        await callTelegram(token, 'editMessageMedia', {
+          ...target,
+          media: { type: 'photo', media: heroUrl, caption, parse_mode: 'HTML' },
+        });
       } else {
         // Recorded before posts carried their kind: which edit applies is unknown.
         logger.info('telegram: post predates edits; left as posted', { messageId: ref.messageId });
