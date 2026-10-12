@@ -1,5 +1,5 @@
 # Build context is the REPO ROOT (see deploy-aws.yml: context: .)
-FROM oven/bun:1.4.2-alpine AS base
+FROM oven/bun:1.4.3-alpine AS base
 WORKDIR /app
 
 COPY bunfig.toml package.json bun.lock ./

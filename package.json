@@ -19,7 +19,7 @@
     "e2e": "bun run scripts/e2e.ts"
   },
   "engines": {
-    "bun": ">=1.4.2"
+    "bun": ">=1.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15"
