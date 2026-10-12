@@ -105,3 +105,18 @@ describe('AdCampaigns', () => {
     await waitFor(() => expect(deleteAdCampaign).toHaveBeenCalledWith('test-token', 'camp-1'));
   });
 });
+
+describe('AdCampaigns self-serve statuses', () => {
+  it('labels pending and expired campaigns', async () => {
+    getAdminAdCampaigns.mockResolvedValue(
+      paginate([
+        campaign({ id: 'p', status: 'pending', advertiserName: 'Pending Co' }),
+        campaign({ id: 'e', status: 'expired', advertiserName: 'Expired Co' }),
+      ]),
+    );
+    renderPage();
+    expect(await screen.findByText('Pending Co')).toBeInTheDocument();
+    expect(screen.getAllByText('Pending payment').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Expired').length).toBeGreaterThan(0);
+  });
+});

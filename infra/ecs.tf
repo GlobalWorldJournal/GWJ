@@ -44,6 +44,8 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "ADMIN_USERNAME", valueFrom = aws_ssm_parameter.admin_username.arn },
       { name = "ADMIN_PASSWORD", valueFrom = aws_ssm_parameter.admin_password.arn },
       { name = "TELEGRAM_BOT_TOKEN", valueFrom = aws_ssm_parameter.telegram_bot_token.arn },
+      { name = "STRIPE_SECRET_KEY", valueFrom = aws_ssm_parameter.stripe_secret_key.arn },
+      { name = "STRIPE_WEBHOOK_SECRET", valueFrom = aws_ssm_parameter.stripe_webhook_secret.arn },
       { name = "FACEBOOK_PAGE_ID", valueFrom = aws_ssm_parameter.facebook_page_id.arn },
       { name = "FACEBOOK_PAGE_TOKEN", valueFrom = aws_ssm_parameter.facebook_page_token.arn },
       { name = "FACEBOOK_PAGE_ID_ES", valueFrom = aws_ssm_parameter.facebook_page_id_es.arn },

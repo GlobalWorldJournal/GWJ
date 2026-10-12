@@ -68,7 +68,7 @@ function revisionIdOf(req: Request): number {
  * actionable 422 (the agent/admin can re-source the image) before any S3 work.
  * The upload service validates again as the authoritative last line of defense.
  */
-function requireImageFile(
+export function requireImageFile(
   req: Request,
   dimensions: Pick<ValidateImageOptions, 'minWidth' | 'minHeight' | 'aspectRatio'> = {},
 ): Express.Multer.File {
@@ -99,7 +99,7 @@ const AD_CREATIVE_DIMENSIONS: UploadImageOptions = {
  * just skips the shape check rather than failing the upload, since the
  * variant isn't known yet at the point a campaign's creative is first picked.
  */
-function creativeDimensionsFor(rawVariant: unknown): UploadImageOptions {
+export function creativeDimensionsFor(rawVariant: unknown): UploadImageOptions {
   const variant = AdVariantSchema.safeParse(rawVariant);
   if (!variant.success) return AD_CREATIVE_DIMENSIONS;
   const aspectRatio = AD_CREATIVE_ASPECT_RATIOS[variant.data];

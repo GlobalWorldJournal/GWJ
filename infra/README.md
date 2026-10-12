@@ -54,3 +54,22 @@ ACM validation CNAMEs (`terraform output acm_apis_validation` /
 `acm_cdn_validation`) in the `globalworldjournal.com` Cloudflare zone, then
 point `api`/`mcp` at the shared ALB and `cdn` at the CloudFront domain
 (DNS-only). Run the seed as a one-shot ECS task per `docs/INFRA.md`.
+
+## Stripe (self-serve advertising)
+
+`/gwj/STRIPE_SECRET_KEY` and `/gwj/STRIPE_WEBHOOK_SECRET` are created with the
+placeholder `-` (Terraform ignores later changes). While they are `-` the backend
+treats payments as not configured and `POST /api/advertiser/bookings` answers 503.
+Set the real values, then force a new ECS deployment so the tasks re-read them:
+
+```bash
+aws ssm put-parameter --profile oxy --region us-west-2 --type SecureString --overwrite \
+  --name /gwj/STRIPE_SECRET_KEY --value 'sk_live_...'
+aws ssm put-parameter --profile oxy --region us-west-2 --type SecureString --overwrite \
+  --name /gwj/STRIPE_WEBHOOK_SECRET --value 'whsec_...'
+```
+
+In the Stripe dashboard add a webhook endpoint `https://api.globalworldjournal.com/api/stripe/webhook`
+for `checkout.session.completed`, `checkout.session.async_payment_succeeded` and
+`checkout.session.expired`; its signing secret is the `whsec_...` above. The execution
+role already reads `/gwj/*`, so no IAM change is needed.

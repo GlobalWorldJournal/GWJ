@@ -113,6 +113,29 @@ resource "aws_ssm_parameter" "telegram_bot_token" {
   }
 }
 
+# Stripe (self-serve advertising). Externally owned: the real values are put in SSM
+# out-of-band (see README), so Terraform only creates the placeholder `-`, which the
+# backend reads as "payments not configured" (the booking endpoint answers 503).
+resource "aws_ssm_parameter" "stripe_secret_key" {
+  name  = "/gwj/STRIPE_SECRET_KEY"
+  type  = "SecureString"
+  value = "-"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "stripe_webhook_secret" {
+  name  = "/gwj/STRIPE_WEBHOOK_SECRET"
+  type  = "SecureString"
+  value = "-"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 # Facebook Page + Instagram Business credentials (facebookChannel.ts /
 # instagramChannel.ts), one pair of Page id/token per edition — Instagram
 # posting reuses the same Page token, only its own account id is separate.

@@ -1,10 +1,10 @@
 import { count, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
-import {
-  type PaginatedTakedownRequests,
-  type TakedownAction,
-  type TakedownListQuery,
-  type TakedownRequestInput,
-  type TakedownRequestRecord,
+import type {
+  PaginatedTakedownRequests,
+  TakedownAction,
+  TakedownListQuery,
+  TakedownRequestInput,
+  TakedownRequestRecord,
 } from '@gwj/shared-types';
 import { getDb } from '../db/client';
 import { isRecordId, newRecordId } from '../db/ids';

@@ -1,4 +1,4 @@
-import { type ErrorRequestHandler, type NextFunction, type Request, type Response } from 'express';
+import type { ErrorRequestHandler, NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { HttpError } from '../errors';
 import { errorFields, logger } from '../logger';

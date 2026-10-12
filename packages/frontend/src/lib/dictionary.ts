@@ -83,6 +83,7 @@ export const DICT: Record<Language, Record<string, string>> = {
     privacy: 'Privacy Notice',
     cookieNotice: 'Cookie Notice',
     terms: 'Terms of Use',
+    advertisingTerms: 'Advertising terms',
     accessibility: 'Accessibility',
   },
   es: {
@@ -156,6 +157,7 @@ export const DICT: Record<Language, Record<string, string>> = {
     privacy: 'Aviso de privacidad',
     cookieNotice: 'Aviso de cookies',
     terms: 'Términos de uso',
+    advertisingTerms: 'Condiciones de publicidad',
     accessibility: 'Accesibilidad',
   },
   fr: {
@@ -229,6 +231,7 @@ export const DICT: Record<Language, Record<string, string>> = {
     privacy: 'Politique de confidentialité',
     cookieNotice: 'Notice sur les cookies',
     terms: 'Conditions d’utilisation',
+    advertisingTerms: 'Conditions de publicité',
     accessibility: 'Accessibilité',
   },
 };

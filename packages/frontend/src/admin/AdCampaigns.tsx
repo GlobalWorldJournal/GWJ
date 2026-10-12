@@ -8,6 +8,8 @@ import {
   type AdCampaign,
   type AdCampaignInput,
   type AdCampaignStatus,
+  type AdminAdCampaignStatus,
+  AdminAdCampaignStatusSchema,
   type AdVariant,
 } from '@gwj/shared-types';
 import {
@@ -24,8 +26,18 @@ const STATUS_FILTERS: { value: AdCampaignStatus | undefined; label: string }[] =
   { value: undefined, label: 'All' },
   { value: 'active', label: 'Active' },
   { value: 'paused', label: 'Paused' },
+  { value: 'pending', label: 'Pending payment' },
   { value: 'cancelled', label: 'Cancelled' },
+  { value: 'expired', label: 'Expired' },
 ];
+
+const STATUS_LABELS: Record<AdCampaignStatus, string> = {
+  active: 'Active',
+  paused: 'Paused',
+  cancelled: 'Cancelled',
+  pending: 'Pending payment',
+  expired: 'Expired',
+};
 
 const VARIANT_LABELS: Record<AdVariant, string> = {
   leaderboard: 'Leaderboard (728×90)',
@@ -57,7 +69,7 @@ interface FormState {
   variant: AdVariant;
   startsAt: string;
   endsAt: string;
-  status: AdCampaignStatus;
+  status: AdminAdCampaignStatus;
 }
 
 function emptyForm(now: Date = new Date()): FormState {
@@ -82,7 +94,8 @@ function formFromCampaign(campaign: AdCampaign): FormState {
     variant: campaign.variant,
     startsAt: toLocalInput(new Date(campaign.startsAt)),
     endsAt: toLocalInput(new Date(campaign.endsAt)),
-    status: campaign.status,
+    // Held (`pending`) and lapsed (`expired`) self-serve bookings are not editable here.
+    status: AdminAdCampaignStatusSchema.catch('paused').parse(campaign.status),
   };
 }
 
@@ -154,7 +167,7 @@ export function AdCampaigns() {
   });
 
   const setCampaignStatus = useMutation({
-    mutationFn: (vars: { id: string; status: AdCampaignStatus }) => {
+    mutationFn: (vars: { id: string; status: AdminAdCampaignStatus }) => {
       if (!token) throw new Error('Not authenticated');
       return updateAdCampaign(token, vars.id, { status: vars.status });
     },
@@ -272,7 +285,9 @@ export function AdCampaigns() {
           <Field label="Status">
             <select
               value={form.status}
-              onChange={(event) => update('status', event.target.value as AdCampaignStatus)}
+              onChange={(event) =>
+                update('status', AdminAdCampaignStatusSchema.parse(event.target.value))
+              }
               className="border border-ink bg-paper px-3 py-2 font-body text-ink outline-none focus:border-accent"
             >
               <option value="active">Active</option>
@@ -371,7 +386,7 @@ export function AdCampaigns() {
                   <span
                     className={`label text-[0.625rem] ${isLive(campaign, now) ? 'text-accent' : 'text-muted'}`}
                   >
-                    {isLive(campaign, now) ? 'Live' : campaign.status}
+                    {isLive(campaign, now) ? 'Live' : STATUS_LABELS[campaign.status]}
                   </span>
                   <span className="label text-[0.625rem] text-muted">
                     {VARIANT_LABELS[campaign.variant]}
@@ -387,17 +402,19 @@ export function AdCampaigns() {
                 </p>
                 <p className="label break-all text-[0.7rem] text-muted">{campaign.clickUrl}</p>
                 <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      setEditingId(campaign.id);
-                      setForm(formFromCampaign(campaign));
-                    }}
-                    className="label text-[0.6875rem] text-ink transition-colors hover:text-accent disabled:opacity-50"
-                  >
-                    Edit
-                  </button>
+                  {campaign.status === 'pending' || campaign.status === 'expired' ? null : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setEditingId(campaign.id);
+                        setForm(formFromCampaign(campaign));
+                      }}
+                      className="label text-[0.6875rem] text-ink transition-colors hover:text-accent disabled:opacity-50"
+                    >
+                      Edit
+                    </button>
+                  )}
                   {campaign.status === 'active' ? (
                     <button
                       type="button"

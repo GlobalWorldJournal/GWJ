@@ -48,3 +48,24 @@ export function writerPortraitUrl(avatarPath: string): string | null {
   const base = import.meta.env.VITE_CDN_BASE_URL;
   return base ? `${base.replace(/\/$/, '')}/${avatarPath}` : null;
 }
+
+const CENTS_PER_DOLLAR = 100;
+
+/** "$60", "$1,200", "$12.50": whole dollars drop the cents, in the edition's number style. */
+export function formatMoney(cents: number, lang: Language, currency = 'usd'): string {
+  const whole = cents % CENTS_PER_DOLLAR === 0;
+  return new Intl.NumberFormat(bcp47(lang), {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+    currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  }).format(cents / CENTS_PER_DOLLAR);
+}
+
+/** A calendar day (`YYYY-MM-DD`) in the edition's language, never shifted by the reader's time zone. */
+export function formatDay(day: string, lang: Language): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return day;
+  return new Intl.DateTimeFormat(bcp47(lang), { dateStyle: 'long', timeZone: 'UTC' }).format(date);
+}
