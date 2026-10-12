@@ -104,6 +104,23 @@ describe('worker locale parsing', () => {
     expect(html).toContain('"slug":"hola-mundo"');
   });
 
+  it('only article pages load Subscribe with Google, in the edition language', async () => {
+    const article = apiArticle({ slug: 'hola-mundo', title: 'Hola Mundo', language: 'es' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(article), { status: 200 })),
+    );
+    const articleHtml = await (await get('/es/article/hola-mundo')).text();
+    expect(articleHtml).toContain('src="https://news.google.com/swg/js/v1/swg-basic.js"');
+    expect(articleHtml).toContain('"clientOptions":{"theme":"light","lang":"es"}');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(apiPage([])), { status: 200 })),
+    );
+    expect(await (await get('/es')).text()).not.toContain('swg-basic.js');
+  });
+
   it('article: wrong locale prefix 301-redirects to the canonical URL', async () => {
     const env = makeEnv();
     const article = apiArticle({ slug: 'hola-mundo', title: 'Hola Mundo', language: 'es' });
