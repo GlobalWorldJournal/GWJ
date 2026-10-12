@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ActiveAdResponse, AdVariant } from '@gwj/shared-types';
+import type { ActiveAdResponse, AdVariant, Language } from '@gwj/shared-types';
+import { MemoryRouter } from 'react-router-dom';
+import type { HouseAd } from '../ads/houseAds';
 import { LanguageProvider } from '../../lib/i18n';
+
+const houseAds = vi.hoisted(() => [] as HouseAd[]);
+
+vi.mock('../ads/houseAds', () => ({ HOUSE_ADS: houseAds }));
 
 const getActiveAdCampaign = vi.fn<(...args: unknown[]) => Promise<ActiveAdResponse>>();
 
@@ -16,18 +22,31 @@ vi.mock('../../lib/api', async () => {
 
 const { AdSlot } = await import('../AdSlot');
 
-function renderSlot(variant: AdVariant) {
+function renderSlot(variant: AdVariant, lang: Language = 'en') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <LanguageProvider lang="en">
-        <AdSlot variant={variant} />
-      </LanguageProvider>
+      <MemoryRouter>
+        <LanguageProvider lang={lang}>
+          <AdSlot variant={variant} />
+        </LanguageProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
+const TEST_HOUSE_AD: HouseAd = {
+  id: 'test',
+  primary: { href: '/advertise' },
+  copy: {
+    en: { title: 'House headline', subtitle: 'House subtitle', primaryLabel: 'Go' },
+    es: { title: 'Titular propio', subtitle: 'Subtítulo propio', primaryLabel: 'Ir' },
+    fr: { title: 'Titre maison', subtitle: 'Sous-titre maison', primaryLabel: 'Aller' },
+  },
+};
+
 beforeEach(() => {
+  houseAds.length = 0;
   getActiveAdCampaign.mockReset();
   window.adsbygoogle = [];
 });
@@ -83,7 +102,7 @@ describe('AdSlot', () => {
       throw tagError;
     };
     window.adsbygoogle = loaded;
-    const { container } = renderSlot('leaderboard');
+    const { container } = renderSlot('mrec');
 
     await waitFor(() => expect(container.querySelector('ins.adsbygoogle')).not.toBeNull());
     expect(reportError).toHaveBeenCalledWith(tagError);
@@ -91,14 +110,32 @@ describe('AdSlot', () => {
     Reflect.deleteProperty(window, 'reportError');
   });
 
-  it('falls back to the AdSense unit when the lookup fails', async () => {
+  it('fills any slot shape with the same house ad unit when no campaign is booked', async () => {
+    houseAds.push(TEST_HOUSE_AD);
+    getActiveAdCampaign.mockResolvedValue({ campaign: null });
+    const { container } = renderSlot('mrec');
+
+    expect(await screen.findByRole('heading', { level: 3 })).toBeInTheDocument();
+    expect(screen.getAllByRole('link').length).toBeGreaterThan(0);
+    expect(container.querySelector('ins.adsbygoogle')).toBeNull();
+    expect(screen.getByText('Advertisement')).toBeInTheDocument();
+  });
+
+  it('writes the house ad in the edition the reader is on', async () => {
+    houseAds.push(TEST_HOUSE_AD);
+    getActiveAdCampaign.mockResolvedValue({ campaign: null });
+    renderSlot('leaderboard', 'es');
+
+    expect(await screen.findByRole('heading', { level: 3 })).toHaveTextContent('Titular propio');
+    expect(screen.getByText('Publicidad')).toBeInTheDocument();
+  });
+
+  it('falls back to the house ad when the lookup fails', async () => {
+    houseAds.push(TEST_HOUSE_AD);
     getActiveAdCampaign.mockRejectedValue(new Error('network down'));
     const { container } = renderSlot('inline');
 
-    await waitFor(() => expect(container.querySelector('ins.adsbygoogle')).not.toBeNull());
-    expect(container.querySelector('ins.adsbygoogle')).toHaveAttribute(
-      'data-ad-slot',
-      '4865326127',
-    );
+    expect(await screen.findByRole('heading', { level: 3 })).toHaveTextContent('House headline');
+    expect(container.querySelector('ins.adsbygoogle')).toBeNull();
   });
 });
