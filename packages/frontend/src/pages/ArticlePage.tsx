@@ -1,15 +1,12 @@
 import { Navigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import {
-  categorySlug,
-  TELEGRAM_CHANNEL_URL,
-  type Category,
-  type Language,
-} from '@gwj/shared-types';
+import { categorySlug, telegramChannelFor, type Category, type Language } from '@gwj/shared-types';
 import { getArticle, getArticles, ApiRequestError } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { LocaleLink, localizePath } from '../lib/locale';
 import { categoryLabel } from '../lib/dictionary';
+import { articleMeta } from '../lib/pageMeta';
+import { usePageMeta } from '../lib/usePageMeta';
 import { Kicker } from '../components/Kicker';
 import { Byline } from '../components/Byline';
 import { ArticleBody } from '../components/ArticleBody';
@@ -71,6 +68,7 @@ export function ArticlePage() {
 
   // These run in parallel with (and never block) the article query. The hooks
   // are always called; the queries self-gate via `enabled`/derived inputs.
+  usePageMeta(data ? articleMeta(data) : null);
   const editionQuery = useEditionArticles(lang);
   const categoryQuery = useCategoryArticles(data?.category, lang);
 
@@ -82,12 +80,7 @@ export function ArticlePage() {
     if (error instanceof ApiRequestError && error.status === 404) {
       return <NotFound />;
     }
-    return (
-      <StatusMessage
-        title={t('loadingError')}
-        detail={error instanceof Error ? error.message : undefined}
-      />
-    );
+    return <StatusMessage title={t('loadingError')} detail={t('tryAgain')} />;
   }
 
   const article = data;
@@ -210,6 +203,7 @@ export function ArticlePage() {
         <div className="flex flex-col gap-8 lg:sticky lg:top-20">
           <AdSlot variant="mrec" sticky={false} />
           <FollowCard
+            href={telegramChannelFor(lang).url}
             title={t('follow')}
             line={t('railFollowLine')}
             ctaLabel={t('followOnTelegram')}
@@ -250,16 +244,26 @@ export function ArticlePage() {
 /**
  * Compact "Follow on Telegram" call-to-action for the rail. The audience-follow
  * channel is Telegram (no email); this is a presentational CTA that opens the
- * channel in a new tab. The URL comes from the shared `TELEGRAM_CHANNEL_URL`
- * constant — no new form/endpoint, no over-build.
+ * channel in a new tab. The URL comes from the shared `telegramChannelFor`
+ * helper (the edition's own channel) — no new form/endpoint, no over-build.
  */
-function FollowCard({ title, line, ctaLabel }: { title: string; line: string; ctaLabel: string }) {
+function FollowCard({
+  title,
+  line,
+  ctaLabel,
+  href,
+}: {
+  title: string;
+  line: string;
+  ctaLabel: string;
+  href: string;
+}) {
   return (
     <section className="border border-rule bg-ink/[0.02] p-5 text-center">
       <p className="label mb-2 text-[0.625rem] tracking-[0.16em] text-accent">{title}</p>
       <p className="headline text-lg leading-snug text-ink">{line}</p>
       <a
-        href={TELEGRAM_CHANNEL_URL}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
         className="label mt-4 inline-block border border-ink bg-ink px-5 py-2 text-[0.6875rem] tracking-[0.12em] text-paper transition-colors hover:bg-accent hover:border-accent"

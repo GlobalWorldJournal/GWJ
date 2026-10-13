@@ -29,19 +29,29 @@ import {
   type PaginatedPublicArticles,
   type PublicArticle,
 } from '@gwj/shared-types';
-import { categoryLabel } from '../lib/dictionary';
+import { categoryLabel, translate } from '../lib/dictionary';
 import { articleDataScript } from '../lib/serverData';
 import { fetchJson } from './edgeCache';
-import { escapeHtml, firstParagraphText, markdownToHtml } from './markdown';
+import {
+  articleDescription,
+  articleMeta,
+  authorMeta,
+  categoryMeta,
+  homeMeta,
+  notFoundMeta,
+  searchMeta,
+  SITE_NAME,
+  staticMeta,
+  type PageMeta,
+  tagMeta,
+} from '../lib/pageMeta';
+import { escapeHtml, markdownToHtml } from './markdown';
 import { subscribeWithGoogleTags } from './subscribeWithGoogle';
 
-const SITE_NAME = 'The Global World Journal';
 const DEFAULT_SITE_URL = 'https://globalworldjournal.com';
 const TWITTER_HANDLE = '@globalworldjrnl';
 /** Google News recommends headlines of at most 110 characters. */
 const NEWS_HEADLINE_MAX = 110;
-/** A meta description built from the body is cut to this many characters. */
-const DESCRIPTION_MAX = 200;
 /** The API's page size limit: one article sitemap file per API page. */
 const API_PAGE_SIZE = 50;
 /** Google News only wants articles published in the last two days... */
@@ -191,14 +201,6 @@ async function fetchLatestPage(
   return parsed.success ? parsed.data : null;
 }
 
-function articleDescription(article: PublicArticle): string {
-  if (article.seo.metaDescription) return article.seo.metaDescription;
-  if (article.deck) return article.deck;
-  const lead = firstParagraphText(article.body);
-  if (lead) return lead.slice(0, DESCRIPTION_MAX);
-  return `${SITE_NAME} — ${article.title}`;
-}
-
 function articleImage(article: PublicArticle): string {
   return article.seo.ogImage || article.heroImage?.url || '';
 }
@@ -311,7 +313,7 @@ function newsArticleJsonLd(
     headline: article.title.slice(0, NEWS_HEADLINE_MAX),
     description: articleDescription(article),
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
-    articleSection: article.category,
+    articleSection: categoryLabel(article.category, lang),
     inLanguage: lang,
     isAccessibleForFree: true,
     author: {
@@ -446,8 +448,7 @@ function handleHome(env: Env, request: Request, config: Config, lang: Language) 
     env,
     request,
     {
-      title: `${SITE_NAME} — World, Business, Markets, Tech, Politics, Opinion, Arts`,
-      description: `${SITE_NAME}: breaking news and in-depth reporting across the world economy, markets, technology, politics, opinion and the arts.`,
+      ...homeMeta(lang),
       url: editionUrl(config.siteUrl, lang, '/'),
       jsonLd: [websiteJsonLd(config.siteUrl), organizationJsonLd(config.siteUrl)],
       lang,
@@ -474,7 +475,7 @@ async function handleArticle(
     const url = editionUrl(config.siteUrl, reqLang, `/article/${slug}`);
     const metaTags = buildMetaTags({
       title: SITE_NAME,
-      description: `${SITE_NAME} — independent global news.`,
+      description: notFoundMeta(reqLang).description,
       url,
       image: '',
       type: 'website',
@@ -496,10 +497,9 @@ async function handleArticle(
     return redirect(canonical);
   }
 
-  const description = articleDescription(article);
   const image = articleImage(article);
   const extraMeta = [
-    { property: 'article:section', content: article.category },
+    { property: 'article:section', content: categoryLabel(article.category, lang) },
     { property: 'article:author', content: article.author },
   ];
   if (article.publishedAt) {
@@ -507,8 +507,7 @@ async function handleArticle(
   }
   extraMeta.push({ property: 'article:modified_time', content: article.updatedAt });
   const metaTags = buildMetaTags({
-    title: article.seo.metaTitle || `${article.title} — ${SITE_NAME}`,
-    description,
+    ...articleMeta(article),
     url: canonical,
     image,
     type: 'article',
@@ -540,14 +539,12 @@ function handleCategory(
   category: Category,
   lang: Language,
 ) {
-  const name = categoryLabel(category, lang);
   const slug = categorySlug(category);
   return renderIndexPage(
     env,
     request,
     {
-      title: `${name} — ${SITE_NAME}`,
-      description: `The latest ${name} news and analysis from ${SITE_NAME}.`,
+      ...categoryMeta(category, lang),
       url: editionUrl(config.siteUrl, lang, `/${slug}`),
       jsonLd: websiteJsonLd(config.siteUrl),
       lang,
@@ -563,10 +560,7 @@ function handleAuthor(env: Env, request: Request, config: Config, slug: string, 
     env,
     request,
     {
-      title: writer ? `${writer.name}, ${writer.title} — ${SITE_NAME}` : `${SITE_NAME} — Author`,
-      description: writer
-        ? `Stories by ${writer.name}, ${writer.title} at ${SITE_NAME}, covering ${writer.beats.join(', ')}.`
-        : `Stories by this writer for ${SITE_NAME}.`,
+      ...authorMeta(writer, lang),
       url: editionUrl(config.siteUrl, lang, `/author/${slug}`),
       jsonLd: websiteJsonLd(config.siteUrl),
       lang,
@@ -581,8 +575,7 @@ function handleSearch(env: Env, request: Request, config: Config, lang: Language
     env,
     request,
     {
-      title: `Search — ${SITE_NAME}`,
-      description: `Search news and analysis across ${SITE_NAME}.`,
+      ...searchMeta(lang),
       url: editionUrl(config.siteUrl, lang, '/search'),
       jsonLd: websiteJsonLd(config.siteUrl),
       lang,
@@ -591,6 +584,46 @@ function handleSearch(env: Env, request: Request, config: Config, lang: Language
     },
     config,
     '/search',
+  );
+}
+
+/** A story tag's page: titled in the edition, indexable like any section. */
+function handleTag(env: Env, request: Request, config: Config, tag: string, lang: Language) {
+  const relPath = `/tag/${encodeURIComponent(tag)}`;
+  return renderIndexPage(
+    env,
+    request,
+    {
+      ...tagMeta(tag, lang),
+      url: editionUrl(config.siteUrl, lang, relPath),
+      jsonLd: websiteJsonLd(config.siteUrl),
+      lang,
+    },
+    config,
+    relPath,
+  );
+}
+
+/** A footer/static page (About, Careers, Terms…): its name, in the edition's language. */
+function handleStaticPage(
+  env: Env,
+  request: Request,
+  config: Config,
+  path: string,
+  meta: PageMeta,
+  lang: Language,
+) {
+  return renderIndexPage(
+    env,
+    request,
+    {
+      ...meta,
+      url: editionUrl(config.siteUrl, lang, path),
+      jsonLd: websiteJsonLd(config.siteUrl),
+      lang,
+    },
+    config,
+    path,
   );
 }
 
@@ -716,7 +749,7 @@ async function handleFeed(request: Request, config: Config, lang: Language): Pro
         `      <link>${escapeXml(link)}</link>\n` +
         `      <guid isPermaLink="true">${escapeXml(link)}</guid>\n` +
         `      <dc:creator>${escapeXml(a.author)}</dc:creator>\n` +
-        `      <category>${escapeXml(a.category)}</category>\n` +
+        `      <category>${escapeXml(categoryLabel(a.category, a.language))}</category>\n` +
         (a.publishedAt
           ? `      <pubDate>${escapeXml(new Date(a.publishedAt).toUTCString())}</pubDate>\n`
           : '') +
@@ -734,7 +767,7 @@ async function handleFeed(request: Request, config: Config, lang: Language): Pro
       `    <title>${escapeXml(SITE_NAME)}</title>\n` +
       `    <link>${escapeXml(editionUrl(config.siteUrl, lang, '/'))}</link>\n` +
       `    <atom:link href="${escapeXml(selfUrl)}" rel="self" type="application/rss+xml" />\n` +
-      `    <description>Breaking news and in-depth reporting from ${escapeXml(SITE_NAME)}.</description>\n` +
+      `    <description>${escapeXml(translate(lang, 'metaFeedDescription'))}</description>\n` +
       `    <language>${lang}</language>\n${items}\n  </channel>\n</rss>`,
     'application/rss+xml',
   );
@@ -850,6 +883,17 @@ export default {
 
     if (rest === '/search' || rest === '/search/') {
       return handleSearch(env, request, config, lang);
+    }
+
+    const tag = /^\/tag\/([^/]+)\/?$/.exec(rest)?.[1];
+    if (tag) {
+      return handleTag(env, request, config, decodeURIComponent(tag), lang);
+    }
+
+    const staticPath = rest.length > 1 ? rest.replace(/\/$/, '') : rest;
+    const staticPage = staticMeta(staticPath, lang);
+    if (staticPage) {
+      return handleStaticPage(env, request, config, staticPath, staticPage, lang);
     }
 
     const section = /^\/([^/]+)\/?$/.exec(rest)?.[1];

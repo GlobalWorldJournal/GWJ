@@ -1,5 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { useLang } from '../lib/i18n';
+import { staticMeta } from '../lib/pageMeta';
+import { usePageMeta } from '../lib/usePageMeta';
 import { stripLocale } from '../lib/locale';
 import { Masthead } from './Masthead';
 import { SectionNav } from './SectionNav';
@@ -7,9 +9,12 @@ import { Footer } from './Footer';
 
 /** Public reader shell: masthead + section nav + routed page + footer. */
 export function SiteLayout() {
-  const { t } = useLang();
+  const { lang, t } = useLang();
   const { pathname } = useLocation();
-  const isFrontPage = stripLocale(pathname) === '/';
+  const path = stripLocale(pathname);
+  const isFrontPage = path === '/';
+  // Footer pages (About, Terms, Advertise…) are static copy: one place names them all.
+  usePageMeta(staticMeta(path.replace(/\/$/, ''), lang));
 
   return (
     <div className="flex min-h-screen flex-col">

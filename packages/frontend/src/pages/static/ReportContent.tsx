@@ -2,17 +2,17 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { submitTakedownRequest } from '../../lib/api';
 import type { TakedownClaimType } from '@gwj/shared-types';
+import { useLang } from '../../lib/i18n';
+import { REPORT_COPY, REPORT_KICKER } from './ReportContent.copy';
+
+const CLAIM_TYPES: readonly TakedownClaimType[] = ['copyright', 'subject-rights', 'other'];
 
 const INPUT_CLASS =
   'border border-ink bg-paper px-3 py-2 font-body text-ink outline-none focus:border-accent';
 
-const CLAIM_LABELS: Record<TakedownClaimType, string> = {
-  copyright: 'I hold the copyright to this image or text',
-  'subject-rights': 'I am the subject of this content and it violates my rights',
-  other: 'Other',
-};
-
 export function ReportContent() {
+  const { lang } = useLang();
+  const copy = REPORT_COPY[lang];
   const [requesterName, setRequesterName] = useState('');
   const [requesterEmail, setRequesterEmail] = useState('');
   const [articleUrl, setArticleUrl] = useState('');
@@ -44,15 +44,14 @@ export function ReportContent() {
     return (
       <div className="mx-auto max-w-3xl">
         <header className="mb-8 border-b-3 border-ink pb-4">
-          <h1 className="headline text-4xl text-ink">Request Received</h1>
+          <h1 className="headline text-4xl text-ink">{copy.receivedTitle}</h1>
           <p className="label mt-2 text-[0.6875rem] tracking-[0.12em] text-muted">
-            The Global World Journal
+            {REPORT_KICKER}
           </p>
         </header>
         <p className="font-body text-[1.05rem] leading-relaxed text-ink">
-          Thank you. Your request (reference <span className="font-bold">{mutation.data.id}</span>)
-          has been logged for review. We take these reports seriously and will act on genuine
-          claims; we may contact you at the email address you provided if we need more detail.
+          {copy.receivedBefore} <span className="font-bold">{mutation.data.id}</span>
+          {copy.receivedAfter}
         </p>
       </div>
     );
@@ -61,24 +60,17 @@ export function ReportContent() {
   return (
     <div className="mx-auto max-w-3xl">
       <header className="mb-8 border-b-3 border-ink pb-4">
-        <h1 className="headline text-4xl text-ink">Report Content</h1>
-        <p className="label mt-2 text-[0.6875rem] tracking-[0.12em] text-muted">
-          The Global World Journal
-        </p>
+        <h1 className="headline text-4xl text-ink">{copy.title}</h1>
+        <p className="label mt-2 text-[0.6875rem] tracking-[0.12em] text-muted">{REPORT_KICKER}</p>
       </header>
 
       <div className="mb-8 flex flex-col gap-4 font-body text-[1.05rem] leading-relaxed text-ink">
-        <p>
-          Our newsroom credits every photograph to its original source, but attribution is not the
-          same as a license. If you hold the rights to an image or article of yours that appears
-          here without permission, or if something we published about you violates your rights, tell
-          us below and we will review it.
-        </p>
+        <p>{copy.intro}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1">
-          <span className="label text-[0.6875rem] text-ink-soft">Your name</span>
+          <span className="label text-[0.6875rem] text-ink-soft">{copy.nameLabel}</span>
           <input
             type="text"
             value={requesterName}
@@ -90,9 +82,7 @@ export function ReportContent() {
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="label text-[0.6875rem] text-ink-soft">
-            Your email (so we can follow up)
-          </span>
+          <span className="label text-[0.6875rem] text-ink-soft">{copy.emailLabel}</span>
           <input
             type="email"
             value={requesterEmail}
@@ -103,9 +93,7 @@ export function ReportContent() {
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="label text-[0.6875rem] text-ink-soft">
-            Link to the article (if applicable)
-          </span>
+          <span className="label text-[0.6875rem] text-ink-soft">{copy.articleLabel}</span>
           <input
             type="url"
             placeholder="https://globalworldjournal.com/article/…"
@@ -116,9 +104,7 @@ export function ReportContent() {
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="label text-[0.6875rem] text-ink-soft">
-            Link to the specific image (if applicable)
-          </span>
+          <span className="label text-[0.6875rem] text-ink-soft">{copy.imageLabel}</span>
           <input
             type="url"
             value={imageUrl}
@@ -128,8 +114,8 @@ export function ReportContent() {
         </label>
 
         <fieldset className="flex flex-col gap-2">
-          <span className="label text-[0.6875rem] text-ink-soft">What are you reporting?</span>
-          {(Object.keys(CLAIM_LABELS) as TakedownClaimType[]).map((value) => (
+          <span className="label text-[0.6875rem] text-ink-soft">{copy.claimLegend}</span>
+          {CLAIM_TYPES.map((value) => (
             <label
               key={value}
               className="flex items-center gap-2 font-body text-[0.95rem] text-ink"
@@ -141,15 +127,13 @@ export function ReportContent() {
                 checked={claimType === value}
                 onChange={() => setClaimType(value)}
               />
-              {CLAIM_LABELS[value]}
+              {copy.claimLabels[value]}
             </label>
           ))}
         </fieldset>
 
         <label className="flex flex-col gap-1">
-          <span className="label text-[0.6875rem] text-ink-soft">
-            Tell us what happened (how you hold the rights, or how this affects you)
-          </span>
+          <span className="label text-[0.6875rem] text-ink-soft">{copy.explanationLabel}</span>
           <textarea
             value={explanation}
             onChange={(event) => setExplanation(event.target.value)}
@@ -169,17 +153,12 @@ export function ReportContent() {
             required
             className="mt-1"
           />
-          <span>
-            I state, in good faith, that the information above is accurate and that I am the rights
-            holder or am authorized to act on their behalf.
-          </span>
+          <span>{copy.goodFaith}</span>
         </label>
 
         {mutation.isError ? (
           <p className="text-[0.85rem] text-accent">
-            {mutation.error instanceof Error
-              ? mutation.error.message
-              : 'Could not submit this report.'}
+            {mutation.error instanceof Error ? mutation.error.message : copy.submitError}
           </p>
         ) : null}
 
@@ -188,7 +167,7 @@ export function ReportContent() {
           disabled={mutation.isPending || !goodFaithAssertion}
           className="label mt-2 self-start bg-ink px-6 py-3 text-[0.75rem] text-paper transition-colors hover:bg-accent disabled:opacity-60"
         >
-          {mutation.isPending ? 'Submitting…' : 'Submit Report'}
+          {mutation.isPending ? copy.submitting : copy.submit}
         </button>
       </form>
     </div>

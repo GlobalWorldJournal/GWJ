@@ -10,6 +10,12 @@ export const TELEGRAM_CHANNEL_URL = 'https://t.me/GWJOfficial';
 /** Spanish edition's own Telegram channel — same bot as the English one, different chat. */
 export const TELEGRAM_CHANNEL_HANDLE_ES = '@gwj_ES';
 export const TELEGRAM_CHANNEL_URL_ES = 'https://t.me/gwj_ES';
+/** The Telegram channel an edition's readers should follow: Spanish has its own, the rest share the main one. */
+export function telegramChannelFor(language: string): { handle: string; url: string } {
+  return language === 'es'
+    ? { handle: TELEGRAM_CHANNEL_HANDLE_ES, url: TELEGRAM_CHANNEL_URL_ES }
+    : { handle: TELEGRAM_CHANNEL_HANDLE, url: TELEGRAM_CHANNEL_URL };
+}
 /** The paper's profile on Mention. */
 export const MENTION_HANDLE = '@gwj';
 export const MENTION_PROFILE_URL = 'https://mention.earth/@gwj';

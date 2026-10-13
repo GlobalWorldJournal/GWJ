@@ -1,8 +1,9 @@
 import {
   CATEGORIES,
   categorySlug,
+  type Language,
   MENTION_PROFILE_URL,
-  TELEGRAM_CHANNEL_URL,
+  telegramChannelFor,
 } from '@gwj/shared-types';
 import { useLang } from '../lib/i18n';
 import { LocaleLink } from '../lib/locale';
@@ -66,10 +67,12 @@ const COLUMNS: FooterColumn[] = [
 ];
 
 /** The paper's profiles, shown as icons; `labelKey` names each for screen readers. */
-const SOCIAL_LINKS = [
-  { href: TELEGRAM_CHANNEL_URL, labelKey: 'onTelegram', Icon: TelegramIcon },
-  { href: MENTION_PROFILE_URL, labelKey: 'onMention', Icon: MentionIcon },
-] as const;
+function socialLinks(lang: Language) {
+  return [
+    { href: telegramChannelFor(lang).url, labelKey: 'onTelegram', Icon: TelegramIcon },
+    { href: MENTION_PROFILE_URL, labelKey: 'onMention', Icon: MentionIcon },
+  ] as const;
+}
 
 const FOOTER_LINK_CLASS =
   'font-body text-[0.85rem] text-ink-soft transition-colors hover:text-accent';
@@ -122,7 +125,7 @@ export function Footer() {
               The Global World Journal
             </LocaleLink>
             <ul className="flex items-center gap-3">
-              {SOCIAL_LINKS.map(({ href, labelKey, Icon }) => (
+              {socialLinks(lang).map(({ href, labelKey, Icon }) => (
                 <li key={href}>
                   <a
                     href={href}
@@ -139,7 +142,7 @@ export function Footer() {
             </ul>
           </div>
           <p className="label text-[0.625rem] text-muted">
-            &copy; {new Date().getFullYear()} The Global World Journal. All Rights Reserved.
+            {t('copyright', { x: String(new Date().getFullYear()) })}
           </p>
         </div>
       </div>

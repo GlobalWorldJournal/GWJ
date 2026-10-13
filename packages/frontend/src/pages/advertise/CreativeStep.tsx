@@ -5,7 +5,7 @@ import {
   AD_CREATIVE_MIN_WIDTH,
 } from '@gwj/shared-types';
 import type { AdVariant } from '@gwj/shared-types';
-import { ApiRequestError, uploadAdvertiserCreative } from '../../lib/api';
+import { uploadAdvertiserCreative } from '../../lib/api';
 import { creativeProblem, measureImage, type CreativeProblem } from '../../lib/creative';
 import { fill, type AdvertiseCopy } from './copy';
 import { SlotShape } from './SlotShape';
@@ -73,8 +73,6 @@ export function CreativeStep({
       height: AD_CREATIVE_MIN_HEIGHT,
       shape: shapeLabel(variant, copy),
     });
-  } else if (upload.error instanceof ApiRequestError && upload.error.status < 500) {
-    errorText = upload.error.message;
   } else if (upload.error) {
     errorText = copy.uploadFailed;
   }
