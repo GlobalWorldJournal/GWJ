@@ -1,6 +1,8 @@
 import { useParams } from 'react-router-dom';
 import { getArticles } from '../lib/api';
 import { useLang } from '../lib/i18n';
+import { tagMeta } from '../lib/pageMeta';
+import { usePageMeta } from '../lib/usePageMeta';
 import { ArticleCard } from '../components/ArticleCard';
 import { StatusMessage } from '../components/StatusMessage';
 import { ListSkeleton } from '../components/Skeletons';
@@ -17,19 +19,15 @@ export function TagPage() {
 
 function TagView({ tag }: { tag: string }) {
   const { lang, t } = useLang();
-  const { articles, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+  usePageMeta(tagMeta(tag, lang));
+  const { articles, isPending, isError, hasNextPage, isFetchingNextPage, fetchNextPage } =
     usePagedArticles(['articles', 'tag', tag, lang], (page, signal) =>
       getArticles({ tag, language: lang, limit: LIST_PAGE_SIZE, page }, signal),
     );
 
   if (isPending) return <ListSkeleton />;
   if (isError) {
-    return (
-      <StatusMessage
-        title={t('loadingError')}
-        detail={error instanceof Error ? error.message : undefined}
-      />
-    );
+    return <StatusMessage title={t('loadingError')} detail={t('tryAgain')} />;
   }
 
   return (

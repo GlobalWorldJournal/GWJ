@@ -305,6 +305,34 @@ describe('worker locale parsing', () => {
     expect(await (await get('/author/eleanor-vance')).text()).toContain(
       '<title>Eleanor Vance, Senior Markets Correspondent — The Global World Journal</title>',
     );
+    expect(await (await get('/fr/author/eleanor-vance')).text()).toContain(
+      '<title>Eleanor Vance, Correspondant senior marchés — The Global World Journal</title>',
+    );
+  });
+
+  it('home, search, tag and footer pages carry the edition title and description', async () => {
+    const home = await (await get('/es')).text();
+    expect(home).toContain('<title>The Global World Journal — Mundo, Negocios,');
+    expect(home).toContain('noticias de última hora');
+    expect(await (await get('/fr/search')).text()).toContain(
+      '<title>Rechercher — The Global World Journal</title>',
+    );
+    const tag = await (await get('/es/tag/energia')).text();
+    expect(tag).toContain('<title>Noticias sobre «energia» — The Global World Journal</title>');
+    expect(tag).toContain(`<link rel="canonical" href="${SITE}/es/tag/energia" />`);
+    const about = await (await get('/fr/about')).text();
+    expect(about).toContain('<title>À propos — The Global World Journal</title>');
+    expect(about).toContain('<html lang="fr"');
+    expect(await (await get('/about')).text()).toContain(
+      '<title>About Us — The Global World Journal</title>',
+    );
+  });
+
+  it('the RSS feed describes itself in the edition language', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(apiPage([])))));
+    const feed = await (await get('/fr/feed.xml')).text();
+    expect(feed).toContain('<description>L’actualité en direct');
+    expect(feed).toContain('<language>fr</language>');
   });
 
   it('pages allow large image previews; search results are never indexed', async () => {

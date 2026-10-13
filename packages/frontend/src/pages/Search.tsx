@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { searchArticles } from '../lib/api';
 import { useLang } from '../lib/i18n';
+import { searchMeta } from '../lib/pageMeta';
+import { usePageMeta } from '../lib/usePageMeta';
 import { usePagedArticles } from '../lib/usePagedArticles';
 import { ArticleCard } from '../components/ArticleCard';
 import { LoadMore } from '../components/LoadMore';
@@ -10,10 +12,11 @@ import { StatusMessage } from '../components/StatusMessage';
 export function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { lang, t } = useLang();
+  usePageMeta(searchMeta(lang));
   const query = searchParams.get('q') ?? '';
   const hasQuery = query.trim().length > 0;
 
-  const { articles, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+  const { articles, isPending, isError, hasNextPage, isFetchingNextPage, fetchNextPage } =
     usePagedArticles(
       ['search', query, lang],
       (page, signal) => searchArticles(query, page, lang, signal),
@@ -45,10 +48,7 @@ export function Search() {
       ) : isPending ? (
         <StatusMessage title={t('searching')} />
       ) : isError ? (
-        <StatusMessage
-          title={t('searchFailed')}
-          detail={error instanceof Error ? error.message : undefined}
-        />
+        <StatusMessage title={t('searchFailed')} detail={t('tryAgain')} />
       ) : articles.length === 0 ? (
         <StatusMessage title={t('noResults')} detail={t('noResultsFor', { x: query })} />
       ) : (

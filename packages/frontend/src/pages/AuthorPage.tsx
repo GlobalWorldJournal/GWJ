@@ -2,6 +2,9 @@ import { useParams } from 'react-router-dom';
 import { findWriterBySlug, writerAvatarPath, type Writer } from '@gwj/shared-types';
 import { getArticles } from '../lib/api';
 import { useLang } from '../lib/i18n';
+import { categoryLabel, writerTitle } from '../lib/dictionary';
+import { authorMeta } from '../lib/pageMeta';
+import { usePageMeta } from '../lib/usePageMeta';
 import { writerPortraitUrl } from '../lib/format';
 import { LIST_PAGE_SIZE, usePagedArticles } from '../lib/usePagedArticles';
 import { ArticleCard } from '../components/ArticleCard';
@@ -12,8 +15,9 @@ import { ListSkeleton } from '../components/Skeletons';
 
 export function AuthorPage() {
   const { slug = '' } = useParams();
-  const { t } = useLang();
+  const { lang, t } = useLang();
   const writer = findWriterBySlug(slug);
+  usePageMeta(authorMeta(writer, lang));
   if (!writer) {
     return <StatusMessage title={t('authorNotFound')} detail={t('authorNotFoundDetail')} />;
   }
@@ -23,7 +27,7 @@ export function AuthorPage() {
 /** A writer's profile and every story they wrote in this edition, newest first. */
 function AuthorView({ writer }: { writer: Writer }) {
   const { lang, t } = useLang();
-  const { articles, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+  const { articles, isPending, isError, hasNextPage, isFetchingNextPage, fetchNextPage } =
     usePagedArticles(['articles', 'author', writer.name, lang], (page, signal) =>
       getArticles(
         { author: writer.name, language: lang, sort: 'latest', limit: LIST_PAGE_SIZE, page },
@@ -45,19 +49,21 @@ function AuthorView({ writer }: { writer: Writer }) {
           />
         ) : null}
         <h1 className="headline text-4xl text-ink">{writer.name}</h1>
-        <p className="label mt-2 text-[0.6875rem] tracking-[0.12em] text-accent">{writer.title}</p>
+        <p className="label mt-2 text-[0.6875rem] tracking-[0.12em] text-accent">
+          {writerTitle(writer.title, lang)}
+        </p>
         <p className="mt-3 font-body text-[0.95rem] leading-relaxed text-ink-soft">
-          {t('authorCovers', { x: writer.name, y: writer.beats.join(', ') })}
+          {t('authorCovers', {
+            x: writer.name,
+            y: writer.beats.map((beat) => categoryLabel(beat, lang)).join(', '),
+          })}
         </p>
       </header>
 
       {isPending ? (
         <ListSkeleton />
       ) : isError ? (
-        <StatusMessage
-          title={t('loadingError')}
-          detail={error instanceof Error ? error.message : undefined}
-        />
+        <StatusMessage title={t('loadingError')} detail={t('tryAgain')} />
       ) : articles.length === 0 ? (
         <StatusMessage title={t('noStories')} detail={t('authorNoStories', { x: writer.name })} />
       ) : (

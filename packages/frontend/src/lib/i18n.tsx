@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { DEFAULT_LANGUAGE, type Language } from '@gwj/shared-types';
-import { DICT } from './dictionary';
+import { translate } from './dictionary';
 
 interface LanguageContextValue {
   lang: Language;
@@ -9,16 +9,6 @@ interface LanguageContextValue {
 }
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
-
-function interpolate(template: string, vars?: Record<string, string>): string {
-  if (!vars) {
-    return template;
-  }
-  return template.replace(/\{(\w+)\}/g, (match: string, name: string): string => {
-    const value = vars[name];
-    return value === undefined ? match : value;
-  });
-}
 
 /**
  * Provides the current edition (language) and translation helpers. The active
@@ -41,10 +31,7 @@ export function LanguageProvider({
   }, [lang]);
 
   const t = useCallback(
-    (key: string, vars?: Record<string, string>): string => {
-      const template = DICT[lang][key] ?? DICT[DEFAULT_LANGUAGE][key] ?? key;
-      return interpolate(template, vars);
-    },
+    (key: string, vars?: Record<string, string>): string => translate(lang, key, vars),
     [lang],
   );
 

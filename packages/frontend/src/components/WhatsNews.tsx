@@ -1,4 +1,5 @@
 import type { Article } from '@gwj/shared-types';
+import { useLang } from '../lib/i18n';
 import { LocaleLink } from '../lib/locale';
 
 interface WhatsNewsProps {
@@ -11,6 +12,7 @@ interface WhatsNewsProps {
  * Heavy top rule, boxed, bulleted brief items.
  */
 export function WhatsNews({ articles, className }: WhatsNewsProps) {
+  const { t } = useLang();
   if (articles.length === 0) {
     return null;
   }
@@ -18,7 +20,7 @@ export function WhatsNews({ articles, className }: WhatsNewsProps) {
   return (
     <aside className={`border border-rule ${className ?? ''}`}>
       <div className="border-t-3 border-ink px-4 pt-3 pb-2">
-        <h2 className="headline text-2xl text-ink">What&rsquo;s News</h2>
+        <h2 className="headline text-2xl text-ink">{t('whatsNews')}</h2>
       </div>
       <ul className="flex flex-col px-4 pb-2">
         {articles.map((article) => (

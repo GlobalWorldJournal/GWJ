@@ -3,6 +3,8 @@ import { CATEGORIES, categorySlug, type Category as CategoryName } from '@gwj/sh
 import { getArticles } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { categoryLabel } from '../lib/dictionary';
+import { categoryMeta } from '../lib/pageMeta';
+import { usePageMeta } from '../lib/usePageMeta';
 import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
 import { StatusMessage } from '../components/StatusMessage';
@@ -31,7 +33,8 @@ export function Category() {
 
 function CategoryView({ category }: { category: CategoryName }) {
   const { lang, t } = useLang();
-  const { articles, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+  usePageMeta(categoryMeta(category, lang));
+  const { articles, isPending, isError, hasNextPage, isFetchingNextPage, fetchNextPage } =
     usePagedArticles(['articles', 'category', category, lang], (page, signal) =>
       getArticles({ category, language: lang, limit: LIST_PAGE_SIZE, page }, signal),
     );
@@ -41,12 +44,7 @@ function CategoryView({ category }: { category: CategoryName }) {
   }
 
   if (isError) {
-    return (
-      <StatusMessage
-        title={t('loadingError')}
-        detail={error instanceof Error ? error.message : undefined}
-      />
-    );
+    return <StatusMessage title={t('loadingError')} detail={t('tryAgain')} />;
   }
 
   return (

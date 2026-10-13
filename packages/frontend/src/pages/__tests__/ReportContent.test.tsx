@@ -9,13 +9,17 @@ vi.mock('../../lib/api', async () => {
   return { ...actual, submitTakedownRequest: (input: unknown) => submitTakedownRequest(input) };
 });
 
+import { LanguageProvider } from '../../lib/i18n';
+
 const { ReportContent } = await import('../static/ReportContent');
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ReportContent />
+      <LanguageProvider lang="en">
+        <ReportContent />
+      </LanguageProvider>
     </QueryClientProvider>,
   );
 }

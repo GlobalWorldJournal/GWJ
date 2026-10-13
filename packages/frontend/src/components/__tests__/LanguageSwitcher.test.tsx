@@ -54,7 +54,7 @@ function renderOnSpanishArticle() {
 describe('LanguageSwitcher on an article', () => {
   it('goes to the same story in the edition that has it', () => {
     renderOnSpanishArticle();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Language' }), {
+    fireEvent.change(screen.getByRole('combobox', { name: 'Idioma' }), {
       target: { value: 'en' },
     });
     expect(screen.getByTestId('where').textContent).toBe('/article/hello-world');
@@ -62,7 +62,7 @@ describe('LanguageSwitcher on an article', () => {
 
   it('goes to the edition front page when the story has no published edition there', () => {
     renderOnSpanishArticle();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Language' }), {
+    fireEvent.change(screen.getByRole('combobox', { name: 'Idioma' }), {
       target: { value: 'fr' },
     });
     expect(screen.getByTestId('where').textContent).toBe('/fr');

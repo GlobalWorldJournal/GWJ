@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { CATEGORIES, categorySlug, type Category } from '@gwj/shared-types';
 import { useLang } from '../lib/i18n';
 import { LocaleLink, LocaleNavLink } from '../lib/locale';
-import { categoryLabel } from '../lib/dictionary';
+import { categoryLabel, subtopics } from '../lib/dictionary';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { SearchIcon } from './SearchIcon';
 
@@ -11,17 +11,6 @@ const NAV_LINK_BASE = 'label text-[0.75rem] tracking-[0.06em] transition-colors 
 function activeClass(isActive: boolean): string {
   return isActive ? 'text-accent' : 'text-ink';
 }
-
-// Sub-topics shown in each section's hover mega-menu (link to a search query).
-const SUBTOPICS: Record<Category, string[]> = {
-  World: ['Americas', 'Europe', 'Asia', 'Middle East', 'Africa', 'China'],
-  Business: ['Technology', 'Media', 'Energy', 'Autos', 'Retail', 'Management'],
-  Markets: ['Stocks', 'Bonds', 'Commodities', 'Currencies', 'Funds', 'Rates'],
-  Tech: ['Artificial Intelligence', 'Cybersecurity', 'Personal Tech', 'Startups', 'Big Tech'],
-  Politics: ['Elections', 'Policy', 'National Security', 'Courts', 'Economy'],
-  Opinion: ['Editorials', 'Commentary', 'Columnists', 'Letters'],
-  Arts: ['Books', 'Film', 'Music', 'Television', 'Theater', 'Design'],
-};
 
 /** Section navigation: 7 categories + a search icon. Desktop hover mega-menu; mobile drawer. */
 export function SectionNav() {
@@ -61,7 +50,7 @@ export function SectionNav() {
               links on desktop. */}
           <LocaleLink
             to="/"
-            aria-label="The Global World Journal — home"
+            aria-label={t('homeLink')}
             className="headline absolute left-1/2 -translate-x-1/2 text-lg font-black tracking-tight text-ink md:static md:translate-x-0"
           >
             GWJ
@@ -117,7 +106,7 @@ export function SectionNav() {
               </LocaleLink>
             </div>
             <ul className="grid grid-cols-2 gap-x-8 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
-              {SUBTOPICS[hovered].map((topic) => (
+              {subtopics(hovered, lang).map((topic) => (
                 <li key={topic}>
                   <LocaleLink
                     to={`/search?q=${encodeURIComponent(topic)}`}

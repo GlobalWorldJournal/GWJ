@@ -11,6 +11,8 @@ import { getArticles } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { LocaleLink } from '../lib/locale';
 import { categoryLabel } from '../lib/dictionary';
+import { homeMeta } from '../lib/pageMeta';
+import { usePageMeta } from '../lib/usePageMeta';
 import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
 import { BalancedColumns, type BalancedItem } from '../components/BalancedColumns';
@@ -59,18 +61,14 @@ export function isFresh(article: Article, now: number): boolean {
 
 export function Home() {
   const { lang, t } = useLang();
-  const { data, isPending, isError, error } = useHomeArticles(lang);
+  const { data, isPending, isError } = useHomeArticles(lang);
+  usePageMeta(homeMeta(lang));
 
   if (isPending) {
     return <HomeSkeleton />;
   }
   if (isError) {
-    return (
-      <StatusMessage
-        title={t('loadingError')}
-        detail={error instanceof Error ? error.message : undefined}
-      />
-    );
+    return <StatusMessage title={t('loadingError')} detail={t('tryAgain')} />;
   }
 
   const all = sortForHome(data.data);

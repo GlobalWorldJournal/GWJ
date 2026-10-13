@@ -1,7 +1,7 @@
 import { authorSlug, findWriterByName, writerAvatarPath, type Category } from '@gwj/shared-types';
 import { useLang } from '../lib/i18n';
 import { LocaleLink } from '../lib/locale';
-import { categoryLabel } from '../lib/dictionary';
+import { categoryLabel, writerTitle } from '../lib/dictionary';
 import { formatDate, formatDateTime, wasUpdated, writerPortraitUrl } from '../lib/format';
 
 interface BylineProps {
@@ -54,7 +54,7 @@ export function Byline({
         >
           {t('by')} {author}
         </LocaleLink>
-        {writer ? <span className="text-muted">, {writer.title}</span> : null}
+        {writer ? <span className="text-muted">, {writerTitle(writer.title, lang)}</span> : null}
         {section ? <span className="text-muted"> · {section}</span> : null}
         {date ? <span className="text-muted"> · {date}</span> : null}
         {readingMinutes ? (

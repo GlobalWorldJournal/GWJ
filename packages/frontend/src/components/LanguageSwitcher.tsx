@@ -35,7 +35,7 @@ function switchTarget(
 
 /** Accessible edition (language) picker. */
 export function LanguageSwitcher({ className }: { className?: string }) {
-  const { lang } = useLang();
+  const { lang, t } = useLang();
   const navigate = useNavigate();
   const location = useLocation();
   const slug = ARTICLE_PATH.exec(stripLocale(location.pathname))?.[1];
@@ -61,7 +61,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
             switchTarget(next, location.pathname, `${location.search}${location.hash}`, article),
           );
         }}
-        aria-label="Language"
+        aria-label={t('language')}
         className="label cursor-pointer bg-transparent text-[0.75rem] tracking-[0.06em] text-ink transition-colors hover:text-accent"
       >
         {SUPPORTED_LANGUAGES.map((code) => (
