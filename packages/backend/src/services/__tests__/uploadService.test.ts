@@ -93,6 +93,37 @@ describe('createUploadService image optimization', () => {
     expect(put.Body.byteLength).toBeLessThan(original.byteLength);
   });
 
+  it("strips the source photo's EXIF (camera, software, GPS) from the stored WebP", async () => {
+    const service = createUploadService(env);
+    // A real outlet's photo carries real EXIF — camera make/model, editing
+    // software, and often GPS. None of it is GWJ's to pass through.
+    const withExif = await sharp(await largeJpeg(1200, 800))
+      .withMetadata({
+        exif: {
+          IFD0: {
+            Make: 'TestCameraCorp',
+            Model: 'SneakySpyCam 9000',
+            Software: 'SecretEditTool',
+            GPSLatitude: '40,26,46',
+          },
+        },
+      })
+      .jpeg()
+      .toBuffer();
+    // Precondition: the fixture really does carry the EXIF we're about to check for.
+    const before = await sharp(withExif).metadata();
+    expect(before.exif).toBeDefined();
+    expect(before.exif?.includes('SneakySpyCam')).toBe(true);
+
+    await service.uploadImage(withExif, 'hero.jpg', 'image/jpeg');
+
+    const put = captured[0];
+    if (!put) throw new Error('no PutObject captured');
+    const after = await sharp(put.Body).metadata();
+    expect(after.exif).toBeUndefined();
+    expect(put.Body.includes(Buffer.from('SneakySpyCam'))).toBe(false);
+  });
+
   it('stores srcset renditions beside the main image and reports them', async () => {
     const service = createUploadService(env);
     const result = await service.uploadImage(await largeJpeg(1920, 1280), 'hero.jpg', 'image/jpeg');
@@ -148,7 +179,7 @@ describe('createUploadService image optimization', () => {
     expect(meta.height).toBe(600);
   });
 
-  it('stores an animated GIF as-is, without WebP conversion', async () => {
+  it('stores an animated GIF without WebP conversion, but with its metadata stripped', async () => {
     const service = createUploadService(env);
     const original = validGifBuffer(800, 600);
     // Precondition: the fixture is a valid GIF the pipeline accepts.
@@ -161,8 +192,15 @@ describe('createUploadService image optimization', () => {
     expect(put.ContentType).toBe('image/gif');
     expect(put.CacheControl).toBe('public, max-age=31536000, immutable');
     expect(put.Key).toMatch(/\.gif$/);
-    // The stored bytes are byte-for-byte the original GIF (no re-encode).
-    expect(Buffer.compare(put.Body, original)).toBe(0);
+    // Still a GIF at the same dimensions — the animation path, not WebP.
+    const meta = await sharp(put.Body).metadata();
+    expect(meta.format).toBe('gif');
+    expect(meta.width).toBe(800);
+    expect(meta.height).toBe(600);
+    // NOT byte-for-byte the original any more — it went through a metadata
+    // strip (re-encoded via sharp's own `keepMetadata: 0` default), the same
+    // guarantee the WebP path already gets for every other format.
+    expect(Buffer.compare(put.Body, original)).not.toBe(0);
   });
 
   it('rejects a structurally invalid image before any S3 write', async () => {

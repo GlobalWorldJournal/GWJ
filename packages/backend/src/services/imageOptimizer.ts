@@ -13,12 +13,27 @@
  *     never upscaled (`withoutEnlargement`).
  *   - Output is WebP at {@link WEBP_QUALITY} quality.
  *   - Animated GIFs are NOT converted (flattening would drop the animation);
- *     callers detect the GIF format up-front and store the original bytes.
+ *     callers detect the GIF format up-front and run {@link stripMetadata}
+ *     instead of the full re-encode.
+ *
+ * Every source image here comes from an outlet we don't control — its EXIF can
+ * carry the photographer's GPS coordinates, camera serial number and editing
+ * software, none of which belongs on GWJ's own copy. The WebP re-encode path
+ * already drops all of that for free: sharp's own default is `keepMetadata: 0`
+ * (confirmed by reading sharp's own source, `dist/output.cjs` — `withMetadata`/
+ * `keepMetadata` are opt-in calls this module never makes), so nothing here
+ * needs to ask for stripping on that path. The two paths that bypass the
+ * re-encode — an animated GIF (flattening would drop the animation) and a
+ * sharp-processing failure on an otherwise-valid image — used to fall back to
+ * the ORIGINAL bytes verbatim, carrying whatever metadata the source had
+ * straight through to GWJ's own CDN. {@link stripMetadata} covers both: same
+ * format, same pixels, no re-encode to WebP, just the metadata gone.
  *
  * The caller is responsible for validating the bytes (structure + dimensions +
  * type) BEFORE optimizing — this module only transforms bytes it is given.
  */
 import sharp from 'sharp';
+import type { ImageFormat } from '@gwj/shared-types/image-validation';
 
 /** Longest edge (px) an optimized image may have. Matches the audit's display sizes. */
 export const MAX_LONGEST_EDGE = 1600;
@@ -129,4 +144,29 @@ export async function optimizeWithVariants(input: Buffer): Promise<OptimizedImag
     }),
   );
   return { main, variants };
+}
+
+/**
+ * Re-encode `input` in its OWN format, same pixels, no resize, no WebP
+ * conversion — every metadata field still drops, since sharp's `keepMetadata:
+ * 0` default applies here exactly as it does in {@link optimizeToWebp}. For
+ * the two cases that can't take the WebP path: an animated GIF (`animated:
+ * true` keeps every frame — the WebP path would otherwise flatten it to one),
+ * and a plain re-encode as the caller's last attempt before giving up and
+ * storing the original bytes untouched — a narrower operation than resize +
+ * format conversion, so it can succeed where {@link optimizeToWebp} failed.
+ */
+export async function stripMetadata(input: Buffer, format: ImageFormat): Promise<Buffer> {
+  if (format === 'gif') {
+    return sharp(input, { animated: true, failOn: 'error' }).gif().toBuffer();
+  }
+  const pipeline = sharp(input, { failOn: 'error' }).rotate();
+  switch (format) {
+    case 'jpeg':
+      return pipeline.jpeg().toBuffer();
+    case 'png':
+      return pipeline.png().toBuffer();
+    case 'webp':
+      return pipeline.webp({ quality: WEBP_QUALITY }).toBuffer();
+  }
 }

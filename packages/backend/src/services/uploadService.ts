@@ -10,7 +10,12 @@ import { validateImageBuffer } from '@gwj/shared-types/image-validation';
 import type { Env } from '../env';
 import { UnprocessableEntityError } from '../errors';
 import { logger } from '../logger';
-import { WEBP_MIME, optimizeWithVariants, readImageMetadata } from './imageOptimizer';
+import {
+  WEBP_MIME,
+  optimizeWithVariants,
+  readImageMetadata,
+  stripMetadata,
+} from './imageOptimizer';
 
 /**
  * Cache headers for uploaded images. Each object key is unique (UUID-prefixed)
@@ -161,18 +166,25 @@ export function createUploadService(env: Env): UploadService {
       const safeName = safeFilename(filename);
       const prefix = `articles/${randomUUID()}-`;
 
-      // GIFs may be animated; re-encoding to a single WebP frame would silently
-      // drop the animation, so store the validated original bytes as-is (still
-      // with the long-lived cache header). Validation already ran on the
+      // GIFs may be animated; re-encoding to WebP would silently drop the
+      // animation, so this keeps the GIF format — but still strips its
+      // metadata (an outlet's source GIF is no more ours to pass through
+      // untouched than a JPEG's EXIF is). Validation already ran on the
       // original bytes above.
       if (validation.format === 'gif') {
-        return put(`${prefix}${safeName}`, buffer, validation.mime);
+        return put(
+          `${prefix}${safeName}`,
+          await stripMetadata(buffer, validation.format),
+          validation.mime,
+        );
       }
 
       // Downscale (longest edge ≤ MAX_LONGEST_EDGE) and re-encode to WebP. If
       // sharp fails to process an image we already validated as structurally
-      // sound, fall back to storing the original bytes rather than 500-ing a
-      // legitimate upload — the image is still served, just unoptimized.
+      // sound, fall back to a plain metadata strip in the original format
+      // (narrower than resize + WebP conversion, so it can succeed where that
+      // failed) rather than storing the source bytes — including whatever
+      // EXIF/GPS data they carry — untouched.
       try {
         const { main, variants } = await optimizeWithVariants(buffer);
         const stored = await put(
@@ -194,14 +206,32 @@ export function createUploadService(env: Env): UploadService {
           variants: storedVariants,
         };
       } catch (error) {
-        logger.warn('Image optimization failed; storing original validated bytes', {
+        logger.warn('Image optimization failed; falling back to a metadata-only strip', {
           filename: safeName,
           format: validation.format,
           error: error instanceof Error ? error.message : String(error),
         });
         // Persist the format we actually verified, not the (possibly wrong)
         // client-declared content type, so the stored content-type stays truthful.
-        return put(`${prefix}${safeName}`, buffer, validation.mime);
+        try {
+          return put(
+            `${prefix}${safeName}`,
+            await stripMetadata(buffer, validation.format),
+            validation.mime,
+          );
+        } catch (strippingError) {
+          // Both sharp passes failed on bytes we already proved are a
+          // structurally complete, decodable image — store them as-is rather
+          // than 500 a legitimate upload. Logged loudly: this is the one path
+          // left where the source's own metadata can reach GWJ's CDN.
+          logger.error('Metadata strip also failed; storing the original bytes untouched', {
+            filename: safeName,
+            format: validation.format,
+            error:
+              strippingError instanceof Error ? strippingError.message : String(strippingError),
+          });
+          return put(`${prefix}${safeName}`, buffer, validation.mime);
+        }
       }
     },
 
