@@ -1,7 +1,13 @@
 import type { Article, Language } from '@gwj/shared-types';
 
 /** The distribution platforms the paper fans articles out to. */
-export type ChannelPlatform = 'mastodon' | 'telegram' | 'whatsapp' | 'facebook' | 'mention';
+export type ChannelPlatform =
+  | 'mastodon'
+  | 'telegram'
+  | 'whatsapp'
+  | 'facebook'
+  | 'mention'
+  | 'indexnow';
 
 /** Context for one delivery, from the distribution job that runs it. */
 export interface DeliveryContext {
