@@ -72,7 +72,7 @@ const EN = {
   customerCenter: 'Customer Center',
   contactUs: 'Contact Us',
   subscribe: 'Follow Us',
-  newsletters: 'Telegram',
+  newsletters: 'Newsletters',
   rssFeeds: 'RSS Feeds',
   podcasts: 'Podcasts',
   video: 'Video',
@@ -107,6 +107,25 @@ const EN = {
   metaStaticDescription: '{x} at The Global World Journal, independent global news.',
   metaNotFoundDescription: 'The Global World Journal — independent global news.',
   metaFeedDescription: 'Breaking news and in-depth reporting from The Global World Journal.',
+  newsletterHeading: 'The Morning Briefing',
+  newsletterPrompt: 'The day’s most important stories in your inbox every morning. Free.',
+  newsletterEmailLabel: 'Email address',
+  newsletterButton: 'Sign up',
+  newsletterSending: 'Sending…',
+  newsletterCheckInbox: 'Check your inbox and confirm your address to start receiving it.',
+  newsletterError: 'We could not sign you up. Please try again.',
+  newsletterPrivacy: 'One email a day. Unsubscribe any time.',
+  newsletterConfirming: 'Confirming your subscription…',
+  newsletterConfirmedTitle: 'You’re subscribed',
+  newsletterConfirmedDetail: 'The Morning Briefing will arrive in your inbox every morning.',
+  newsletterInvalidTitle: 'This link is not valid',
+  newsletterInvalidDetail:
+    'It may have expired or been used already. You can sign up again at any time.',
+  newsletterUnsubscribeTitle: 'Unsubscribe',
+  newsletterUnsubscribeDetail: 'You will stop receiving the Morning Briefing.',
+  newsletterUnsubscribeButton: 'Unsubscribe me',
+  newsletterUnsubscribedTitle: 'You’ve been unsubscribed',
+  newsletterUnsubscribedDetail: 'You will not receive the Morning Briefing any more.',
 } as const;
 
 /** Every chrome key. `es`/`fr` are typed against it, so a missing translation fails to compile. */
@@ -171,7 +190,7 @@ const ES: Record<DictKey, string> = {
   customerCenter: 'Centro de atención',
   contactUs: 'Contáctanos',
   subscribe: 'Síguenos',
-  newsletters: 'Telegram',
+  newsletters: 'Boletines',
   rssFeeds: 'Fuentes RSS',
   podcasts: 'Pódcasts',
   video: 'Vídeo',
@@ -205,6 +224,26 @@ const ES: Record<DictKey, string> = {
   metaNotFoundDescription: 'The Global World Journal — noticias globales independientes.',
   metaFeedDescription:
     'Noticias de última hora y periodismo en profundidad de The Global World Journal.',
+  newsletterHeading: 'El resumen de la mañana',
+  newsletterPrompt: 'Las noticias más importantes del día en tu correo cada mañana. Gratis.',
+  newsletterEmailLabel: 'Correo electrónico',
+  newsletterButton: 'Suscribirme',
+  newsletterSending: 'Enviando…',
+  newsletterCheckInbox:
+    'Revisa tu bandeja de entrada y confirma tu correo para empezar a recibirlo.',
+  newsletterError: 'No hemos podido suscribirte. Inténtalo de nuevo.',
+  newsletterPrivacy: 'Un correo al día. Puedes darte de baja cuando quieras.',
+  newsletterConfirming: 'Confirmando tu suscripción…',
+  newsletterConfirmedTitle: 'Ya estás suscrito',
+  newsletterConfirmedDetail: 'El resumen de la mañana llegará a tu correo cada mañana.',
+  newsletterInvalidTitle: 'Este enlace no es válido',
+  newsletterInvalidDetail:
+    'Puede haber caducado o haberse usado ya. Puedes volver a suscribirte cuando quieras.',
+  newsletterUnsubscribeTitle: 'Darse de baja',
+  newsletterUnsubscribeDetail: 'Dejarás de recibir el resumen de la mañana.',
+  newsletterUnsubscribeButton: 'Darme de baja',
+  newsletterUnsubscribedTitle: 'Te has dado de baja',
+  newsletterUnsubscribedDetail: 'Ya no recibirás el resumen de la mañana.',
 };
 
 const FR: Record<DictKey, string> = {
@@ -266,7 +305,7 @@ const FR: Record<DictKey, string> = {
   customerCenter: 'Centre d’assistance',
   contactUs: 'Nous contacter',
   subscribe: 'Nous suivre',
-  newsletters: 'Telegram',
+  newsletters: 'Newsletters',
   rssFeeds: 'Flux RSS',
   podcasts: 'Podcasts',
   video: 'Vidéo',
@@ -301,6 +340,27 @@ const FR: Record<DictKey, string> = {
   metaNotFoundDescription: 'The Global World Journal — l’actualité mondiale indépendante.',
   metaFeedDescription:
     'L’actualité en direct et des enquêtes approfondies de The Global World Journal.',
+  newsletterHeading: 'Le point du matin',
+  newsletterPrompt:
+    'Les informations les plus importantes du jour dans votre boîte mail, chaque matin. Gratuit.',
+  newsletterEmailLabel: 'Adresse e-mail',
+  newsletterButton: 'S’inscrire',
+  newsletterSending: 'Envoi…',
+  newsletterCheckInbox:
+    'Consultez votre boîte mail et confirmez votre adresse pour commencer à le recevoir.',
+  newsletterError: 'Nous n’avons pas pu vous inscrire. Veuillez réessayer.',
+  newsletterPrivacy: 'Un e-mail par jour. Désabonnement possible à tout moment.',
+  newsletterConfirming: 'Confirmation de votre inscription…',
+  newsletterConfirmedTitle: 'Vous êtes inscrit',
+  newsletterConfirmedDetail: 'Le point du matin arrivera dans votre boîte mail chaque matin.',
+  newsletterInvalidTitle: 'Ce lien n’est pas valide',
+  newsletterInvalidDetail:
+    'Il a peut-être expiré ou déjà été utilisé. Vous pouvez vous réinscrire à tout moment.',
+  newsletterUnsubscribeTitle: 'Se désabonner',
+  newsletterUnsubscribeDetail: 'Vous ne recevrez plus le point du matin.',
+  newsletterUnsubscribeButton: 'Me désabonner',
+  newsletterUnsubscribedTitle: 'Vous êtes désabonné',
+  newsletterUnsubscribedDetail: 'Vous ne recevrez plus le point du matin.',
 };
 
 export const DICT: Record<Language, Record<DictKey, string>> = { en: EN, es: ES, fr: FR };

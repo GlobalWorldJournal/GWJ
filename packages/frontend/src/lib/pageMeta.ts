@@ -104,6 +104,8 @@ const STATIC_PAGE_KEYS: Record<string, string> = {
   '/contact': 'contactUs',
   '/subscribe': 'subscribe',
   '/newsletters': 'newsletters',
+  '/newsletter/confirm': 'newsletters',
+  '/newsletter/unsubscribe': 'newsletters',
   '/rss': 'rssFeeds',
   '/podcasts': 'podcasts',
   '/video': 'video',

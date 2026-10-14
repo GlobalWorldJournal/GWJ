@@ -173,6 +173,13 @@ const EnvSchema = z.object({
   // backend's own real public origin, not the apex site's.
   MENTION_REDIRECT_BASE_URL: z.string().default('https://api.globalworldjournal.com'),
 
+  // This backend's public origin, for links that mail clients call directly
+  // (the newsletter's one-click unsubscribe endpoint).
+  API_BASE_URL: z
+    .string()
+    .transform((v) => v.trim().replace(/\/+$/, ''))
+    .default('https://api.globalworldjournal.com'),
+
   // --- Self-serve advertising (Stripe Checkout) ---
   // OPTIONAL: while either Stripe secret is unset the booking endpoint answers
   // 503 'Payments are not configured' and the rest of the app boots normally.

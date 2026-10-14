@@ -96,3 +96,31 @@ output "acm_cdn_validation" {
     }
   }
 }
+
+output "ses_dkim_records" {
+  description = "Three CNAMEs to add in Cloudflare (DNS-only) to verify the SES domain identity."
+  value = [
+    for token in aws_sesv2_email_identity.site.dkim_signing_attributes[0].tokens : {
+      type  = "CNAME"
+      name  = "${token}._domainkey.${var.site_domain}"
+      value = "${token}.dkim.amazonses.com"
+    }
+  ]
+}
+
+output "ses_mail_from_records" {
+  description = "MX and SPF TXT for the custom MAIL FROM subdomain (add in Cloudflare). Also publish a DMARC record: _dmarc.<domain> TXT \"v=DMARC1; p=none; rua=mailto:<your address>\"."
+  value = {
+    mx = {
+      type     = "MX"
+      name     = "bounce.${var.site_domain}"
+      value    = "feedback-smtp.${var.region}.amazonses.com"
+      priority = 10
+    }
+    spf = {
+      type  = "TXT"
+      name  = "bounce.${var.site_domain}"
+      value = "v=spf1 include:amazonses.com ~all"
+    }
+  }
+}

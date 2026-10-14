@@ -27,6 +27,9 @@ import { buildChannels } from './channels';
 import { registerChannels } from './channels/registry';
 import { startMentionGrantCache } from './channels/mentionOauthService';
 import type { PublishChannel } from './channels/types';
+import { createEmailSender, type EmailSender } from './services/emailSender';
+import { createNewsletterService, type NewsletterService } from './services/newsletterService';
+import { createNewsletterRouter } from './routes/newsletter';
 
 const RATE_WINDOW_MS = 15 * 60 * 1000;
 const PUBLIC_MAX = 300;
@@ -44,12 +47,16 @@ export interface CreateAppOptions {
   remoteImage?: RemoteImageOptions;
   /** Test seam: replaces the Stripe gateway (an external paid API). */
   stripeGateway?: StripeGateway;
+  /** Test seam: replaces the newsletter's email provider (Amazon SES). */
+  emailSender?: EmailSender;
 }
 
 /** The Express app, the ActivityPub module, and the distribution channels. */
 export interface BuiltApp {
   app: Express;
   activityPub: ActivityPubModule;
+  /** The newsletter: its subscriber service and email provider (the sender worker uses them). */
+  newsletter: { service: NewsletterService; sender: EmailSender };
   /** The distribution channels article changes are queued for (the outbox works them). */
   channels: readonly PublishChannel[];
   /**
@@ -197,6 +204,13 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   // Public: Mention's own redirect lands here directly, carrying no admin
   // session of ours (see routes/mentionOauth.ts for why `state` alone is
   // this route's real security control).
+  const emailSender = options.emailSender ?? createEmailSender(env);
+  const newsletter = createNewsletterService({
+    sender: emailSender,
+    secret: env.JWT_SECRET,
+    domain: env.FEDIVERSE_DOMAIN,
+  });
+  app.use('/api/newsletter', createNewsletterRouter(newsletter));
   app.use('/api/advertiser', createAdvertiserRouter(env.JWT_SECRET, uploadService, adBooking));
   app.use('/api/ads', publicLimiter, createAdsPublicRouter(adBooking));
   app.use('/api/mention', publicLimiter, createMentionOauthRouter(env));
@@ -205,7 +219,13 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   app.use(notFoundHandler);
   app.use(createErrorHandler(env.NODE_ENV === 'development'));
 
-  return { app, activityPub, channels, stopChannels };
+  return {
+    app,
+    activityPub,
+    channels,
+    stopChannels,
+    newsletter: { service: newsletter, sender: emailSender },
+  };
 }
 
 /**

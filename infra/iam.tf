@@ -86,6 +86,21 @@ resource "aws_iam_role_policy" "ecs_task_s3" {
   policy = data.aws_iam_policy_document.ecs_task_s3.json
 }
 
+# The newsletter sends through SES from the verified site-domain identity only.
+data "aws_iam_policy_document" "ecs_task_ses" {
+  statement {
+    sid       = "GwjNewsletterSend"
+    actions   = ["ses:SendEmail"]
+    resources = [aws_sesv2_email_identity.site.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "ecs_task_ses" {
+  name   = "${var.prefix}-ecs-task-ses"
+  role   = aws_iam_role.ecs_task.id
+  policy = data.aws_iam_policy_document.ecs_task_ses.json
+}
+
 # === GitHub OIDC deploy role (CI: ECR push + ecs:UpdateService) ===
 # ARN goes to GitHub secret AWS_DEPLOY_ROLE_ARN (see INFRA.md §5).
 data "aws_iam_policy_document" "github_deploy_assume" {

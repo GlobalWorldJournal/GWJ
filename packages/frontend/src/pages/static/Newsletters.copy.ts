@@ -14,9 +14,9 @@ export interface NewslettersCopy {
 }
 
 const EN: NewslettersCopy = {
-  title: 'Telegram',
+  title: 'Newsletters',
   intro:
-    'The Journal goes out on Telegram, not email. Our channel brings the newsroom to your phone, edited by the journalists who cover each beat, so you can read on your own schedule and never miss the stories that matter.',
+    'The Journal reaches you by email every morning and on Telegram. Our channel brings the newsroom to your phone, edited by the journalists who cover each beat, so you can read on your own schedule and never miss the stories that matter.',
   channelTitle: 'On our channel',
   items: [
     {
@@ -50,9 +50,9 @@ const EN: NewslettersCopy = {
 };
 
 const ES: NewslettersCopy = {
-  title: 'Telegram',
+  title: 'Boletines',
   intro:
-    'El Journal se distribuye por Telegram, no por correo electrónico. Nuestro canal lleva la redacción a su teléfono, editado por los periodistas que cubren cada área, para que pueda leer a su propio ritmo y no se pierda las noticias que importan.',
+    'El Journal le llega cada mañana por correo electrónico y por Telegram. Nuestro canal lleva la redacción a su teléfono, editado por los periodistas que cubren cada área, para que pueda leer a su propio ritmo y no se pierda las noticias que importan.',
   channelTitle: 'En nuestro canal',
   items: [
     {
@@ -88,9 +88,9 @@ const ES: NewslettersCopy = {
 };
 
 const FR: NewslettersCopy = {
-  title: 'Telegram',
+  title: 'Newsletters',
   intro:
-    'Le Journal est diffusé sur Telegram, et non par e-mail. Notre chaîne apporte la rédaction sur votre téléphone, éditée par les journalistes qui couvrent chaque domaine, pour que vous lisiez à votre rythme sans jamais manquer les sujets qui comptent.',
+    'Le Journal vous parvient chaque matin par e-mail et sur Telegram. Notre chaîne apporte la rédaction sur votre téléphone, éditée par les journalistes qui couvrent chaque domaine, pour que vous lisiez à votre rythme sans jamais manquer les sujets qui comptent.',
   channelTitle: 'Sur notre chaîne',
   items: [
     {

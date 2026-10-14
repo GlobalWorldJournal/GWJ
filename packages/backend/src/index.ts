@@ -5,6 +5,8 @@ import { connectDb, disconnectDb } from './db/client';
 import { buildApp } from './app';
 import { startScheduler } from './services/scheduler';
 import { startOutboxWorker } from './channels/outbox';
+import { startNewsletterSender } from './services/newsletterSender';
+import { articleService } from './services/articleService';
 import { errorFields, logger } from './logger';
 
 export { createApp, buildApp } from './app';
@@ -31,7 +33,7 @@ async function bootstrap(): Promise<void> {
   await connectDb(env.DATABASE_URL);
   // buildApp registers the distribution channels (Mastodon + Telegram); this
   // process also works their outbox, like every backend task.
-  const { app, activityPub, channels, stopChannels } = buildApp(env);
+  const { app, activityPub, channels, stopChannels, newsletter } = buildApp(env);
   logger.info('activitypub ready', {
     domain: activityPub.registry.domain,
     actors: activityPub.registry.all.length,
@@ -39,6 +41,12 @@ async function bootstrap(): Promise<void> {
 
   const stopScheduler = startScheduler();
   const stopOutbox = startOutboxWorker(channels);
+  const stopNewsletter = startNewsletterSender({
+    service: newsletter.service,
+    sender: newsletter.sender,
+    articles: articleService,
+    apiBaseUrl: env.API_BASE_URL,
+  });
 
   const server = app.listen(env.PORT, () => {
     logger.info('gwj backend listening', { port: env.PORT });
@@ -48,6 +56,7 @@ async function bootstrap(): Promise<void> {
     logger.info('shutting down', { signal });
     stopScheduler();
     stopOutbox();
+    stopNewsletter();
     stopChannels();
     server.close(() => {
       void disconnectDb().finally(() => process.exit(0));

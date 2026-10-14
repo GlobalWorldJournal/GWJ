@@ -9,3 +9,4 @@ export * from './channels';
 export * from './takedown';
 export * from './ads';
 export * from './advertiser';
+export * from './newsletter';
