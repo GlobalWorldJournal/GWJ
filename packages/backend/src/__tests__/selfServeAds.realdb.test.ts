@@ -79,10 +79,13 @@ const gateway = new FakeGateway();
 
 const fakeUploadService: UploadService = {
   async uploadImage(_buffer, filename) {
-    return { url: `${CDN}/articles/${filename}` };
+    return { url: `${CDN}/articles/${filename}`, variants: [] };
   },
   async storeImage(_buffer, filename, _contentType, keyPrefix) {
-    return { url: `${CDN}/${keyPrefix}${filename}` };
+    return { url: `${CDN}/${keyPrefix}${filename}`, variants: [] };
+  },
+  async addRenditions() {
+    return null;
   },
 };
 
