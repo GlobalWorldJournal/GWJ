@@ -1,6 +1,6 @@
 {
-  "id": "f04e645b-dede-4049-bb89-0e0c0ece5f16",
-  "prevId": "0ac04b6e-2659-4bc1-b8b0-ab9a4bfeff0e",
+  "id": "5a82065a-a9b8-4411-bd33-8cc91465a28d",
+  "prevId": "7f332e22-1dad-41ab-85db-bad57bf27e70",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -121,9 +121,93 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "advertiser_id": {
+          "name": "advertiser_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ad_name": {
+          "name": "ad_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_session_id": {
+          "name": "stripe_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "checkout_url": {
+          "name": "checkout_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hold_expires_at": {
+          "name": "hold_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "terms_version": {
+          "name": "terms_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
+        "ad_campaigns_stripe_session_id_unique": {
+          "name": "ad_campaigns_stripe_session_id_unique",
+          "columns": [
+            {
+              "expression": "stripe_session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ad_campaigns_advertiser_idx": {
+          "name": "ad_campaigns_advertiser_idx",
+          "columns": [
+            {
+              "expression": "advertiser_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "ad_campaigns_live_idx": {
           "name": "ad_campaigns_live_idx",
           "columns": [
@@ -168,7 +252,21 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "ad_campaigns_advertiser_id_advertisers_id_fk": {
+          "name": "ad_campaigns_advertiser_id_advertisers_id_fk",
+          "tableFrom": "ad_campaigns",
+          "tableTo": "advertisers",
+          "columnsFrom": [
+            "advertiser_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -183,11 +281,84 @@
         },
         "ad_campaigns_status_check": {
           "name": "ad_campaigns_status_check",
-          "value": "\"ad_campaigns\".\"status\" IN ('active', 'paused', 'cancelled')"
+          "value": "\"ad_campaigns\".\"status\" IN ('active', 'paused', 'cancelled', 'pending', 'expired')"
         },
         "ad_campaigns_window_check": {
           "name": "ad_campaigns_window_check",
           "value": "\"ad_campaigns\".\"ends_at\" > \"ad_campaigns\".\"starts_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.advertisers": {
+      "name": "advertisers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_name": {
+          "name": "company_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "terms_version": {
+          "name": "terms_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "terms_accepted_at": {
+          "name": "terms_accepted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "advertisers_email_unique": {
+          "name": "advertisers_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "advertisers_id_format": {
+          "name": "advertisers_id_format",
+          "value": "\"advertisers\".\"id\" ~ '^[0-9a-f]{24}$'"
+        },
+        "advertisers_email_lowercase": {
+          "name": "advertisers_email_lowercase",
+          "value": "\"advertisers\".\"email\" = lower(\"advertisers\".\"email\")"
         }
       },
       "isRLSEnabled": false
@@ -1517,6 +1688,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "disabled_at": {
+          "name": "disabled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1539,7 +1716,7 @@
         },
         "users_role_check": {
           "name": "users_role_check",
-          "value": "\"users\".\"role\" IN ('admin')"
+          "value": "\"users\".\"role\" IN ('admin', 'editor')"
         }
       },
       "isRLSEnabled": false
