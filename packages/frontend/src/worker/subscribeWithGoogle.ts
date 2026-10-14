@@ -1,7 +1,7 @@
 import type { Language } from '@gwj/shared-types';
 
 /** Google Reader Revenue Manager: the paper's open-access publication product. */
-const SWG_PRODUCT_ID = 'CAowx-jgCw:openaccess';
+const SWG_PRODUCT_ID = 'CAowuv_hCw:openaccess';
 const SWG_SCRIPT_URL = 'https://news.google.com/swg/js/v1/swg-basic.js';
 
 /**
