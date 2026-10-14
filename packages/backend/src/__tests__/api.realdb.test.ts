@@ -311,6 +311,12 @@ describe('GWJ API', () => {
     expect(allowed.headers['access-control-allow-origin']).toBe('https://globalworldjournal.com');
   });
 
+  it('lets the reader site, on another origin, receive responses to no-cors requests', async () => {
+    const res = await request(app).get('/api/categories');
+    expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
   it("an old slug 301-redirects to the article's current slug", async () => {
     const token = await loginToken();
     const created = await request(app)

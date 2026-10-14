@@ -86,7 +86,11 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   app.set('trust proxy', env.TRUST_PROXY_HOPS);
 
   app.use(requestLog());
-  app.use(helmet());
+  // The reader site (another origin) calls this API with `no-cors` requests too —
+  // the view beacon — so the default `same-origin` Cross-Origin-Resource-Policy
+  // would make the browser block every such response. The API is public and its
+  // CORS allowlist is the real gate for reads.
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
   const allowlist = parseCorsOrigins(env.CORS_ORIGINS);
   app.use(
