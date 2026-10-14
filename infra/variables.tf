@@ -18,6 +18,18 @@ variable "account_id" {
 
 # Apex + service hostnames (Cloudflare DNS already added; records point at the
 # shared ALB / CloudFront at cutover).
+variable "site_domain" {
+  type        = string
+  default     = "globalworldjournal.com"
+  description = "The apex site domain; also the SES identity the newsletter sends from."
+}
+
+variable "newsletter_enabled" {
+  type        = bool
+  default     = false
+  description = "Turn the email newsletter on in production. Set true only after the SES identity is verified and SES is out of the sandbox (docs/INFRA.md)."
+}
+
 variable "api_domain" {
   type    = string
   default = "api.globalworldjournal.com"

@@ -17,6 +17,12 @@ import {
   ApiTokenSchema,
   CreatedApiTokenSchema,
   UserSchema,
+  NewsletterConfirmResponseSchema,
+  NewsletterStatusResponseSchema,
+  NewsletterSubscribeResponseSchema,
+  type NewsletterStatusResponse,
+  type NewsletterConfirmResponse,
+  type NewsletterSubscribeResponse,
   PaginatedTakedownRequestsSchema,
   type Article,
   type ArticleRevisionSummary,
@@ -647,4 +653,38 @@ export async function changePassword(token: string, input: ChangePasswordInput):
     body: JSON.stringify(input),
   });
   if (!response.ok) throw await readError(response);
+}
+
+/* ---------- email newsletter ---------- */
+
+export function subscribeToNewsletter(
+  email: string,
+  language: Language,
+  website: string,
+): Promise<NewsletterSubscribeResponse> {
+  return request('/api/newsletter/subscribe', NewsletterSubscribeResponseSchema, {
+    method: 'POST',
+    body: { email, language, website },
+  });
+}
+
+/** Confirm a subscription from the emailed link's token. */
+export function confirmNewsletter(token: string): Promise<NewsletterConfirmResponse> {
+  return request('/api/newsletter/confirm', NewsletterConfirmResponseSchema, {
+    method: 'POST',
+    body: { token },
+  });
+}
+
+/** Unsubscribe with the token carried by every issue. */
+export function unsubscribeFromNewsletter(token: string): Promise<NewsletterConfirmResponse> {
+  return request('/api/newsletter/unsubscribe', NewsletterConfirmResponseSchema, {
+    method: 'POST',
+    body: { token },
+  });
+}
+
+/** Whether sign-ups are open (email delivery is configured on the backend). */
+export function getNewsletterStatus(signal?: AbortSignal): Promise<NewsletterStatusResponse> {
+  return request('/api/newsletter/status', NewsletterStatusResponseSchema, { signal });
 }

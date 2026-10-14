@@ -1,17 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MENTION_PROFILE_URL, TELEGRAM_CHANNEL_URL } from '@gwj/shared-types';
 import { LanguageProvider } from '../../lib/i18n';
 import { Footer } from '../Footer';
 
 function renderFooter(lang: 'en' | 'fr') {
+  const client = new QueryClient();
   return render(
-    <MemoryRouter>
-      <LanguageProvider lang={lang}>
-        <Footer />
-      </LanguageProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <LanguageProvider lang={lang}>
+          <Footer />
+        </LanguageProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 

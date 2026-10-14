@@ -36,6 +36,16 @@ Both services log JSON lines. The backend tags each request with an `x-request-i
 ## Cloudflare Pages runtime variables
 The SEO worker reads `API_BASE_URL` (`https://api.globalworldjournal.com`) and `SITE_URL` (`https://globalworldjournal.com`) — set in the Pages project → Settings → Environment variables (Production). They are distinct from the build-time `VITE_API_BASE_URL`.
 
+## Newsletter email (SES)
+
+The backend mails the double-opt-in confirmation and the daily briefing (07:00 in each edition's zone, `NEWSLETTER_TIME_ZONES`) as `newsletter@globalworldjournal.com` through Amazon SES in `us-west-2`; it sends only in production. One-time setup after `terraform apply`:
+
+1. Add the DNS records from `terraform output ses_dkim_records` and `ses_mail_from_records` in Cloudflare (all DNS-only), plus a DMARC TXT at `_dmarc` (`v=DMARC1; p=none; rua=mailto:…`). SES shows the identity as verified when they resolve.
+2. Request production access in the SES console (Account dashboard): a new account is in the sandbox and only mails verified recipients, so sign-ups from anyone else get an error until it is lifted.
+3. Set `newsletter_enabled = true` (infra/variables.tf) and `terraform apply`: only then does the API take sign-ups (`GET /api/newsletter/status`) and the footer form appear. Until then readers see no form.
+
+Readers live in `newsletter_subscribers` (status `pending` → `confirmed` → `unsubscribed`); every issue carries `List-Unsubscribe` one-click headers (RFC 8058) and the API's public origin comes from `API_BASE_URL`.
+
 ## Agent API tokens
 Agents (the MCP server, automations) authenticate with their own token, not the admin password: scoped (`articles:write`, `articles:publish`, `articles:delete`, `media:upload`, `takedowns`), revocable, stored only as a SHA-256 hash, and recorded as `agent:<name>` in article history. An admin mints one with `POST /api/admin/tokens {"name","scopes"}` (the secret is in that response only), lists them with `GET /api/admin/tokens` and revokes with `POST /api/admin/tokens/:id/revoke`. The MCP server uses `GWJ_API_TOKEN` when set (SSM `/gwj/MCP_API_TOKEN`); without it, it falls back to the admin login.
 

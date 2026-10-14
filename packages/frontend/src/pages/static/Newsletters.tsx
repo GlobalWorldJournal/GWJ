@@ -2,6 +2,7 @@ import { telegramChannelFor } from '@gwj/shared-types';
 import { useLang } from '../../lib/i18n';
 import { LocaleLink } from '../../lib/locale';
 import { NEWSLETTERS_COPY } from './Newsletters.copy';
+import { NewsletterSignup } from '../../components/NewsletterSignup';
 
 export function Newsletters() {
   const { lang } = useLang();
@@ -17,6 +18,7 @@ export function Newsletters() {
       </header>
       <div className="flex flex-col gap-4 font-body text-[1.05rem] leading-relaxed text-ink">
         <p>{copy.intro}</p>
+        <NewsletterSignup className="border border-rule p-5" />
 
         <h2 className="headline text-2xl text-ink">{copy.channelTitle}</h2>
         <ul className="list-disc pl-5 flex flex-col gap-1">

@@ -37,6 +37,7 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "S3_BUCKET", value = aws_s3_bucket.media.bucket },
       { name = "CDN_BASE_URL", value = "https://${var.cdn_domain}" },
       { name = "CORS_ORIGINS", value = var.site_origins },
+      { name = "NEWSLETTER_ENABLED", value = tostring(var.newsletter_enabled) },
     ]
     secrets = [
       { name = "DATABASE_URL", valueFrom = aws_ssm_parameter.database_url.arn },

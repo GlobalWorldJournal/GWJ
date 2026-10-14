@@ -616,6 +616,12 @@ function handleTag(env: Env, request: Request, config: Config, tag: string, lang
 }
 
 /** A footer/static page (About, Careers, Terms…): its name, in the edition's language. */
+/** Pages reached only from an emailed link (it carries a one-time token): never indexed. */
+const UNINDEXED_STATIC_PATHS: ReadonlySet<string> = new Set([
+  '/newsletter/confirm',
+  '/newsletter/unsubscribe',
+]);
+
 function handleStaticPage(
   env: Env,
   request: Request,
@@ -632,6 +638,7 @@ function handleStaticPage(
       url: editionUrl(config.siteUrl, lang, path),
       jsonLd: websiteJsonLd(config.siteUrl),
       lang,
+      ...(UNINDEXED_STATIC_PATHS.has(path) ? { robots: 'noindex' } : {}),
     },
     config,
     path,

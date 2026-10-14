@@ -79,6 +79,12 @@ const Subscribe = lazy(() =>
 const Newsletters = lazy(() =>
   import('./pages/static/Newsletters').then((m) => ({ default: m.Newsletters })),
 );
+const NewsletterConfirm = lazy(() =>
+  import('./pages/NewsletterAction').then((m) => ({ default: m.NewsletterConfirm })),
+);
+const NewsletterUnsubscribe = lazy(() =>
+  import('./pages/NewsletterAction').then((m) => ({ default: m.NewsletterUnsubscribe })),
+);
 const RssFeeds = lazy(() =>
   import('./pages/static/RssFeeds').then((m) => ({ default: m.RssFeeds })),
 );
@@ -107,6 +113,8 @@ const STATIC_PAGES: { path: string; element: ReactElement }[] = [
   { path: 'contact', element: <ContactUs /> },
   { path: 'subscribe', element: <Subscribe /> },
   { path: 'newsletters', element: <Newsletters /> },
+  { path: 'newsletter/confirm', element: <NewsletterConfirm /> },
+  { path: 'newsletter/unsubscribe', element: <NewsletterUnsubscribe /> },
   { path: 'rss', element: <RssFeeds /> },
   { path: 'podcasts', element: <Podcasts /> },
   { path: 'video', element: <Video /> },

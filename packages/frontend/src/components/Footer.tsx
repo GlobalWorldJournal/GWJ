@@ -9,6 +9,7 @@ import { useLang } from '../lib/i18n';
 import { LocaleLink } from '../lib/locale';
 import { categoryLabel } from '../lib/dictionary';
 import { MentionIcon, TelegramIcon } from './SocialIcons';
+import { NewsletterSignup } from './NewsletterSignup';
 
 /** A footer link whose visible label comes from a dictionary key. */
 interface FooterLink {
@@ -84,6 +85,7 @@ export function Footer() {
   return (
     <footer className="mt-16 border-t-3 border-ink bg-paper">
       <div className="mx-auto max-w-6xl px-4 py-10">
+        <NewsletterSignup className="mb-10 border-b border-rule pb-10" />
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
           <div>
             <h3 className="label mb-3 text-[0.6875rem] font-bold text-ink">{t('sectionsTitle')}</h3>
