@@ -75,8 +75,12 @@ const rowFor = async (email: string) =>
 const subscribe = (email: string, language = 'en') =>
   request(app).post('/api/newsletter/subscribe').send({ email, language });
 
-async function confirmed(email: string, language = 'en'): Promise<void> {
-  await subscribe(email, language);
+/** Sign-up through the service: the HTTP route is rate limited per IP, which a suite shares. */
+const subscribeDirect = (email: string, language: 'en' | 'es' | 'fr' = 'en') =>
+  service.subscribe({ email, language });
+
+async function confirmed(email: string, language: 'en' | 'es' | 'fr' = 'en'): Promise<void> {
+  await subscribeDirect(email, language);
   const res = await request(app)
     .post('/api/newsletter/confirm')
     .send({ token: tokenIn(sent[sent.length - 1]) });
@@ -121,7 +125,7 @@ describe('subscribing', () => {
 
 describe('confirming and unsubscribing', () => {
   it('confirms from the emailed link', async () => {
-    await subscribe('reader@example.com');
+    await subscribeDirect('reader@example.com');
     const res = await request(app)
       .post('/api/newsletter/confirm')
       .send({ token: tokenIn(sent[0]) });
@@ -157,7 +161,7 @@ describe('confirming and unsubscribing', () => {
   });
 
   it('never resubscribes through an old confirmation link, but a new request restarts', async () => {
-    await subscribe('reader@example.com');
+    await subscribeDirect('reader@example.com');
     const oldLink = tokenIn(sent[0]);
     const row = await rowFor('reader@example.com');
     await request(app)
@@ -166,7 +170,7 @@ describe('confirming and unsubscribing', () => {
     const stale = await request(app).post('/api/newsletter/confirm').send({ token: oldLink });
     expect(stale.status).toBe(400);
     expect((await rowFor('reader@example.com'))?.status).toBe('unsubscribed');
-    await subscribe('reader@example.com');
+    await subscribeDirect('reader@example.com');
     expect((await rowFor('reader@example.com'))?.status).toBe('pending');
   });
 });
@@ -176,7 +180,7 @@ describe('claiming recipients', () => {
     await confirmed('a@example.com');
     await confirmed('b@example.com');
     await confirmed('es@example.com', 'es');
-    await subscribe('pending@example.com');
+    await subscribeDirect('pending@example.com');
     const first = await service.claimRecipients('en', '2026-10-14', 10);
     expect(first.map((r) => r.email).sort()).toEqual(['a@example.com', 'b@example.com']);
     expect(await service.claimRecipients('en', '2026-10-14', 10)).toHaveLength(0);
