@@ -4,10 +4,12 @@ import {
   NewsletterSubscribeInputSchema,
   NewsletterTokenInputSchema,
   type NewsletterConfirmResponse,
+  type NewsletterStatusResponse,
   type NewsletterSubscribeInput,
   type NewsletterSubscribeResponse,
   type NewsletterTokenInput,
 } from '@gwj/shared-types';
+import { ServiceUnavailableError } from '../errors';
 import { validate } from '../middleware/validate';
 import type { NewsletterService } from '../services/newsletterService';
 
@@ -15,6 +17,8 @@ const RATE_WINDOW_MS = 15 * 60 * 1000;
 /** Sign-ups per IP per window: each one can send an email. */
 const SUBSCRIBE_MAX = 10;
 const LINK_MAX = 60;
+/** Whether sign-ups are open rarely changes; a short cache keeps the footer cheap. */
+const STATUS_CACHE_CONTROL = 'public, max-age=300';
 
 function limiter(max: number): RequestHandler {
   return rateLimit({
@@ -30,8 +34,14 @@ function limiter(max: number): RequestHandler {
  * the body (the reader's page) or in the query string (a mail client's one-click
  * unsubscribe POST, RFC 8058, whose body is a form and not ours to parse).
  */
-export function createNewsletterRouter(service: NewsletterService): Router {
+export function createNewsletterRouter(service: NewsletterService, accepting: boolean): Router {
   const router = Router();
+
+  router.get('/status', (_req, res) => {
+    res.set('Cache-Control', STATUS_CACHE_CONTROL);
+    const body: NewsletterStatusResponse = { accepting };
+    res.json(body);
+  });
 
   router.post(
     '/subscribe',
@@ -39,6 +49,7 @@ export function createNewsletterRouter(service: NewsletterService): Router {
     validate(NewsletterSubscribeInputSchema),
     async (req, res, next) => {
       try {
+        if (!accepting) throw new ServiceUnavailableError('The newsletter is not available yet.');
         const input: NewsletterSubscribeInput = req.body;
         await service.subscribe(input);
         const body: NewsletterSubscribeResponse = { status: 'pending_confirmation' };

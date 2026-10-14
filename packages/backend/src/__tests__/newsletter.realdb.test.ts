@@ -8,7 +8,7 @@ import { getDb } from '../db/client';
 import { newsletterSubscribers } from '../db/schema/newsletterSubscribers';
 import { eq } from 'drizzle-orm';
 import { articleService } from '../services/articleService';
-import type { EmailMessage, EmailSender } from '../services/emailSender';
+import { disabledEmailSender, type EmailMessage, type EmailSender } from '../services/emailSender';
 import { localTime, sendDueIssues } from '../services/newsletterSender';
 import type { NewsletterService } from '../services/newsletterService';
 import { useTestDatabase, type TestDatabase } from '../test/postgres';
@@ -86,6 +86,25 @@ async function confirmed(email: string, language: 'en' | 'es' | 'fr' = 'en'): Pr
     .send({ token: tokenIn(sent[sent.length - 1]) });
   expect(res.status).toBe(200);
 }
+
+describe('while the newsletter is switched off', () => {
+  it('reports it, refuses sign-ups and stores nothing', async () => {
+    const off = buildApp(setTestEnv(), { emailSender: disabledEmailSender });
+    try {
+      expect((await request(app).get('/api/newsletter/status')).body).toEqual({ accepting: true });
+      expect((await request(off.app).get('/api/newsletter/status')).body).toEqual({
+        accepting: false,
+      });
+      const res = await request(off.app)
+        .post('/api/newsletter/subscribe')
+        .send({ email: 'reader@example.com', language: 'en' });
+      expect(res.status).toBe(503);
+      expect(await rowFor('reader@example.com')).toBeUndefined();
+    } finally {
+      off.stopChannels();
+    }
+  });
+});
 
 describe('subscribing', () => {
   it('stores a pending subscriber and mails one confirmation in their edition', async () => {

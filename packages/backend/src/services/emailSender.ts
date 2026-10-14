@@ -38,9 +38,9 @@ export function newsletterFrom(env: Env): string {
   return `The Global World Journal <newsletter@${env.FEDIVERSE_DOMAIN}>`;
 }
 
-/** Amazon SES (v2) in production; the disabled sender everywhere else. */
+/** Amazon SES (v2) in production once the newsletter is switched on; the disabled sender otherwise. */
 export function createEmailSender(env: Env): EmailSender {
-  if (env.NODE_ENV !== 'production') return disabledEmailSender;
+  if (env.NODE_ENV !== 'production' || !env.NEWSLETTER_ENABLED) return disabledEmailSender;
   const from = newsletterFrom(env);
   const client = new SESv2Client({
     region: env.AWS_REGION,

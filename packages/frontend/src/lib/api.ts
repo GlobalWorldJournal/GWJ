@@ -18,7 +18,9 @@ import {
   CreatedApiTokenSchema,
   UserSchema,
   NewsletterConfirmResponseSchema,
+  NewsletterStatusResponseSchema,
   NewsletterSubscribeResponseSchema,
+  type NewsletterStatusResponse,
   type NewsletterConfirmResponse,
   type NewsletterSubscribeResponse,
   PaginatedTakedownRequestsSchema,
@@ -680,4 +682,9 @@ export function unsubscribeFromNewsletter(token: string): Promise<NewsletterConf
     method: 'POST',
     body: { token },
   });
+}
+
+/** Whether sign-ups are open (email delivery is configured on the backend). */
+export function getNewsletterStatus(signal?: AbortSignal): Promise<NewsletterStatusResponse> {
+  return request('/api/newsletter/status', NewsletterStatusResponseSchema, { signal });
 }

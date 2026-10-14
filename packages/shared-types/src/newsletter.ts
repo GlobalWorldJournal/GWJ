@@ -31,6 +31,10 @@ export const NewsletterConfirmResponseSchema = z.object({
 });
 export type NewsletterConfirmResponse = z.infer<typeof NewsletterConfirmResponseSchema>;
 
+/** Whether the API is taking sign-ups now (email delivery is configured). */
+export const NewsletterStatusResponseSchema = z.object({ accepting: z.boolean() });
+export type NewsletterStatusResponse = z.infer<typeof NewsletterStatusResponseSchema>;
+
 /** The local hour each edition's daily newsletter goes out. */
 export const NEWSLETTER_SEND_HOUR = 7;
 

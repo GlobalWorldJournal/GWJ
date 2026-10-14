@@ -42,7 +42,7 @@ The backend mails the double-opt-in confirmation and the daily briefing (07:00 i
 
 1. Add the DNS records from `terraform output ses_dkim_records` and `ses_mail_from_records` in Cloudflare (all DNS-only), plus a DMARC TXT at `_dmarc` (`v=DMARC1; p=none; rua=mailto:…`). SES shows the identity as verified when they resolve.
 2. Request production access in the SES console (Account dashboard): a new account is in the sandbox and only mails verified recipients, so sign-ups from anyone else get an error until it is lifted.
-3. Until then confirmations fail with a clear error rather than silently succeeding.
+3. Set `newsletter_enabled = true` (infra/variables.tf) and `terraform apply`: only then does the API take sign-ups (`GET /api/newsletter/status`) and the footer form appear. Until then readers see no form.
 
 Readers live in `newsletter_subscribers` (status `pending` → `confirmed` → `unsubscribed`); every issue carries `List-Unsubscribe` one-click headers (RFC 8058) and the API's public origin comes from `API_BASE_URL`.
 

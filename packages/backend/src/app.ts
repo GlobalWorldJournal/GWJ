@@ -210,7 +210,10 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
     secret: env.JWT_SECRET,
     domain: env.FEDIVERSE_DOMAIN,
   });
-  app.use('/api/newsletter', createNewsletterRouter(newsletter));
+  // Sign-ups are taken once mail can go out (production + NEWSLETTER_ENABLED); in
+  // development they are stored without sending, so the flow can be tried locally.
+  const acceptingSignups = emailSender.enabled || env.NODE_ENV === 'development';
+  app.use('/api/newsletter', createNewsletterRouter(newsletter, acceptingSignups));
   app.use('/api/advertiser', createAdvertiserRouter(env.JWT_SECRET, uploadService, adBooking));
   app.use('/api/ads', publicLimiter, createAdsPublicRouter(adBooking));
   app.use('/api/mention', publicLimiter, createMentionOauthRouter(env));
