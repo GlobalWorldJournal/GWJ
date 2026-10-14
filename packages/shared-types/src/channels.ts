@@ -19,3 +19,13 @@ export function telegramChannelFor(language: string): { handle: string; url: str
 /** The paper's profile on Mention. */
 export const MENTION_HANDLE = '@gwj';
 export const MENTION_PROFILE_URL = 'https://mention.earth/@gwj';
+
+/**
+ * The paper's IndexNow key. Public by protocol design: search engines fetch it
+ * from `https://<domain>/<key>.txt` (a file of that name in the frontend's
+ * `public/`) to confirm the site owner is the one submitting URLs.
+ */
+export const INDEXNOW_KEY = '533cb13785854db187b7fabbbf7f7117';
+
+/** The IndexNow endpoint; Bing, Yandex, Naver, Seznam and Yep share submissions. */
+export const INDEXNOW_ENDPOINT = 'https://api.indexnow.org/indexnow';

@@ -6,14 +6,15 @@ import { telegramChannels } from './telegramChannel';
 import { facebookChannels } from './facebookChannel';
 import { instagramChannels } from './instagramChannel';
 import { mentionChannel } from './mentionChannel';
+import { indexNowChannel } from './indexNowChannel';
 import type { PublishChannel } from './types';
 
 /**
  * The paper's distribution channels: Mastodon (all editions, via ActivityPub),
  * one Telegram channel, one Facebook Page and one Instagram Business account
- * per configured edition, and GWJ's own Mention account (@gwj, English only)
- * — each self-disables when its own credentials (or, for Mention, its stored
- * OAuth grant) are absent. Add a destination (WhatsApp, another edition) by
+ * per configured edition, GWJ's own Mention account (@gwj, English only) and
+ * IndexNow (every edition, production only) — each self-disables when its own
+ * credentials (or, for Mention, its stored OAuth grant) are absent. Add a destination (WhatsApp, another edition) by
  * extending this list or the relevant channel's own config — language
  * routing is the registry's, via each channel's `servesLanguage`.
  * `uploadService` is the same instance the admin API uploads article images
@@ -31,5 +32,6 @@ export function buildChannels(
     ...facebookChannels(env),
     ...instagramChannels(env, uploadService),
     mentionChannel(env),
+    indexNowChannel(env),
   ];
 }
