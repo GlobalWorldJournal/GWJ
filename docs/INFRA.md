@@ -38,11 +38,12 @@ The SEO worker reads `API_BASE_URL` (`https://api.globalworldjournal.com`) and `
 
 ## Newsletter email (SES)
 
-The backend mails the double-opt-in confirmation and the daily briefing (07:00 in each edition's zone, `NEWSLETTER_TIME_ZONES`) as `newsletter@globalworldjournal.com` through Amazon SES in `us-west-2`; it sends only in production. One-time setup after `terraform apply`:
+The backend mails the double-opt-in confirmation and the daily briefing (07:00 in each edition's zone, `NEWSLETTER_TIME_ZONES`) as `newsletter@globalworldjournal.com` through Amazon SES in `us-west-2`; it sends only in production. Setup (done for production):
 
-1. Add the DNS records from `terraform output ses_dkim_records` and `ses_mail_from_records` in Cloudflare (all DNS-only), plus a DMARC TXT at `_dmarc` (`v=DMARC1; p=none; rua=mailto:…`). SES shows the identity as verified when they resolve.
-2. Request production access in the SES console (Account dashboard): a new account is in the sandbox and only mails verified recipients, so sign-ups from anyone else get an error until it is lifted.
-3. Set `newsletter_enabled = true` (infra/variables.tf) and `terraform apply`: only then does the API take sign-ups (`GET /api/newsletter/status`) and the footer form appear. Until then readers see no form.
+1. `terraform apply` creates the SES domain identity (DKIM + custom MAIL FROM `bounce.<domain>`) and the task role's `ses:SendEmail`.
+2. Cloudflare holds, all DNS-only: the three DKIM CNAMEs (`terraform output ses_dkim_records`), the MX and SPF TXT on `bounce.<domain>` (`ses_mail_from_records`) and a DMARC TXT at `_dmarc` (`v=DMARC1; p=none; adkim=s; aspf=s`). SES shows the identity as verified when they resolve.
+3. SES must be out of the sandbox (account-level, `aws sesv2 get-account`), otherwise only verified recipients can be mailed.
+4. `newsletter_enabled` (infra/variables.tf, default `true`) drives `NEWSLETTER_ENABLED`: only then does the API take sign-ups (`GET /api/newsletter/status`) and the footer form appear. Set it to `false` and apply to switch the newsletter off.
 
 Readers live in `newsletter_subscribers` (status `pending` → `confirmed` → `unsubscribed`); every issue carries `List-Unsubscribe` one-click headers (RFC 8058) and the API's public origin comes from `API_BASE_URL`.
 

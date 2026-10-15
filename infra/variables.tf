@@ -26,8 +26,8 @@ variable "site_domain" {
 
 variable "newsletter_enabled" {
   type        = bool
-  default     = false
-  description = "Turn the email newsletter on in production. Set true only after the SES identity is verified and SES is out of the sandbox (docs/INFRA.md)."
+  default     = true
+  description = "Turn the email newsletter on in production. Needs the SES identity verified and SES out of the sandbox (docs/INFRA.md); set false to switch sign-ups and sending off."
 }
 
 variable "api_domain" {
