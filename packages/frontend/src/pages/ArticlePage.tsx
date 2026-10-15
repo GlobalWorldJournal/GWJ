@@ -1,6 +1,6 @@
 import { Navigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { categorySlug, telegramChannelFor, type Category, type Language } from '@gwj/shared-types';
+import { categorySlug, type Category, type Language } from '@gwj/shared-types';
 import { getArticle, getArticles, ApiRequestError } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { LocaleLink, localizePath } from '../lib/locale';
@@ -14,41 +14,25 @@ import { CorrectionsNote, ShareBar, TopicTags } from '../components/ArticleExtra
 import { readingMinutes } from '../lib/format';
 import { IMAGE_SIZES, responsiveImage } from '../lib/responsiveImage';
 import { ArticleCard } from '../components/ArticleCard';
-import { AdSlot } from '../components/AdSlot';
 import { NewsletterSignup } from '../components/NewsletterSignup';
-import { MostPopular } from '../components/MostPopular';
-import { mostPopularRail, usePopularArticles, useReportView } from '../lib/popular';
-import { StatusMessage } from '../components/StatusMessage';
+import { PageWithRail } from '../components/PageWithRail';
+import { useEditionArticles } from '../components/SiteRail';
+import { useReportView } from '../lib/popular';
 import { ArticleSkeleton } from '../components/Skeletons';
+import { StatusMessage } from '../components/StatusMessage';
 import { NotFound } from './NotFound';
 
 // How many cross-link cards each section renders. The "More in {category}" grid
 // targets a 4-up row; "More from {author}" stays a short list.
 const RELATED_LIMIT = 6;
-const POPULAR_LIMIT = 6;
 const AUTHOR_LIMIT = 4;
-const RAIL_POOL_LIMIT = 50;
-
-/**
- * Edition-aware pool of recent articles used to fill the rail (Most Popular) and
- * the cross-link sections. Fetched with React Query AFTER mount so it never
- * blocks the article render or the LCP hero. Keyed by the active edition so a
- * `/es` article only ever surfaces Spanish-edition stories.
- */
-function useEditionArticles(lang: Language) {
-  return useQuery({
-    queryKey: ['articles', 'edition', lang],
-    queryFn: ({ signal }) => getArticles({ language: lang, limit: RAIL_POOL_LIMIT }, signal),
-    staleTime: 60_000,
-  });
-}
+const POOL_LIMIT = 50;
 
 /** Same-category, same-edition stories, fetched only once the article resolves. */
 function useCategoryArticles(category: Category | undefined, lang: Language) {
   return useQuery({
     queryKey: ['articles', 'related', category, lang],
-    queryFn: ({ signal }) =>
-      getArticles({ category, language: lang, limit: RAIL_POOL_LIMIT }, signal),
+    queryFn: ({ signal }) => getArticles({ category, language: lang, limit: POOL_LIMIT }, signal),
     enabled: Boolean(category),
     staleTime: 60_000,
   });
@@ -74,12 +58,15 @@ export function ArticlePage() {
   usePageMeta(data ? articleMeta(data) : null);
   const editionQuery = useEditionArticles(lang);
   const categoryQuery = useCategoryArticles(data?.category, lang);
-  // One more than the rail holds: the story being read is left out of it.
-  const popularQuery = usePopularArticles(lang, POPULAR_LIMIT + 1);
   useReportView(data?.id);
 
   if (isPending) {
-    return <ArticleSkeleton />;
+    // Same root as the loaded page, so the rail keeps its place while the story loads.
+    return (
+      <PageWithRail>
+        <ArticleSkeleton />
+      </PageWithRail>
+    );
   }
 
   if (isError) {
@@ -98,14 +85,6 @@ export function ArticlePage() {
   const editionPool = editionQuery.data?.data ?? [];
   const categoryPool = categoryQuery.data?.data ?? [];
 
-  // Most Popular: the edition's most read stories, excluding the current article.
-  const mostPopular = mostPopularRail(
-    popularQuery.data?.data ?? [],
-    editionPool,
-    POPULAR_LIMIT,
-    article.id,
-  );
-
   // "More in {category}": same category + edition, current article excluded. If
   // the category is thin, top up with other recent edition stories so the row
   // never looks broken — without ever duplicating an article.
@@ -121,8 +100,35 @@ export function ArticlePage() {
 
   const categoryName = categoryLabel(article.category, lang);
 
+  // "More in {category}": a full-width band under both columns, like WSJ.
+  const moreInCategory =
+    related.length > 0 ? (
+      <section className="mt-12 border-t-3 border-ink pt-6">
+        <div className="mb-4 flex items-baseline justify-between">
+          <h2 className="headline text-2xl text-ink">{t('moreIn', { x: categoryName })}</h2>
+          <LocaleLink
+            to={`/${categorySlug(article.category)}`}
+            className="label text-[0.6875rem] text-accent transition-colors hover:text-ink"
+          >
+            {t('more', { x: categoryName })}
+          </LocaleLink>
+        </div>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {related.map((a) => (
+            <ArticleCard
+              key={a.id}
+              article={a}
+              variant="standard"
+              showImage={Boolean(a.heroImage)}
+              showByline={false}
+            />
+          ))}
+        </div>
+      </section>
+    ) : null;
+
   return (
-    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-8">
+    <PageWithRail exclude={article.id} bottom={moreInCategory}>
       {/* MAIN COLUMN — the article, capped at a comfortable reading measure. */}
       <article className="min-w-0">
         <div className="mx-auto max-w-[680px]">
@@ -205,82 +211,6 @@ export function ArticlePage() {
           ) : null}
         </div>
       </article>
-
-      {/* RIGHT RAIL — Most Popular scrolls away; the ad + follow card pin together
-          as one sticky block (so the card never overlaps the ad). Desktop only;
-          on mobile it stacks below the article (after the related grid). */}
-      <aside className="mt-12 flex flex-col gap-8 lg:mt-0 lg:border-l lg:border-rule lg:pl-8">
-        <MostPopular articles={mostPopular} title={t('mostPopular')} />
-        <div className="flex flex-col gap-8 lg:sticky lg:top-20">
-          <AdSlot variant="mrec" sticky={false} />
-          <FollowCard
-            href={telegramChannelFor(lang).url}
-            title={t('follow')}
-            line={t('railFollowLine')}
-            ctaLabel={t('followOnTelegram')}
-          />
-        </div>
-      </aside>
-
-      {/* BOTTOM — "More in {category}": same-edition grid of cards. Spans both
-          columns so it reads as a full-width footer band like WSJ. */}
-      {related.length > 0 ? (
-        <section className="mt-12 border-t-3 border-ink pt-6 lg:col-span-2">
-          <div className="mb-4 flex items-baseline justify-between">
-            <h2 className="headline text-2xl text-ink">{t('moreIn', { x: categoryName })}</h2>
-            <LocaleLink
-              to={`/${categorySlug(article.category)}`}
-              className="label text-[0.6875rem] text-accent transition-colors hover:text-ink"
-            >
-              {t('more', { x: categoryName })}
-            </LocaleLink>
-          </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {related.map((a) => (
-              <ArticleCard
-                key={a.id}
-                article={a}
-                variant="standard"
-                showImage={Boolean(a.heroImage)}
-                showByline={false}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * Compact "Follow on Telegram" call-to-action for the rail. The audience-follow
- * channel is Telegram (no email); this is a presentational CTA that opens the
- * channel in a new tab. The URL comes from the shared `telegramChannelFor`
- * helper (the edition's own channel) — no new form/endpoint, no over-build.
- */
-function FollowCard({
-  title,
-  line,
-  ctaLabel,
-  href,
-}: {
-  title: string;
-  line: string;
-  ctaLabel: string;
-  href: string;
-}) {
-  return (
-    <section className="border border-rule bg-ink/[0.02] p-5 text-center">
-      <p className="label mb-2 text-[0.625rem] tracking-[0.16em] text-accent">{title}</p>
-      <p className="headline text-lg leading-snug text-ink">{line}</p>
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="label mt-4 inline-block border border-ink bg-ink px-5 py-2 text-[0.6875rem] tracking-[0.12em] text-paper transition-colors hover:bg-accent hover:border-accent"
-      >
-        {ctaLabel}
-      </a>
-    </section>
+    </PageWithRail>
   );
 }

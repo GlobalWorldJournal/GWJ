@@ -13,7 +13,8 @@ import { LanguageProvider } from './lib/i18n';
 import { PREFIXED_LOCALES } from './lib/locale';
 import { RootRouteError, RouteError } from './components/RouteError';
 import { SiteLayout } from './components/SiteLayout';
-import { ArticleSkeleton, ListSkeleton } from './components/Skeletons';
+import { ArticleLoading, RailLayout } from './components/PageWithRail';
+import { ListSkeleton, TextSkeleton } from './components/Skeletons';
 import { Home } from './pages/Home';
 import { NotFound } from './pages/NotFound';
 
@@ -95,13 +96,13 @@ const Video = lazy(() => import('./pages/static/Video').then((m) => ({ default: 
 
 // Footer/static pages. Single-segment static paths out-rank the dynamic
 // `:category` route in React Router, so these resolve correctly.
-const STATIC_PAGES: { path: string; element: ReactElement }[] = [
+const STATIC_PAGES: { path: string; element: ReactElement; rail?: false }[] = [
   { path: 'about', element: <AboutUs /> },
   { path: 'careers', element: <Careers /> },
   { path: 'advertise', element: <Advertise /> },
-  { path: 'advertise/start', element: <AdvertiseStart /> },
-  { path: 'advertise/dashboard', element: <AdvertiserDashboard /> },
-  { path: 'advertise/success', element: <AdvertiseSuccess /> },
+  { path: 'advertise/start', element: <AdvertiseStart />, rail: false },
+  { path: 'advertise/dashboard', element: <AdvertiserDashboard />, rail: false },
+  { path: 'advertise/success', element: <AdvertiseSuccess />, rail: false },
   { path: 'advertising-terms', element: <AdvertisingTerms /> },
   { path: 'corrections', element: <Corrections /> },
   { path: 'report-content', element: <ReportContent /> },
@@ -113,8 +114,8 @@ const STATIC_PAGES: { path: string; element: ReactElement }[] = [
   { path: 'contact', element: <ContactUs /> },
   { path: 'subscribe', element: <Subscribe /> },
   { path: 'newsletters', element: <Newsletters /> },
-  { path: 'newsletter/confirm', element: <NewsletterConfirm /> },
-  { path: 'newsletter/unsubscribe', element: <NewsletterUnsubscribe /> },
+  { path: 'newsletter/confirm', element: <NewsletterConfirm />, rail: false },
+  { path: 'newsletter/unsubscribe', element: <NewsletterUnsubscribe />, rail: false },
   { path: 'rss', element: <RssFeeds /> },
   { path: 'podcasts', element: <Podcasts /> },
   { path: 'video', element: <Video /> },
@@ -137,50 +138,62 @@ function publicRoutes(): ReactNode {
         <Route
           path="article/:slug"
           element={
-            <Suspense fallback={<ArticleSkeleton />}>
+            <Suspense fallback={<ArticleLoading />}>
               <ArticlePage />
             </Suspense>
           }
         />
-        <Route
-          path="author/:slug"
-          element={
-            <Suspense fallback={<ListSkeleton />}>
-              <AuthorPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="tag/:tag"
-          element={
-            <Suspense fallback={<ListSkeleton />}>
-              <TagPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="search"
-          element={
-            <Suspense fallback={<ListSkeleton />}>
-              <Search />
-            </Suspense>
-          }
-        />
-        {STATIC_PAGES.map((p) => (
+        {/* Pages with their own full-width flow: no rail. */}
+        {STATIC_PAGES.filter((p) => p.rail === false).map((p) => (
           <Route
             key={p.path}
             path={p.path}
-            element={<Suspense fallback={<ListSkeleton />}>{p.element}</Suspense>}
+            element={<Suspense fallback={<TextSkeleton />}>{p.element}</Suspense>}
           />
         ))}
-        <Route
-          path=":category"
-          element={
-            <Suspense fallback={<ListSkeleton />}>
-              <Category />
-            </Suspense>
-          }
-        />
+        {/* Everything else reads beside the shared rail, which belongs to the layout
+            so it stays put while a page loads. */}
+        <Route element={<RailLayout />}>
+          <Route
+            path="author/:slug"
+            element={
+              <Suspense fallback={<ListSkeleton />}>
+                <AuthorPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tag/:tag"
+            element={
+              <Suspense fallback={<ListSkeleton />}>
+                <TagPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="search"
+            element={
+              <Suspense fallback={<ListSkeleton />}>
+                <Search />
+              </Suspense>
+            }
+          />
+          {STATIC_PAGES.filter((p) => p.rail !== false).map((p) => (
+            <Route
+              key={p.path}
+              path={p.path}
+              element={<Suspense fallback={<TextSkeleton />}>{p.element}</Suspense>}
+            />
+          ))}
+          <Route
+            path=":category"
+            element={
+              <Suspense fallback={<ListSkeleton grid />}>
+                <Category />
+              </Suspense>
+            }
+          />
+        </Route>
         <Route path="*" element={<NotFound />} />
       </Route>
     </Route>
