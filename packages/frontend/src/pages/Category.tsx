@@ -40,7 +40,7 @@ function CategoryView({ category }: { category: CategoryName }) {
     );
 
   if (isPending) {
-    return <ListSkeleton />;
+    return <ListSkeleton grid />;
   }
 
   if (isError) {
@@ -56,7 +56,7 @@ function CategoryView({ category }: { category: CategoryName }) {
       {articles.length === 0 ? (
         <StatusMessage title={t('noStories')} />
       ) : (
-        <div className="grid grid-cols-1 gap-8 divide-y divide-rule sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-8 divide-y divide-rule sm:grid-cols-2 sm:divide-y-0">
           {articles.map((article) => (
             <div key={article.id} className="pt-6 first:pt-0 sm:pt-0">
               <ArticleCard

@@ -3,7 +3,7 @@
  * crude "Loading…" line — it shows a quiet, grey placeholder of the content.
  */
 
-function Bar({ className = '' }: { className?: string }) {
+export function Bar({ className = '' }: { className?: string }) {
   return <div className={`rounded-sm bg-ink/10 ${className}`} />;
 }
 
@@ -69,14 +69,46 @@ export function HomeSkeleton() {
   );
 }
 
-/** A vertical list of story stubs (category / author / search pages). */
-export function ListSkeleton({ rows = 6 }: { rows?: number }) {
+const LIST_ROWS = Array.from({ length: 6 }, (_, i) => i);
+const TEXT_LINES = Array.from({ length: 10 }, (_, i) => i);
+
+/** The section/list heading: a heavy rule under the title, like the real pages. */
+function HeadingStub() {
+  return (
+    <div className="mb-6 border-b-3 border-ink pb-2">
+      <Bar className="h-9 w-48" />
+    </div>
+  );
+}
+
+/**
+ * Story stubs for the section, author, tag and search pages: a card grid
+ * (sections) or a vertical list (the others), at the width the real page has.
+ */
+export function ListSkeleton({ grid = false }: { grid?: boolean }) {
+  return (
+    <div className="animate-pulse" aria-hidden>
+      <HeadingStub />
+      <div className={grid ? 'grid grid-cols-1 gap-8 sm:grid-cols-2' : 'flex flex-col gap-6'}>
+        {LIST_ROWS.map((row) => (
+          <StoryStub key={row} withImage={grid || row % 3 === 0} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A static text page (About, Privacy, Terms…): title, then paragraphs. */
+export function TextSkeleton() {
   return (
     <div className="mx-auto max-w-3xl animate-pulse" aria-hidden>
-      <Bar className="mb-8 h-10 w-64" />
-      <div className="flex flex-col gap-6">
-        {Array.from({ length: rows }).map((_, i) => (
-          <StoryStub key={i} withImage={i % 3 === 0} />
+      <div className="mb-8 border-b-3 border-ink pb-4">
+        <Bar className="h-10 w-64" />
+        <Bar className="mt-3 h-3 w-40" />
+      </div>
+      <div className="flex flex-col gap-3">
+        {TEXT_LINES.map((line) => (
+          <Bar key={line} className={`h-4 ${line % 4 === 3 ? 'w-2/3' : 'w-full'}`} />
         ))}
       </div>
     </div>
