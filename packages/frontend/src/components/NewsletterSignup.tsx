@@ -1,10 +1,8 @@
 import { useId, useState, type FormEvent } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useLang } from '../lib/i18n';
-import { getNewsletterStatus, subscribeToNewsletter } from '../lib/api';
-
-/** Whether sign-ups are open rarely changes; look again at most this often. */
-const STATUS_STALE_MS = 10 * 60 * 1000;
+import { subscribeToNewsletter } from '../lib/api';
+import { useNewsletterAccepting } from '../lib/useNewsletterAccepting';
 
 interface NewsletterSignupProps {
   className?: string;
@@ -19,11 +17,7 @@ export function NewsletterSignup({ className }: NewsletterSignupProps) {
   const inputId = useId();
   const [email, setEmail] = useState('');
   const [website, setWebsite] = useState('');
-  const status = useQuery({
-    queryKey: ['newsletter', 'status'],
-    queryFn: ({ signal }) => getNewsletterStatus(signal),
-    staleTime: STATUS_STALE_MS,
-  });
+  const accepting = useNewsletterAccepting();
   const signup = useMutation({
     mutationFn: () => subscribeToNewsletter(email, lang, website),
   });
@@ -34,7 +28,7 @@ export function NewsletterSignup({ className }: NewsletterSignupProps) {
   }
 
   // Nothing is shown until the backend can actually mail: no form that would error.
-  if (!status.data?.accepting) return null;
+  if (!accepting) return null;
 
   return (
     <section className={className} aria-labelledby={`${inputId}-heading`}>

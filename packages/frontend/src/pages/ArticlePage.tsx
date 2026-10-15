@@ -15,6 +15,7 @@ import { readingMinutes } from '../lib/format';
 import { IMAGE_SIZES, responsiveImage } from '../lib/responsiveImage';
 import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
+import { NewsletterSignup } from '../components/NewsletterSignup';
 import { MostPopular } from '../components/MostPopular';
 import { mostPopularRail, usePopularArticles, useReportView } from '../lib/popular';
 import { StatusMessage } from '../components/StatusMessage';
@@ -179,6 +180,8 @@ export function ArticlePage() {
               window.location.origin,
             ).toString()}
           />
+
+          <NewsletterSignup className="mt-10 border-y border-ink py-6" />
 
           {byAuthor.length > 0 ? (
             <section className="mt-10 border-t border-rule pt-6">

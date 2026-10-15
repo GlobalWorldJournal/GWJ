@@ -5,6 +5,7 @@ import { LocaleLink, LocaleNavLink } from '../lib/locale';
 import { categoryLabel, subtopics } from '../lib/dictionary';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { SearchIcon } from './SearchIcon';
+import { useNewsletterAccepting } from '../lib/useNewsletterAccepting';
 
 const NAV_LINK_BASE = 'label text-[0.75rem] tracking-[0.06em] transition-colors hover:text-accent';
 
@@ -15,6 +16,7 @@ function activeClass(isActive: boolean): string {
 /** Section navigation: 7 categories + a search icon. Desktop hover mega-menu; mobile drawer. */
 export function SectionNav() {
   const { lang, t } = useLang();
+  const newsletterOpen = useNewsletterAccepting();
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState<Category | null>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -73,6 +75,14 @@ export function SectionNav() {
         </div>
 
         <div className="flex items-center gap-4" onMouseEnter={() => setHovered(null)}>
+          {newsletterOpen ? (
+            <LocaleLink
+              to="/newsletters"
+              className="label hidden text-[0.75rem] tracking-[0.06em] text-accent transition-colors hover:text-ink md:inline"
+            >
+              {t('newsletterNavLink')}
+            </LocaleLink>
+          ) : null}
           <LanguageSwitcher />
           <LocaleNavLink
             to="/search"
@@ -135,6 +145,17 @@ export function SectionNav() {
                 </LocaleLink>
               </li>
             ))}
+            {newsletterOpen ? (
+              <li className="border-b border-rule-soft last:border-b-0">
+                <LocaleLink
+                  to="/newsletters"
+                  className={`${NAV_LINK_BASE} block py-3 text-accent`}
+                  onClick={() => setOpen(false)}
+                >
+                  {t('newsletterNavLink')}
+                </LocaleLink>
+              </li>
+            ) : null}
           </ul>
         </div>
       ) : null}
