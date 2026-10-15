@@ -47,13 +47,17 @@ export interface BalancedItem {
 }
 
 const ITEM_CLASS = 'border-b border-rule pb-4';
+/** Measured items keep their natural height inside the zero-height measuring layer. */
+const MEASURED_ITEM_CLASS = `${ITEM_CLASS} shrink-0`;
 /** Visible items also share any height left over, so every column ends on the same line. */
 const ITEM_GROW_CLASS = `${ITEM_CLASS} grow`;
 
 /**
  * Three newspaper columns that always end level. Narrow screens get a plain
  * stack. Wide ones render every item once, off-screen, to measure it at column
- * width, then lay the visible columns out from those heights.
+ * width, then lay the visible columns out from those heights. The measuring layer
+ * holds all items in one narrow column, taller than the page's columns; it is
+ * zero-height and clipped so that overflow never stretches the page below the footer.
  */
 export function BalancedColumns({ items }: { items: readonly BalancedItem[] }) {
   const wide = useMediaQuery(WIDE_QUERY);
@@ -95,10 +99,10 @@ export function BalancedColumns({ items }: { items: readonly BalancedItem[] }) {
         ref={measureRef}
         aria-hidden="true"
         inert
-        className="pointer-events-none invisible absolute left-0 top-0 flex w-[calc(33.333%-2.25rem)] flex-col gap-4"
+        className="pointer-events-none invisible absolute left-0 top-0 flex h-0 w-[calc(33.333%-2.25rem)] flex-col gap-4 overflow-hidden"
       >
         {items.map((item) => (
-          <div key={item.key} className={ITEM_CLASS}>
+          <div key={item.key} className={MEASURED_ITEM_CLASS}>
             {item.node}
           </div>
         ))}
