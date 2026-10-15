@@ -107,6 +107,7 @@ const EN = {
   metaStaticDescription: '{x} at The Global World Journal, independent global news.',
   metaNotFoundDescription: 'The Global World Journal — independent global news.',
   metaFeedDescription: 'Breaking news and in-depth reporting from The Global World Journal.',
+  newsletterNavLink: 'Get the newsletter',
   newsletterHeading: 'The Morning Briefing',
   newsletterPrompt: 'The day’s most important stories in your inbox every morning. Free.',
   newsletterEmailLabel: 'Email address',
@@ -224,6 +225,7 @@ const ES: Record<DictKey, string> = {
   metaNotFoundDescription: 'The Global World Journal — noticias globales independientes.',
   metaFeedDescription:
     'Noticias de última hora y periodismo en profundidad de The Global World Journal.',
+  newsletterNavLink: 'Recibe el boletín',
   newsletterHeading: 'El resumen de la mañana',
   newsletterPrompt: 'Las noticias más importantes del día en tu correo cada mañana. Gratis.',
   newsletterEmailLabel: 'Correo electrónico',
@@ -340,6 +342,7 @@ const FR: Record<DictKey, string> = {
   metaNotFoundDescription: 'The Global World Journal — l’actualité mondiale indépendante.',
   metaFeedDescription:
     'L’actualité en direct et des enquêtes approfondies de The Global World Journal.',
+  newsletterNavLink: 'Recevoir la newsletter',
   newsletterHeading: 'Le point du matin',
   newsletterPrompt:
     'Les informations les plus importantes du jour dans votre boîte mail, chaque matin. Gratuit.',

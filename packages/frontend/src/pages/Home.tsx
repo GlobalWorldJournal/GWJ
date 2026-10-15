@@ -15,6 +15,7 @@ import { homeMeta } from '../lib/pageMeta';
 import { usePageMeta } from '../lib/usePageMeta';
 import { ArticleCard } from '../components/ArticleCard';
 import { AdSlot } from '../components/AdSlot';
+import { NewsletterSignup } from '../components/NewsletterSignup';
 import { BalancedColumns, type BalancedItem } from '../components/BalancedColumns';
 import { MostPopular } from '../components/MostPopular';
 import { WhatsNews } from '../components/WhatsNews';
@@ -174,6 +175,8 @@ export function Home() {
           <AdSlot variant="mrec" sticky />
         </div>
       </section>
+
+      <NewsletterSignup className="mt-10 border-y border-ink py-6" />
 
       {/* SECTION BANDS — load more on scroll, like WSJ's front page */}
       <SectionBands articles={all} lang={lang} t={t} />
