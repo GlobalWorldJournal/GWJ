@@ -114,9 +114,7 @@ const UploadImageShape = {
     .string()
     .url()
     .optional()
-    .describe(
-      'Remote https image URL; the server downloads it, validates it and copies it to our CDN',
-    ),
+    .describe('Remote https image URL; it is downloaded, validated and copied into GWJ media'),
 };
 
 /**
@@ -204,7 +202,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'upload_image',
     {
       description:
-        'Copy an image to our CDN from a remote URL (preferred) or base64 data. It is validated first: a 422 means the source is unusable (not an image, truncated, too small or too large) — try another source. Returns the CDN url. Alt text belongs on the article (heroImage.alt or the Markdown image), not here.',
+        'Copy an image into GWJ media (stored on Oxy Files) from a remote URL (preferred) or base64 data. It is validated first: a 422 means the source is unusable (not an image, truncated, too small or too large, or taken down) — try another source. Returns the image url to use. Alt text belongs on the article (heroImage.alt or the Markdown image), not here.',
       inputSchema: UploadImageShape,
     },
     (args) => guard(async () => jsonResult(await client.uploadImage(args))),

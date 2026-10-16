@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { testPresenter } from '../../test/fakeOxyFiles';
 import type { Article, ArticleInput, Language } from '@gwj/shared-types';
 import { CATEGORIES } from '@gwj/shared-types';
 import { loadEnv, resetEnvCache, type Env } from '../../env';
@@ -155,7 +156,7 @@ async function publishArticle(overrides: Partial<ArticleInput> = {}): Promise<Ar
 /** Work the outbox until nothing is due at `now` (later jobs wait for earlier ones). */
 async function drain(channels: readonly PublishChannel[], now: Date = new Date()): Promise<void> {
   for (let pass = 0; pass < 20; pass += 1) {
-    if ((await processDueJobs(channels, now)) === 0) return;
+    if ((await processDueJobs(channels, testPresenter(), now)) === 0) return;
   }
   throw new Error('outbox did not drain');
 }
@@ -469,7 +470,7 @@ describe('outbox worker', () => {
     unregister = registerChannels([ch]);
     await publishArticle();
 
-    const stop = startOutboxWorker([ch], 10);
+    const stop = startOutboxWorker([ch], testPresenter(), 10);
     await waitFor(() => expect(ch.published).toHaveLength(1));
     stop();
   });

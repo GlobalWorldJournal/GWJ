@@ -119,7 +119,7 @@ async function drainOutbox(): Promise<void> {
   // Later jobs for an article wait for earlier ones: keep passing until idle.
   let ran: number;
   do {
-    ran = await processDueJobs(built.channels);
+    ran = await processDueJobs(built.channels, built.presenter);
   } while (ran > 0);
 }
 
@@ -268,7 +268,7 @@ describe('ActivityPub Actor — edition vs writer', () => {
     expect(res.body.summary).toContain('español');
   });
 
-  it('writer (eleanorvance) is a Person whose icon points at the CDN avatar', async () => {
+  it('writer (eleanorvance) is a Person whose icon is the stable portrait URL', async () => {
     const res = await request(app)
       .get(`/users/${WRITER_USERNAME}`)
       .set('accept', 'application/activity+json');
@@ -278,8 +278,10 @@ describe('ActivityPub Actor — edition vs writer', () => {
     expect(res.body.preferredUsername).toBe(WRITER_USERNAME);
     // url uses the HYPHENATED web author slug.
     expect(res.body.url).toBe(`${ORIGIN}/author/eleanor-vance`);
-    // icon is the pre-generated CDN avatar keyed by fediUsername.
-    expect(res.body.icon.url).toBe(`${CDN_BASE}/writers/${WRITER_USERNAME}.png`);
+    // icon is the portrait's stable API URL (it redirects to the file), keyed by fediUsername.
+    expect(res.body.icon.url).toBe(
+      `https://api.globalworldjournal.com/api/writers/${WRITER_USERNAME}/portrait`,
+    );
     expect(res.body.icon.mediaType).toBe('image/png');
     expect(res.body.summary).toContain('Markets');
     expect(res.body.publicKey.id).toBe(`${writerId}#main-key`);

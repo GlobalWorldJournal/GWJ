@@ -9,6 +9,7 @@ import type {
   PublicAdCampaign,
 } from '@gwj/shared-types';
 import { getDb } from '../db/client';
+import { enqueueReferenceSync } from '../media/referenceJobs';
 import { isRecordId, newRecordId } from '../db/ids';
 import { adCampaigns, type AdCampaignRow } from '../db/schema/adCampaigns';
 import { BadRequestError, ConflictError, NotFoundError } from '../errors';
@@ -61,23 +62,27 @@ export interface AdCampaignService {
 export const adCampaignService: AdCampaignService = {
   async create(input) {
     const now = new Date();
-    const [row] = await getDb()
-      .insert(adCampaigns)
-      .values({
-        id: newRecordId(now),
-        advertiserName: input.advertiserName,
-        advertiserEmail: input.advertiserEmail,
-        imageUrl: input.imageUrl,
-        clickUrl: input.clickUrl,
-        variant: input.variant,
-        startsAt: new Date(input.startsAt),
-        endsAt: new Date(input.endsAt),
-        status: input.status,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
-    if (!row) throw new Error('insert into ad_campaigns returned no row');
+    const row = await getDb().transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(adCampaigns)
+        .values({
+          id: newRecordId(now),
+          advertiserName: input.advertiserName,
+          advertiserEmail: input.advertiserEmail,
+          imageUrl: input.imageUrl,
+          clickUrl: input.clickUrl,
+          variant: input.variant,
+          startsAt: new Date(input.startsAt),
+          endsAt: new Date(input.endsAt),
+          status: input.status,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+      if (!inserted) throw new Error('insert into ad_campaigns returned no row');
+      await enqueueReferenceSync(tx, 'ad_campaign', [inserted.id]);
+      return inserted;
+    });
     return adCampaignToDTO(row);
   },
 
@@ -123,33 +128,40 @@ export const adCampaignService: AdCampaignService = {
     // The schema checks the pair only when both are in the patch; one side alone
     // is checked here against the stored other side.
     if (endsAt <= startsAt) throw new BadRequestError('endsAt must be after startsAt');
-    const [row] = await getDb()
-      .update(adCampaigns)
-      .set({
-        advertiserName: patch.advertiserName,
-        advertiserEmail: patch.advertiserEmail,
-        imageUrl: patch.imageUrl,
-        clickUrl: patch.clickUrl,
-        variant: patch.variant,
-        startsAt,
-        endsAt,
-        status: patch.status,
-        updatedAt: new Date(),
-      })
-      .where(eq(adCampaigns.id, id))
-      .returning();
-    if (!row) throw new NotFoundError('Ad campaign not found');
+    const row = await getDb().transaction(async (tx) => {
+      const [updated] = await tx
+        .update(adCampaigns)
+        .set({
+          advertiserName: patch.advertiserName,
+          advertiserEmail: patch.advertiserEmail,
+          imageUrl: patch.imageUrl,
+          clickUrl: patch.clickUrl,
+          variant: patch.variant,
+          startsAt,
+          endsAt,
+          status: patch.status,
+          updatedAt: new Date(),
+        })
+        .where(eq(adCampaigns.id, id))
+        .returning();
+      if (!updated) throw new NotFoundError('Ad campaign not found');
+      if (patch.imageUrl !== undefined) await enqueueReferenceSync(tx, 'ad_campaign', [id]);
+      return updated;
+    });
     return adCampaignToDTO(row);
   },
 
   async remove(id) {
-    const deleted = isRecordId(id)
-      ? await getDb()
-          .delete(adCampaigns)
-          .where(eq(adCampaigns.id, id))
-          .returning({ id: adCampaigns.id })
-      : [];
-    if (deleted.length === 0) throw new NotFoundError('Ad campaign not found');
+    if (!isRecordId(id)) throw new NotFoundError('Ad campaign not found');
+    await getDb().transaction(async (tx) => {
+      const deleted = await tx
+        .delete(adCampaigns)
+        .where(eq(adCampaigns.id, id))
+        .returning({ id: adCampaigns.id });
+      if (deleted.length === 0) throw new NotFoundError('Ad campaign not found');
+      // Its creative is released (Oxy collects a GWJ file nothing uses).
+      await enqueueReferenceSync(tx, 'ad_campaign', [id]);
+    });
   },
 
   async findActive(variant, now = new Date()) {

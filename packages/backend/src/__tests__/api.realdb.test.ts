@@ -8,7 +8,7 @@ import { getDb } from '../db/client';
 import { newRecordId } from '../db/ids';
 import { users } from '../db/schema/users';
 import { useTestDatabase, type TestDatabase } from '../test/postgres';
-import type { UploadService } from '../services/uploadService';
+import { createFakeOxyFiles, FAKE_CLOUD_URL } from '../test/fakeOxyFiles';
 import { hashPassword } from '../services/password';
 import { tooSmallPngBuffer, truncatedPngBuffer, validPngBuffer } from './imageFixtures';
 
@@ -18,17 +18,12 @@ let app: Express;
 const ADMIN_USERNAME = 'nate';
 const ADMIN_PASSWORD = 'super-secret-pw';
 
-const fakeUploadService: UploadService = {
-  async uploadImage(_buffer, filename) {
-    return { url: `https://cdn.example.test/articles/${filename}`, variants: [] };
-  },
-  async storeImage(_buffer, filename, _contentType, keyPrefix) {
-    return { url: `https://cdn.example.test/${keyPrefix}${filename}`, variants: [] };
-  },
-  async addRenditions() {
-    return null;
-  },
-};
+const oxyFiles = createFakeOxyFiles();
+// The one remote image the import tests copy.
+oxyFiles.remote.set('https://images.example.com/news/rig.png', {
+  bytes: validPngBuffer(),
+  mime: 'image/png',
+});
 
 function setTestEnv(): Env {
   process.env.NODE_ENV = 'test';
@@ -39,7 +34,7 @@ function setTestEnv(): Env {
   process.env.ADMIN_PASSWORD = ADMIN_PASSWORD;
   process.env.AWS_REGION = 'us-east-1';
   // AWS static keys are optional (ECS uses the task role); omit them here so the
-  // app boots without them. Upload itself is exercised via a fake upload service.
+  // app boots without them. Storage itself is exercised via a fake Oxy Files.
   delete process.env.AWS_ACCESS_KEY_ID;
   delete process.env.AWS_SECRET_ACCESS_KEY;
   process.env.S3_BUCKET = 'test-bucket';
@@ -62,15 +57,7 @@ const validArticle = () => ({
 beforeAll(async () => {
   testDb = await useTestDatabase();
   const env = setTestEnv();
-  app = createApp(env, {
-    uploadService: fakeUploadService,
-    // Every remote image "download" serves a valid PNG from a public address.
-    remoteImage: {
-      fetch: async () =>
-        new Response(validPngBuffer(), { status: 200, headers: { 'content-type': 'image/png' } }),
-      resolveDns: async () => [{ address: '93.184.216.34', family: 4 }],
-    },
-  });
+  app = createApp(env, { oxyFiles });
 });
 
 beforeEach(async () => {
@@ -609,7 +596,13 @@ describe('GWJ API', () => {
         });
       expect(res.status).toBe(201);
       expect(typeof res.body.url).toBe('string');
-      expect(res.body.url).toMatch(/^https:\/\/cdn\.example\.test\/articles\//);
+      expect(oxyFiles.fileIdOf(res.body.url)).not.toBeNull();
+      expect(res.body.url.startsWith(`${FAKE_CLOUD_URL}/`)).toBe(true);
+      // Re-encoded to WebP, with Oxy's renditions narrower than the image for srcset.
+      expect(res.body.width).toBe(800);
+      expect(res.body.variants.map((variant: { width: number }) => variant.width)).toEqual([
+        320, 640,
+      ]);
     });
 
     it('rejects a truncated/corrupt image with 422 and an actionable reason', async () => {
@@ -649,14 +642,36 @@ describe('GWJ API', () => {
       expect(res.body.details).toMatchObject({ reason: 'too-small' });
     });
 
-    it('POST /upload/from-url copies a remote image onto the CDN', async () => {
+    it('POST /upload/from-url has Oxy import a remote image, then processes it like an upload', async () => {
       const token = await loginToken();
       const res = await request(app)
         .post('/api/admin/upload/from-url')
         .set('authorization', `Bearer ${token}`)
         .send({ url: 'https://images.example.com/news/rig.png' });
       expect(res.status).toBe(201);
-      expect(res.body).toEqual({ url: 'https://cdn.example.test/articles/rig.png', variants: [] });
+      const fileId = oxyFiles.fileIdOf(res.body.url);
+      expect(fileId).not.toBeNull();
+      // The served file is the processed WebP, not the raw import.
+      expect(oxyFiles.files.get(fileId ?? '')?.mime).toBe('image/webp');
+
+      // Importing the same URL again downloads nothing and answers the same image.
+      const downloads = oxyFiles.downloads;
+      const again = await request(app)
+        .post('/api/admin/upload/from-url')
+        .set('authorization', `Bearer ${token}`)
+        .send({ url: 'https://images.example.com/news/rig.png' });
+      expect(again.status).toBe(201);
+      expect(again.body.url).toBe(res.body.url);
+      expect(oxyFiles.downloads).toBe(downloads);
+    });
+
+    it('POST /upload/from-url: a source Oxy cannot fetch is a 422 the agent can act on', async () => {
+      const res = await request(app)
+        .post('/api/admin/upload/from-url')
+        .set('authorization', `Bearer ${await loginToken()}`)
+        .send({ url: 'https://images.example.com/missing.png' });
+      expect(res.status).toBe(422);
+      expect(res.body.details).toMatchObject({ reason: 'fetch-failed' });
     });
 
     it('POST /upload/from-url requires a token and a valid url', async () => {

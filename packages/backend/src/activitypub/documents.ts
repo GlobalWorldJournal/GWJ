@@ -51,9 +51,11 @@ function deriveSummary(article: Article): string {
 /** Build the hero image as an AS2 attachment Document, if the article has one. */
 function heroAttachment(article: Article): ActivityImage | null {
   if (!article.heroImage) return null;
+  // The type we recorded when storing it; an Oxy file URL has no extension.
   const ext = article.heroImage.url.split('?')[0]?.split('.').pop()?.toLowerCase();
-  const mediaType =
-    ext === 'png'
+  const mediaType = article.heroImage.mime
+    ? article.heroImage.mime
+    : ext === 'png'
       ? 'image/png'
       : ext === 'webp'
         ? 'image/webp'

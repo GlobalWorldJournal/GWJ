@@ -63,11 +63,8 @@ await seedAdminUser(env);
 // grant-cache refresh timer (`stopChannels`) — or the event loop never
 // empties and the script hangs forever. Confirmed live: this exact gap hung
 // CI for over an hour the day the Mention channel's timer first shipped.
-const { app, stopChannels } = buildApp(env, {
-  uploadService: {
-    uploadImage: async () => ({ url: 'https://cdn.example.com/uploads/fake.jpg' }),
-  },
-});
+const { createFakeOxyFiles } = await import('../packages/backend/src/test/fakeOxyFiles');
+const { app, stopChannels } = buildApp(env, { oxyFiles: createFakeOxyFiles() });
 const PORT = 4321;
 const server: Server = await new Promise((resolve) => {
   const s = app.listen(PORT, () => resolve(s));

@@ -1,6 +1,7 @@
 import type { Router } from 'express';
 import type { Article } from '@gwj/shared-types';
 import { DEFAULT_LANGUAGE, isLanguage } from '@gwj/shared-types';
+import type { MediaPresenter } from '../media/presentation';
 import type { Env } from '../env';
 import { countArticles } from '../db/repositories/articleRepository';
 import { logger } from '../logger';
@@ -67,7 +68,11 @@ export interface ActivityPubOptions {
   fetchOptions?: FederationFetchOptions;
 }
 
-export function createActivityPub(env: Env, options: ActivityPubOptions = {}): ActivityPubModule {
+export function createActivityPub(
+  env: Env,
+  presenter: MediaPresenter,
+  options: ActivityPubOptions = {},
+): ActivityPubModule {
   const registry = buildActorRegistry(env);
 
   // Per-actor key cache: username → resolved keypair. Populated lazily.
@@ -132,6 +137,7 @@ export function createActivityPub(env: Env, options: ActivityPubOptions = {}): A
     inbox,
     countPublished: () => countArticles({ status: 'published' }),
     countForActor: (actor) => countForActor(actor),
+    presenter,
   });
 
   /** Count published articles in one actor's outbox scope (language or author). */

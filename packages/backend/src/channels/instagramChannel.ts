@@ -8,7 +8,7 @@ import {
 import type { Env } from '../env';
 import { logger } from '../logger';
 import { generateInstagramCard } from '../services/socialCardService';
-import type { UploadService } from '../services/uploadService';
+import type { MediaService } from '../services/mediaService';
 import type { PublishChannel } from './types';
 
 /** Facebook Graph API base — Instagram Business posting goes through the same API. */
@@ -21,11 +21,8 @@ const INSTAGRAM_TIMEOUT_MS = 10_000;
 const CONTAINER_POLL_INTERVAL_MS = 1_500;
 const CONTAINER_POLL_ATTEMPTS = 5;
 
-/** `heroImage.url` is always our own CDN (uploaded via uploadService, never a raw external url). */
+/** `heroImage.url` is always GWJ's own media (stored through the media service, never a raw external url). */
 const HERO_FETCH_TIMEOUT_MS = 15_000;
-
-/** Key prefix for generated social cards, kept separate from article body images in the bucket. */
-const SOCIAL_CARD_KEY_PREFIX = 'social-cards/';
 
 /**
  * One Instagram Business account binding: a single edition (`language`)
@@ -71,6 +68,8 @@ function buildCaption(article: Article, url: string): string {
 
 interface InstagramPostRef {
   mediaId: string;
+  /** The Oxy file of the card posted (absent on posts made before cards were Oxy files). */
+  cardFileId?: string;
 }
 
 const SETTLED_ERROR_CODES = new Set([100]); // "Unsupported post request" — usually a since-deleted object.
@@ -133,8 +132,9 @@ async function waitUntilFinished(containerId: string, token: string): Promise<vo
 }
 
 /**
- * Download the article's hero photo from our own CDN and composite it into a
- * branded headline card, then store that card and return its own CDN url —
+ * Download the article's hero photo from GWJ's media and composite it into a
+ * branded headline card, then store that card (a GWJ-owned Oxy file, kept for
+ * as long as the post is recorded: the `social_card` reference) —
  * the way most news accounts actually post to Instagram, rather than the
  * bare hero photo. Rejects (not a no-op) on any failure: the outbox retries
  * the publish job rather than falling back to posting the unbranded photo.
@@ -142,8 +142,9 @@ async function waitUntilFinished(containerId: string, token: string): Promise<vo
 async function buildAndUploadCard(
   article: Article,
   heroImageUrl: string,
-  uploadService: UploadService,
-): Promise<string> {
+  media: MediaService,
+  channelName: string,
+): Promise<{ fileId: string; url: string }> {
   let photoRes: Response;
   try {
     photoRes = await fetch(heroImageUrl, { signal: AbortSignal.timeout(HERO_FETCH_TIMEOUT_MS) });
@@ -158,13 +159,7 @@ async function buildAndUploadCard(
   }
   const photo = Buffer.from(await photoRes.arrayBuffer());
   const card = await generateInstagramCard({ photo, headline: article.title });
-  const { url } = await uploadService.storeImage(
-    card,
-    'instagram-card.jpg',
-    'image/jpeg',
-    SOCIAL_CARD_KEY_PREFIX,
-  );
-  return url;
+  return media.storeGenerated(card, 'instagram-card.jpg', 'image/jpeg', `system:${channelName}`);
 }
 
 /**
@@ -181,14 +176,15 @@ async function buildAndUploadCard(
 function buildInstagramChannel(
   env: Env,
   config: InstagramAccountConfig,
-  uploadService: UploadService,
+  media: MediaService,
 ): PublishChannel {
   const accountId = config.resolveAccountId(env);
   const token = config.resolveToken(env);
   const { language } = config;
+  const name = `instagram:${language}`;
 
   return {
-    name: `instagram:${language}`,
+    name,
     platform: 'facebook', // Instagram posting rides the same Graph API/credentials as its linked Page.
     servesLanguage: (lang) => lang === language,
     isEnabled: () => Boolean(accountId && token),
@@ -198,13 +194,13 @@ function buildInstagramChannel(
       if (articleLanguage !== language) return;
       if (!article.heroImage?.url) return; // No image, no Instagram post — nothing to skip to, it's a no-op.
 
-      const cardUrl = await buildAndUploadCard(article, article.heroImage.url, uploadService);
+      const card = await buildAndUploadCard(article, article.heroImage.url, media, name);
       const caption = buildCaption(
         article,
         articlePublicUrl(env.FEDIVERSE_DOMAIN, language, article.slug),
       );
       const container = await callGraph(`/${accountId}/media`, token, 'POST', {
-        image_url: cardUrl,
+        image_url: card.url,
         caption,
       });
       const containerId = container?.id as string | undefined;
@@ -217,7 +213,8 @@ function buildInstagramChannel(
       });
       const mediaId = published?.id as string | undefined;
       if (!mediaId) throw new InstagramError('media_publish', 'no media id in the reply');
-      return { mediaId };
+      // The card's file is recorded with the post, which keeps it referenced.
+      return { mediaId, cardFileId: card.fileId };
     },
     async retract(ref: Record<string, unknown>) {
       if (!token || typeof ref.mediaId !== 'string') return;
@@ -230,10 +227,9 @@ function buildInstagramChannel(
 /**
  * Build every configured Instagram account channel (one per edition in
  * {@link INSTAGRAM_ACCOUNTS}). Each self-disables when its account id or
- * (shared, Page-level) token env var is absent. `uploadService` stores each
- * generated social card — the same service instance the admin API uploads
- * article images through, not a second S3 client.
+ * (shared, Page-level) token env var is absent. `media` stores each generated
+ * social card — the same service the admin API stores article images through.
  */
-export function instagramChannels(env: Env, uploadService: UploadService): PublishChannel[] {
-  return INSTAGRAM_ACCOUNTS.map((config) => buildInstagramChannel(env, config, uploadService));
+export function instagramChannels(env: Env, media: MediaService): PublishChannel[] {
+  return INSTAGRAM_ACCOUNTS.map((config) => buildInstagramChannel(env, config, media));
 }

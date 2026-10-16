@@ -1,11 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../client';
 import { mediaAssets, type MediaAssetRow, type NewMediaAssetRow } from '../schema/mediaAssets';
-
-export async function findMediaBySha256(sha256: string): Promise<MediaAssetRow | null> {
-  const [row] = await getDb().select().from(mediaAssets).where(eq(mediaAssets.sha256, sha256));
-  return row ?? null;
-}
 
 export async function findMediaByUrl(url: string): Promise<MediaAssetRow | null> {
   const [row] = await getDb().select().from(mediaAssets).where(eq(mediaAssets.url, url));
@@ -13,18 +8,27 @@ export async function findMediaByUrl(url: string): Promise<MediaAssetRow | null>
 }
 
 /**
- * Record an upload. Two concurrent uploads of the same bytes both reach here:
- * the first row wins and both callers get it (the loser's objects are simply
- * unused).
+ * Record a stored file. The same file stored again (Oxy answers the same file
+ * for the same bytes) refreshes what is known about it and keeps the audit of
+ * who stored it FIRST.
  */
 export async function recordMedia(row: NewMediaAssetRow): Promise<MediaAssetRow> {
-  const [inserted] = await getDb()
+  const [stored] = await getDb()
     .insert(mediaAssets)
     .values(row)
-    .onConflictDoNothing({ target: mediaAssets.sha256 })
+    .onConflictDoUpdate({
+      target: mediaAssets.url,
+      set: {
+        sha256: sql`excluded.sha256`,
+        oxyFileId: sql`excluded.oxy_file_id`,
+        width: sql`coalesce(excluded.width, ${mediaAssets.width})`,
+        height: sql`coalesce(excluded.height, ${mediaAssets.height})`,
+        mime: sql`coalesce(excluded.mime, ${mediaAssets.mime})`,
+        variants: sql`excluded.variants`,
+        uploadedBy: sql`coalesce(${mediaAssets.uploadedBy}, excluded.uploaded_by)`,
+      },
+    })
     .returning();
-  if (inserted) return inserted;
-  const existing = await findMediaBySha256(row.sha256);
-  if (!existing) throw new Error(`media asset ${row.sha256} vanished after a conflicting insert`);
-  return existing;
+  if (!stored) throw new Error('insert into media_assets returned no row');
+  return stored;
 }

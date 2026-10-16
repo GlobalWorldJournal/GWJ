@@ -84,7 +84,7 @@ export async function useTestDatabase(): Promise<TestDatabase> {
     name,
     async truncateAll() {
       await getDb().execute(
-        sql`truncate ad_campaigns, newsletter_subscribers, media_assets, article_views_daily, channel_jobs, api_tokens, article_revisions, article_slug_history, article_channel_posts, articles, users, actor_keys, followers, takedown_requests, mention_oauth restart identity`,
+        sql`truncate ad_campaigns, newsletter_subscribers, media_assets, article_views_daily, channel_jobs, api_tokens, article_revisions, article_slug_history, article_channel_posts, articles, users, actor_keys, followers, takedown_requests, mention_oauth, media_file_references, media_reference_jobs, media_reconcile_runs, oxy_file_states, oxy_file_events, writer_portraits, legacy_media_objects, legacy_media_reads restart identity`,
       );
     },
     async drop() {

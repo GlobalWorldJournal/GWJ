@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom';
-import { findWriterBySlug, writerAvatarPath, type Writer } from '@gwj/shared-types';
+import { findWriterBySlug, type Writer } from '@gwj/shared-types';
 import { getArticles } from '../lib/api';
 import { useLang } from '../lib/i18n';
 import { categoryLabel, writerTitle } from '../lib/dictionary';
@@ -34,20 +34,17 @@ function AuthorView({ writer }: { writer: Writer }) {
         signal,
       ),
     );
-  const portrait = writerPortraitUrl(writerAvatarPath(writer.name));
 
   return (
     <div className="mx-auto max-w-3xl">
       <header className="mb-8 border-b-3 border-ink pb-6 text-center">
-        {portrait ? (
-          <img
-            src={portrait}
-            alt=""
-            width={96}
-            height={96}
-            className="mx-auto mb-3 h-24 w-24 rounded-full object-cover"
-          />
-        ) : null}
+        <img
+          src={writerPortraitUrl(writer.name)}
+          alt=""
+          width={96}
+          height={96}
+          className="mx-auto mb-3 h-24 w-24 rounded-full object-cover"
+        />
         <h1 className="headline text-4xl text-ink">{writer.name}</h1>
         <p className="label mt-2 text-[0.6875rem] tracking-[0.12em] text-accent">
           {writerTitle(writer.title, lang)}

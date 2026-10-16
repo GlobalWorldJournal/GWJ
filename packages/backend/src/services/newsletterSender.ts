@@ -6,6 +6,7 @@ import {
   type Language,
 } from '@gwj/shared-types';
 import { errorFields, logger } from '../logger';
+import type { MediaPresenter } from '../media/presentation';
 import type { ArticleService } from './articleService';
 import type { EmailSender } from './emailSender';
 import { DIGEST_MAX_STORIES, newsletterPageUrl, renderDigestEmail } from './newsletterEmail';
@@ -29,6 +30,8 @@ export interface NewsletterSenderDeps {
   articles: Pick<ArticleService, 'list'>;
   /** The API's public origin, for the one-click unsubscribe endpoint. */
   apiBaseUrl: string;
+  /** Shows articles' images as readers may see them. */
+  presenter: MediaPresenter;
 }
 
 /** The edition-local calendar date (`YYYY-MM-DD`) and hour (0–23) of `now`. */
@@ -47,6 +50,7 @@ export function localTime(now: Date, timeZone: string): { date: string; hour: nu
 
 async function freshStories(
   articles: Pick<ArticleService, 'list'>,
+  presenter: MediaPresenter,
   language: Language,
   now: Date,
 ): Promise<Article[]> {
@@ -57,7 +61,10 @@ async function freshStories(
     limit: DIGEST_MAX_STORIES,
   });
   const since = now.getTime() - FRESH_HOURS * HOUR_MS;
-  return data.filter((a) => a.publishedAt !== null && Date.parse(a.publishedAt) >= since);
+  // As readers see them: an image Oxy took down or removed is not mailed.
+  return presenter.articles(
+    data.filter((a) => a.publishedAt !== null && Date.parse(a.publishedAt) >= since),
+  );
 }
 
 /**
@@ -78,7 +85,7 @@ export async function sendDueIssues(
     if (hour < NEWSLETTER_SEND_HOUR || hour >= NEWSLETTER_SEND_HOUR + NEWSLETTER_WINDOW_HOURS) {
       continue;
     }
-    const stories = await freshStories(deps.articles, language, now);
+    const stories = await freshStories(deps.articles, deps.presenter, language, now);
     if (stories.length < MIN_STORIES) continue;
     let sent = 0;
     let failed = 0;

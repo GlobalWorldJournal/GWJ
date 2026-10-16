@@ -7,6 +7,9 @@ import { startScheduler } from './services/scheduler';
 import { startOutboxWorker } from './channels/outbox';
 import { startNewsletterSender } from './services/newsletterSender';
 import { articleService } from './services/articleService';
+import { startReferenceWorker } from './media/referenceWorker';
+import { startReconciler } from './media/reconcile';
+import { startLegacyReadFlusher } from './media/legacyReads';
 import { errorFields, logger } from './logger';
 
 export { createApp, buildApp } from './app';
@@ -33,19 +36,26 @@ async function bootstrap(): Promise<void> {
   await connectDb(env.DATABASE_URL);
   // buildApp registers the distribution channels (Mastodon + Telegram); this
   // process also works their outbox, like every backend task.
-  const { app, activityPub, channels, stopChannels, newsletter } = buildApp(env);
+  const { app, activityPub, channels, stopChannels, newsletter, oxyFiles, presenter } =
+    buildApp(env);
   logger.info('activitypub ready', {
     domain: activityPub.registry.domain,
     actors: activityPub.registry.all.length,
   });
 
   const stopScheduler = startScheduler();
-  const stopOutbox = startOutboxWorker(channels);
+  const stopOutbox = startOutboxWorker(channels, presenter);
+  // Media references (Oxy Files): the outbox of reference changes, the nightly
+  // reconciliation, and the legacy-read counts.
+  const stopReferences = startReferenceWorker(oxyFiles);
+  const stopReconciler = startReconciler(oxyFiles);
+  const stopLegacyReads = startLegacyReadFlusher();
   const stopNewsletter = startNewsletterSender({
     service: newsletter.service,
     sender: newsletter.sender,
     articles: articleService,
     apiBaseUrl: env.API_BASE_URL,
+    presenter,
   });
 
   const server = app.listen(env.PORT, () => {
@@ -56,10 +66,14 @@ async function bootstrap(): Promise<void> {
     logger.info('shutting down', { signal });
     stopScheduler();
     stopOutbox();
+    stopReferences();
+    stopReconciler();
     stopNewsletter();
     stopChannels();
     server.close(() => {
-      void disconnectDb().finally(() => process.exit(0));
+      void stopLegacyReads()
+        .then(() => disconnectDb())
+        .finally(() => process.exit(0));
     });
   };
 

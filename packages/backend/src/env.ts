@@ -88,11 +88,37 @@ const EnvSchema = z.object({
   AWS_REGION: requiredSecret('AWS_REGION'),
   AWS_ACCESS_KEY_ID: optionalSecret('AWS_ACCESS_KEY_ID'),
   AWS_SECRET_ACCESS_KEY: optionalSecret('AWS_SECRET_ACCESS_KEY'),
+  // The LEGACY media bucket and its CDN origin, read-only since the move to Oxy
+  // Files: the migration copies from the bucket, and URLs under CDN_BASE_URL
+  // are recognized as legacy (counted, redirected). Removed with the bucket
+  // (docs/OXY-FILES.md, "Retiring the bucket").
   S3_BUCKET: requiredSecret('S3_BUCKET'),
   CDN_BASE_URL: requiredSecret('CDN_BASE_URL').refine(
     (v) => /^https?:\/\//.test(v),
     'CDN_BASE_URL must be an absolute http(s) URL',
   ),
+  // --- Media: Oxy Files (docs/OXY-FILES.md) ---
+  // GWJ stores every image as a file its OWN Oxy application owns. The service
+  // credential of that application (scopes files:app:write, files:app:delete,
+  // files:references:write). Required in production; without it locally,
+  // uploads answer 503 and stored content still renders.
+  OXY_APPLICATION_KEY: optionalSecret('OXY_APPLICATION_KEY'),
+  OXY_APPLICATION_SECRET: optionalSecret('OXY_APPLICATION_SECRET'),
+  OXY_API_URL: z
+    .string()
+    .transform((v) => v.trim().replace(/\/+$/, ''))
+    .refine((v) => /^https?:\/\//.test(v), 'OXY_API_URL must be an absolute http(s) URL')
+    .default('https://api.oxy.so'),
+  OXY_CLOUD_URL: z
+    .string()
+    .transform((v) => v.trim().replace(/\/+$/, ''))
+    .refine((v) => /^https?:\/\//.test(v), 'OXY_CLOUD_URL must be an absolute http(s) URL')
+    .default('https://cloud.oxy.so'),
+  // The signing secret of GWJ's file-events endpoint (/api/oxy/file-events),
+  // shown once when the endpoint is registered. Until it is set (SSM holds '-'),
+  // the endpoint answers only the registration challenge and Oxy retries events.
+  OXY_FILES_WEBHOOK_SECRET: optionalPlaceholderSecret,
+
   CORS_ORIGINS: z.string().default(''),
   // How many reverse proxies sit in front of the app and append to
   // X-Forwarded-For. Production: 1 (the ALB — api.* is DNS-only, not proxied
@@ -213,6 +239,13 @@ const RefinedEnvSchema = EnvSchema.superRefine((env, ctx) => {
       code: z.ZodIssueCode.custom,
       path: ['CORS_ORIGINS'],
       message: 'CORS_ORIGINS must list at least one origin in production',
+    });
+  }
+  if (env.NODE_ENV === 'production' && !(env.OXY_APPLICATION_KEY && env.OXY_APPLICATION_SECRET)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['OXY_APPLICATION_KEY'],
+      message: 'OXY_APPLICATION_KEY and OXY_APPLICATION_SECRET are required in production',
     });
   }
 });

@@ -41,7 +41,7 @@ export const HeroImageSchema = z.object({
     .string()
     .url()
     .describe(
-      'The CDN url returned by upload_image — never a raw external url; always upload first.',
+      'The url returned by upload_image (GWJ media on Oxy Files) — never a raw external url; always upload first.',
     ),
   caption: z
     .string()
@@ -55,6 +55,7 @@ export const HeroImageSchema = z.object({
   // Filled in by the server from the upload (never needs to be sent).
   width: z.number().int().positive().optional().describe('Set by the server; do not send.'),
   height: z.number().int().positive().optional().describe('Set by the server; do not send.'),
+  mime: z.string().optional().describe('Set by the server; do not send.'),
   variants: z.array(ImageVariantSchema).optional().describe('Set by the server; do not send.'),
 });
 export type HeroImage = z.infer<typeof HeroImageSchema>;
@@ -73,7 +74,7 @@ export const SeoSchema = z
       .union([z.string().url(), z.literal('')])
       .optional()
       .describe(
-        'Usually the same CDN url as heroImage.url. On update, an omitted key is kept and "" clears it.',
+        'Usually the same url as heroImage.url. On update, an omitted key is kept and "" clears it.',
       ),
   })
   .default({});
@@ -82,7 +83,7 @@ export type Seo = z.infer<typeof SeoSchema>;
 /**
  * Provenance for internal record-keeping (not shown to readers). Captures where
  * the story and its hero image originally came from so we can trace/attribute
- * later. `imageUrl` is the ORIGINAL image URL before we copied it to our CDN.
+ * later. `imageUrl` is the ORIGINAL image URL before we copied it to GWJ's media.
  */
 export const SourceSchema = z.object({
   name: z.string().optional().describe('The original outlet\'s name, e.g. "Reuters".'),
@@ -95,7 +96,7 @@ export const SourceSchema = z.object({
     .string()
     .url()
     .optional()
-    .describe('The ORIGINAL image URL passed to upload_image, before it was copied to our CDN.'),
+    .describe('The ORIGINAL image URL passed to upload_image, before it was copied to GWJ media.'),
 });
 export type Source = z.infer<typeof SourceSchema>;
 
@@ -161,7 +162,7 @@ export const ArticleInputSchema = z.object({
         .trim(),
     ),
   heroImage: HeroImageSchema.optional().describe(
-    "Required in practice: every article needs one. Upload the source's lead photo with upload_image first and use the CDN url this returns; never a raw external image url.",
+    "Required in practice: every article needs one. Upload the source's lead photo with upload_image first and use the url it returns; never a raw external image url.",
   ),
   status: ArticleStatusSchema.default('draft').describe(
     "Normally left to create_article's own draft:false/true flag rather than set directly.",

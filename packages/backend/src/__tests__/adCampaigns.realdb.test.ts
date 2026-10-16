@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import request from 'supertest';
 import type { Express } from 'express';
-import { AD_CREATIVE_MIN_HEIGHT, AD_CREATIVE_MIN_WIDTH } from '@gwj/shared-types';
 import { loadEnv, resetEnvCache, type Env } from '../env';
 import { createApp } from '../app';
 import { getDb } from '../db/client';
@@ -11,7 +10,7 @@ import { adCampaigns } from '../db/schema/adCampaigns';
 import { users } from '../db/schema/users';
 import { adCampaignService } from '../services/adCampaignService';
 import { useTestDatabase, type TestDatabase } from '../test/postgres';
-import type { UploadImageOptions, UploadService } from '../services/uploadService';
+import { createFakeOxyFiles, FAKE_CLOUD_URL } from '../test/fakeOxyFiles';
 import { hashPassword } from '../services/password';
 import { validPngBuffer } from './imageFixtures';
 
@@ -22,19 +21,7 @@ const ADMIN_USERNAME = 'nate';
 const ADMIN_PASSWORD = 'super-secret-pw';
 const HOUR_MS = 60 * 60 * 1000;
 
-const uploadCalls: { filename: string; options: UploadImageOptions | undefined }[] = [];
-const fakeUploadService: UploadService = {
-  async uploadImage(_buffer, filename, _contentType, options) {
-    uploadCalls.push({ filename, options });
-    return { url: `https://cdn.example.test/articles/${filename}`, variants: [] };
-  },
-  async storeImage(_buffer, filename, _contentType, keyPrefix) {
-    return { url: `https://cdn.example.test/${keyPrefix}${filename}`, variants: [] };
-  },
-  async addRenditions() {
-    return null;
-  },
-};
+const oxyFiles = createFakeOxyFiles();
 
 function setTestEnv(): Env {
   process.env.NODE_ENV = 'test';
@@ -70,12 +57,11 @@ const campaign = (overrides: Record<string, unknown> = {}) => ({
 
 beforeAll(async () => {
   testDb = await useTestDatabase();
-  app = createApp(setTestEnv(), { uploadService: fakeUploadService });
+  app = createApp(setTestEnv(), { oxyFiles });
 });
 
 beforeEach(async () => {
   await testDb.truncateAll();
-  uploadCalls.length = 0;
   const passwordHash = await hashPassword(ADMIN_PASSWORD, 10);
   await getDb()
     .insert(users)
@@ -240,13 +226,8 @@ describe('admin ad-campaign routes', () => {
       .set(admin)
       .attach('file', banner, { filename: 'banner.png', contentType: 'image/png' });
     expect(res.status).toBe(201);
-    expect(res.body.url).toBe('https://cdn.example.test/articles/banner.png');
-    expect(uploadCalls).toEqual([
-      {
-        filename: 'banner.png',
-        options: { minWidth: AD_CREATIVE_MIN_WIDTH, minHeight: AD_CREATIVE_MIN_HEIGHT },
-      },
-    ]);
+    expect(res.body.url.startsWith(`${FAKE_CLOUD_URL}/`)).toBe(true);
+    expect(res.body).toMatchObject({ width: 728, height: 90 });
 
     const tooSmall = await request(app)
       .post('/api/admin/ad-campaigns/creative')

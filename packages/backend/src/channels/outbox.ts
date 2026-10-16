@@ -4,6 +4,7 @@ import type { ChannelJobRow } from '../db/schema/channelJobs';
 import { channelPostFor, recordChannelPost, removeChannelPost } from './channelPosts';
 import { claimDueJobs, completeJob, failJob, retryJob } from './jobRepository';
 import type { PublishChannel } from './types';
+import type { MediaPresenter } from '../media/presentation';
 
 /** How often each backend task looks for due jobs. */
 export const OUTBOX_INTERVAL_MS = 5_000;
@@ -22,7 +23,11 @@ export function backoffMs(attempts: number): number {
 }
 
 /** Carry out one job against its channel. Throws on a failure worth retrying. */
-async function runJob(job: ChannelJobRow, channel: PublishChannel): Promise<void> {
+async function runJob(
+  job: ChannelJobRow,
+  channel: PublishChannel,
+  presenter: MediaPresenter,
+): Promise<void> {
   if (job.action === 'retract') {
     const post = await channelPostFor(job.articleId, job.channel);
     if (post && channel.retract) await channel.retract(post.ref);
@@ -34,7 +39,8 @@ async function runJob(job: ChannelJobRow, channel: PublishChannel): Promise<void
   // queued has nothing left to distribute here.
   const row = await findArticleById(job.articleId);
   if (!row || row.status !== 'published' || !channel.servesLanguage(row.language)) return;
-  const article = rowToArticle(row);
+  // As readers see it: an image Oxy took down or removed is not republished.
+  const article = await presenter.article(rowToArticle(row));
   const post = await channelPostFor(job.articleId, job.channel);
   if (job.action === 'publish') {
     // Already posted (a retry after the post was recorded): nothing to redo.
@@ -56,6 +62,7 @@ async function runJob(job: ChannelJobRow, channel: PublishChannel): Promise<void
  */
 export async function processDueJobs(
   channels: readonly PublishChannel[],
+  presenter: MediaPresenter,
   now: Date = new Date(),
 ): Promise<number> {
   const jobs = await claimDueJobs(now, BATCH_SIZE, LEASE_MS);
@@ -73,7 +80,7 @@ export async function processDueJobs(
       continue;
     }
     try {
-      await runJob(job, channel);
+      await runJob(job, channel, presenter);
       await completeJob(job.id);
       logger.info('channel job done', { ...meta, attempts: job.attempts });
     } catch (err) {
@@ -101,13 +108,14 @@ export async function processDueJobs(
 /** Work the outbox every `intervalMs` (no overlapping passes). Returns a stop fn. */
 export function startOutboxWorker(
   channels: readonly PublishChannel[],
+  presenter: MediaPresenter,
   intervalMs: number = OUTBOX_INTERVAL_MS,
 ): () => void {
   let running = false;
   const timer = setInterval(() => {
     if (running) return;
     running = true;
-    processDueJobs(channels)
+    processDueJobs(channels, presenter)
       .catch((err: unknown) => logger.error('outbox pass failed', errorFields(err)))
       .finally(() => {
         running = false;

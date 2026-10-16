@@ -1,5 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
+import { socialCardEntityId } from '../media/entities';
+import { enqueueReferenceSync } from '../media/referenceJobs';
 import { articleChannelPosts, type ArticleChannelPostRow } from '../db/schema/articleChannelPosts';
 
 /**
@@ -13,13 +15,17 @@ export async function recordChannelPost(
   channel: string,
   ref: Record<string, unknown>,
 ): Promise<void> {
-  await getDb()
-    .insert(articleChannelPosts)
-    .values({ articleId, channel, ref })
-    .onConflictDoUpdate({
-      target: [articleChannelPosts.articleId, articleChannelPosts.channel],
-      set: { ref },
-    });
+  await getDb().transaction(async (tx) => {
+    await tx
+      .insert(articleChannelPosts)
+      .values({ articleId, channel, ref })
+      .onConflictDoUpdate({
+        target: [articleChannelPosts.articleId, articleChannelPosts.channel],
+        set: { ref },
+      });
+    // A post may carry a file GWJ made for it (Instagram's card).
+    await enqueueReferenceSync(tx, 'social_card', [socialCardEntityId(articleId, channel)]);
+  });
 }
 
 /** Every channel delivery recorded for one article (used to fan out a retraction). */
@@ -28,11 +34,6 @@ export async function channelPostsFor(articleId: string): Promise<ArticleChannel
     .select()
     .from(articleChannelPosts)
     .where(eq(articleChannelPosts.articleId, articleId));
-}
-
-/** Drop one article's recorded deliveries once retraction has been attempted. */
-export async function removeChannelPosts(articleId: string): Promise<void> {
-  await getDb().delete(articleChannelPosts).where(eq(articleChannelPosts.articleId, articleId));
 }
 
 /** The recorded delivery of one article on one channel, if any. */
@@ -52,9 +53,12 @@ export async function channelPostFor(
 
 /** Forget one channel's delivery of an article once it has been retracted. */
 export async function removeChannelPost(articleId: string, channel: string): Promise<void> {
-  await getDb()
-    .delete(articleChannelPosts)
-    .where(
-      and(eq(articleChannelPosts.articleId, articleId), eq(articleChannelPosts.channel, channel)),
-    );
+  await getDb().transaction(async (tx) => {
+    await tx
+      .delete(articleChannelPosts)
+      .where(
+        and(eq(articleChannelPosts.articleId, articleId), eq(articleChannelPosts.channel, channel)),
+      );
+    await enqueueReferenceSync(tx, 'social_card', [socialCardEntityId(articleId, channel)]);
+  });
 }

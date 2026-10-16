@@ -2,11 +2,9 @@
  * Image optimization: downscale oversized photos and re-encode to WebP so the
  * site ships small, modern images instead of multi-megabyte source JPEGs/PNGs.
  *
- * This is the single shared implementation used by BOTH the upload service
- * (`uploadService.ts`, applied to every future upload) and the one-off backfill
- * script (`scripts/optimize-existing-images.ts`, applied to images already
- * live). Keeping one implementation guarantees the backfilled images match what
- * the pipeline will produce going forward.
+ * The single implementation of what GWJ does to an image before storing it
+ * (`mediaService.ts`). The narrower renditions for `srcset` are Oxy Files' own
+ * (made on request from the stored image), so none are made here.
  *
  * Policy:
  *   - Longest edge is capped at {@link MAX_LONGEST_EDGE}px; smaller images are
@@ -76,13 +74,6 @@ export async function readImageMetadata(input: Buffer): Promise<ImageMetadata> {
   };
 }
 
-/**
- * Narrower renditions made beside the main image, for `srcset`: a phone or a
- * card thumbnail downloads one of these instead of the full-size image. Only
- * widths below the main image's are made (never an enlargement).
- */
-export const VARIANT_WIDTHS = [400, 800, 1200] as const;
-
 /** Outcome of optimizing an image buffer. */
 export interface OptimizedImage {
   /** The optimized WebP bytes. */
@@ -117,33 +108,6 @@ export async function optimizeToWebp(input: Buffer): Promise<OptimizedImage> {
     .webp({ quality: WEBP_QUALITY })
     .toBuffer({ resolveWithObject: true });
   return { buffer: data, width: info.width, height: info.height };
-}
-
-/** The main WebP rendition of an image and its narrower {@link VARIANT_WIDTHS}. */
-export interface OptimizedImageSet {
-  main: OptimizedImage;
-  variants: OptimizedImage[];
-}
-
-/**
- * {@link optimizeToWebp}, plus a WebP rendition at each {@link VARIANT_WIDTHS}
- * width narrower than the main image — each made from the source, not from the
- * already-compressed main image. Same input rules and failures as
- * {@link optimizeToWebp}.
- */
-export async function optimizeWithVariants(input: Buffer): Promise<OptimizedImageSet> {
-  const main = await optimizeToWebp(input);
-  const variants = await Promise.all(
-    VARIANT_WIDTHS.filter((width) => width < main.width).map(async (width) => {
-      const { data, info } = await sharp(input, { failOn: 'error' })
-        .rotate()
-        .resize({ width })
-        .webp({ quality: WEBP_QUALITY })
-        .toBuffer({ resolveWithObject: true });
-      return { buffer: data, width: info.width, height: info.height };
-    }),
-  );
-  return { main, variants };
 }
 
 /**

@@ -8,7 +8,7 @@ import { getDb } from '../db/client';
 import { newRecordId } from '../db/ids';
 import { users } from '../db/schema/users';
 import { useTestDatabase, type TestDatabase } from '../test/postgres';
-import type { UploadService } from '../services/uploadService';
+import { createFakeOxyFiles } from '../test/fakeOxyFiles';
 import { hashPassword } from '../services/password';
 
 let testDb: TestDatabase;
@@ -17,17 +17,7 @@ let app: Express;
 const ADMIN_USERNAME = 'nate';
 const ADMIN_PASSWORD = 'super-secret-pw';
 
-const fakeUploadService: UploadService = {
-  async uploadImage(_buffer, filename) {
-    return { url: `https://cdn.example.test/articles/${filename}`, variants: [] };
-  },
-  async storeImage(_buffer, filename, _contentType, keyPrefix) {
-    return { url: `https://cdn.example.test/${keyPrefix}${filename}`, variants: [] };
-  },
-  async addRenditions() {
-    return null;
-  },
-};
+const oxyFiles = createFakeOxyFiles();
 
 function setTestEnv(): Env {
   process.env.NODE_ENV = 'test';
@@ -76,7 +66,7 @@ const validRequest = (overrides: Record<string, unknown> = {}) => ({
 beforeAll(async () => {
   testDb = await useTestDatabase();
   const env = setTestEnv();
-  app = createApp(env, { uploadService: fakeUploadService });
+  app = createApp(env, { oxyFiles });
 });
 
 beforeEach(async () => {

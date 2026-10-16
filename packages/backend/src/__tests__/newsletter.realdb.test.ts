@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { testPresenter } from '../test/fakeOxyFiles';
 import request from 'supertest';
 import type { Express } from 'express';
 import { CATEGORIES, NEWSLETTER_TIME_ZONES } from '@gwj/shared-types';
@@ -241,6 +242,7 @@ describe('sending the daily issue', () => {
     sender,
     articles: articleService,
     apiBaseUrl: 'https://api.example.test',
+    presenter: testPresenter(),
   });
 
   it('mails each confirmed reader one issue with working unsubscribe links, once per day', async () => {

@@ -40,9 +40,8 @@ import { articleService } from '../services/articleService';
 import { takedownService } from '../services/takedownService';
 import { beginAuthorization } from '../channels/mentionOauthService';
 import type { Env } from '../env';
-import { createMediaService } from '../services/mediaService';
-import type { UploadImageOptions, UploadService } from '../services/uploadService';
-import { fetchRemoteImage, type RemoteImageOptions } from '../services/remoteImageService';
+import type { MediaService, UploadImageOptions } from '../services/mediaService';
+import { setWriterPortrait } from '../media/writerPortraits';
 import {
   assertScope,
   principalOf,
@@ -116,14 +115,8 @@ export function creativeDimensionsFor(rawVariant: unknown): UploadImageOptions {
   return aspectRatio ? { ...AD_CREATIVE_DIMENSIONS, aspectRatio } : AD_CREATIVE_DIMENSIONS;
 }
 
-export function createAdminRouter(
-  env: Env,
-  jwtSecret: string,
-  uploadService: UploadService,
-  remoteImage: RemoteImageOptions = {},
-): Router {
+export function createAdminRouter(env: Env, jwtSecret: string, media: MediaService): Router {
   const router = Router();
-  const media = createMediaService(uploadService);
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_UPLOAD_BYTES },
@@ -246,22 +239,25 @@ export function createAdminRouter(
     async (req: Request, res: Response) => {
       // Defaults enforce the canonical min width/height and byte cap.
       const file = requireImageFile(req);
-      const result = await media.upload(file.buffer, file.originalname, file.mimetype);
+      const result = await media.upload(file.buffer, file.originalname, file.mimetype, {
+        uploadedBy: actorOf(req),
+      });
       res.status(201).json(result);
     },
   );
 
-  // Copy a remote image (e.g. a source's og:image) onto our CDN. The download
-  // happens HERE, behind the SSRF guard, a timeout and a streaming size cap, so
-  // no other service needs to fetch arbitrary URLs.
+  // Copy a remote image (e.g. a source's og:image) into GWJ's media. Oxy Files
+  // downloads it (its SSRF-safe fetcher, bounded in time and size); the bytes
+  // then go through the same validation and processing as an upload.
   router.post(
     '/upload/from-url',
     requireScope('media:upload'),
     validate(UploadFromUrlInputSchema),
     async (req: Request, res: Response) => {
       const input = req.body as UploadFromUrlInput;
-      const image = await fetchRemoteImage(input.url, input.filename, remoteImage);
-      const result = await media.upload(image.buffer, image.filename, image.mime);
+      const result = await media.importFromUrl(input.url, input.filename, {
+        uploadedBy: actorOf(req),
+      });
       res.status(201).json(result);
     },
   );
@@ -313,20 +309,18 @@ export function createAdminRouter(
       res.status(201).json(await adCampaignService.create(req.body as AdCampaignInput));
     },
   );
-  // The creative goes through the same S3/CDN pipeline as article images, with
-  // the banner-sized floor; the returned URL is then saved as `imageUrl`.
+  // The creative goes through the same pipeline as article images, with the
+  // banner-sized floor; the returned URL is then saved as `imageUrl`.
   router.post(
     '/ad-campaigns/creative',
     upload.single('file'),
     async (req: Request, res: Response) => {
       const dimensions = creativeDimensionsFor(req.body?.variant);
       const file = requireImageFile(req, dimensions);
-      const result = await uploadService.uploadImage(
-        file.buffer,
-        file.originalname,
-        file.mimetype,
+      const result = await media.upload(file.buffer, file.originalname, file.mimetype, {
+        uploadedBy: actorOf(req),
         dimensions,
-      );
+      });
       res.status(201).json(result);
     },
   );
@@ -345,6 +339,18 @@ export function createAdminRouter(
     await adCampaignService.remove(requireParam(req, 'id'));
     res.status(204).end();
   });
+
+  // A roster writer's portrait (square, at least WRITER_PORTRAIT_MIN_PX): admins only.
+  router.put(
+    '/writers/:username/portrait',
+    requireAdmin(),
+    upload.single('file'),
+    async (req: Request, res: Response) => {
+      res.json(
+        await setWriterPortrait(media, requireParam(req, 'username'), req.file, actorOf(req)),
+      );
+    },
+  );
 
   // Agent credentials are managed by admins only, never by an agent or an editor.
   router.get('/tokens', requireAdmin(), async (_req: Request, res: Response) => {

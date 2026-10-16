@@ -15,8 +15,14 @@ import {
 } from './routes/advertiser';
 import { createAdBookingService } from './services/adBookingService';
 import { createStripeGateway, type StripeGateway } from './services/stripeGateway';
-import { createUploadService, type UploadService } from './services/uploadService';
-import type { RemoteImageOptions } from './services/remoteImageService';
+import { createMediaService } from './services/mediaService';
+import { findMediaByUrl } from './db/repositories/mediaRepository';
+import { createOxyFiles, oxyFilesConfigFrom, type OxyFiles } from './media/oxyFiles';
+import { createLegacyMedia } from './media/legacy';
+import { createMediaPresenter, type MediaPresenter } from './media/presentation';
+import { FILE_EVENTS_PATH, fileEventsHandler } from './media/fileEvents';
+import { LEGACY_MEDIA_PATH, legacyRedirectHandler } from './media/legacyRedirect';
+import { writerPortraitHandler } from './media/writerPortraits';
 import { sql } from 'drizzle-orm';
 import { createErrorHandler, notFoundHandler } from './middleware/error';
 import { requestLog } from './middleware/requestLog';
@@ -38,13 +44,12 @@ const ADMIN_MAX = 200;
 /** Generous limiter for unauthenticated federation traffic (crawls, fan-in). */
 const FEDERATION_MAX = 600;
 
-/** Allow building the app with a pre-made upload service (tests inject a fake S3). */
+/** Allow building the app with test seams for its external services. */
 export interface CreateAppOptions {
-  uploadService?: UploadService;
+  /** Test seam: replaces Oxy Files (where every image is stored). */
+  oxyFiles?: OxyFiles;
   /** Options forwarded to the ActivityPub module (test seams for key/fetch). */
   activityPub?: ActivityPubOptions;
-  /** Test seams (fetch, DNS) for downloading remote images in `upload/from-url`. */
-  remoteImage?: RemoteImageOptions;
   /** Test seam: replaces the Stripe gateway (an external paid API). */
   stripeGateway?: StripeGateway;
   /** Test seam: replaces the newsletter's email provider (Amazon SES). */
@@ -59,6 +64,10 @@ export interface BuiltApp {
   newsletter: { service: NewsletterService; sender: EmailSender };
   /** The distribution channels article changes are queued for (the outbox works them). */
   channels: readonly PublishChannel[];
+  /** Oxy Files, for the reference worker and the reconciliation the entry point starts. */
+  oxyFiles: OxyFiles;
+  /** Shows articles' images as readers may see them (the outbox and newsletter use it). */
+  presenter: MediaPresenter;
   /**
    * Stop queueing distribution jobs for these channels. Call at graceful
    * shutdown, and in tests that build multiple app instances so a stale planner
@@ -71,7 +80,7 @@ export interface BuiltApp {
  * Build the Express application AND the ActivityPub module. Pure with respect to
  * I/O: it wires routes and middleware but does not open the database pool or bind
  * a port, so tests can mount it against a throwaway PostgreSQL database and a fake
- * upload service. The caller connects the pool first (`connectDb`); actor signing
+ * Oxy Files. The caller connects the pool first (`connectDb`); actor signing
  * keys are then resolved lazily on first use.
  *
  * It also registers the distribution channels (Mastodon + Telegram): from then on
@@ -156,16 +165,24 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   // ActivityPub is mounted BEFORE the global JSON body parser: its inbox routes
   // need the raw request bytes to verify the HTTP Signature Digest, so they apply
   // their own raw parser. Its ids are apex-anchored (host-independent).
-  const activityPub = createActivityPub(env, options.activityPub);
+  // Media: every image is a GWJ-owned Oxy file (docs/OXY-FILES.md).
+  const oxyFiles = options.oxyFiles ?? createOxyFiles(oxyFilesConfigFrom(env));
+  const legacyMedia = createLegacyMedia(env.CDN_BASE_URL);
+  const presenter = createMediaPresenter(oxyFiles, legacyMedia);
+  const activityPub = createActivityPub(env, presenter, options.activityPub);
   app.use(federationLimiter, activityPub.router);
 
-  // Built before the channels: Instagram's channel reuses this exact
-  // instance to store its generated social cards, rather than opening a
-  // second S3 client.
-  const uploadService = options.uploadService ?? createUploadService(env);
+  // Built before the channels: Instagram stores its generated cards through it.
+  const media = createMediaService(oxyFiles);
+
+  // Oxy's file events (takedowns, deletions) sign the exact bytes: raw body,
+  // so BEFORE the JSON parser. The signature (not a rate limit) guards it.
+  app.post(FILE_EVENTS_PATH, ...fileEventsHandler(oxyFiles));
+  // Where an old CDN URL went (the CDN hostname points here once the bucket is retired).
+  app.get(`${LEGACY_MEDIA_PATH}/*key`, publicLimiter, legacyRedirectHandler(oxyFiles));
 
   // Article changes queue their distribution to these channels, by edition.
-  const channels = buildChannels(env, activityPub, uploadService);
+  const channels = buildChannels(env, activityPub, media);
   const unregisterChannels = registerChannels(channels);
   // Mention's own `isEnabled()` must answer synchronously (the registry calls
   // it inside the transaction that queues each change's delivery jobs), so
@@ -185,7 +202,9 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   const adBooking = createAdBookingService({
     gateway: stripeGateway,
     siteUrl: env.PUBLIC_SITE_URL ?? `https://${env.FEDIVERSE_DOMAIN}`,
-    cdnBaseUrl: env.CDN_BASE_URL,
+    // An image GWJ stored (or, during the soak, one still in the legacy bucket).
+    isOwnCreative: async (url) =>
+      legacyMedia.keyOf(url) !== null || (await findMediaByUrl(url))?.oxyFileId != null,
   });
   // Stripe signs the exact bytes it sends, so the webhook takes a raw body and
   // must come BEFORE the JSON parser. The signature (not a rate limit) guards it.
@@ -200,11 +219,7 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   // Specific mounts first so their dedicated limiters apply without the public
   // limiter also counting the request.
   app.use('/api/auth', authLimiter, createAuthRouter(env.JWT_SECRET));
-  app.use(
-    '/api/admin',
-    adminLimiter,
-    createAdminRouter(env, env.JWT_SECRET, uploadService, options.remoteImage),
-  );
+  app.use('/api/admin', adminLimiter, createAdminRouter(env, env.JWT_SECRET, media));
   // Public: Mention's own redirect lands here directly, carrying no admin
   // session of ours (see routes/mentionOauth.ts for why `state` alone is
   // this route's real security control).
@@ -218,10 +233,15 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
   // development they are stored without sending, so the flow can be tried locally.
   const acceptingSignups = emailSender.enabled || env.NODE_ENV === 'development';
   app.use('/api/newsletter', createNewsletterRouter(newsletter, acceptingSignups));
-  app.use('/api/advertiser', createAdvertiserRouter(env.JWT_SECRET, uploadService, adBooking));
+  app.use('/api/advertiser', createAdvertiserRouter(env.JWT_SECRET, media, adBooking));
   app.use('/api/ads', publicLimiter, createAdsPublicRouter(adBooking));
   app.use('/api/mention', publicLimiter, createMentionOauthRouter(env));
-  app.use('/api', publicLimiter, createPublicRouter());
+  app.get(
+    '/api/writers/:username/portrait',
+    publicLimiter,
+    writerPortraitHandler(oxyFiles, legacyMedia),
+  );
+  app.use('/api', publicLimiter, createPublicRouter(presenter));
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(env.NODE_ENV === 'development'));
@@ -230,6 +250,8 @@ export function buildApp(env: Env, options: CreateAppOptions = {}): BuiltApp {
     app,
     activityPub,
     channels,
+    oxyFiles,
+    presenter,
     stopChannels,
     newsletter: { service: newsletter, sender: emailSender },
   };

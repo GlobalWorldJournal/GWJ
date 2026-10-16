@@ -17,6 +17,7 @@ import {
   type AdvertiserCampaign,
 } from '@gwj/shared-types';
 import { getDb } from '../db/client';
+import { enqueueReferenceSync } from '../media/referenceJobs';
 import { newRecordId } from '../db/ids';
 import { adCampaigns, type AdCampaignRow } from '../db/schema/adCampaigns';
 import type { AdvertiserRow } from '../db/schema/advertisers';
@@ -48,8 +49,11 @@ export interface AdBookingOptions {
   gateway: StripeGateway | null;
   /** The public reader site origin, for Checkout's return URLs. */
   siteUrl: string;
-  /** Creative images must live under this origin (our own CDN). */
-  cdnBaseUrl: string;
+  /**
+   * Whether a creative URL is an image GWJ stored (an upload through our
+   * uploader): a booking may not point the slot at anyone else's image.
+   */
+  isOwnCreative: (url: string) => Promise<boolean>;
   clock?: () => Date;
 }
 
@@ -169,7 +173,6 @@ export function toAdvertiserCampaign(row: AdCampaignRow, now: Date): AdvertiserC
 
 export function createAdBookingService(options: AdBookingOptions): AdBookingService {
   const clock = options.clock ?? (() => new Date());
-  const cdnPrefix = `${options.cdnBaseUrl.replace(/\/+$/, '')}/`;
 
   function requireGateway(): StripeGateway {
     if (!options.gateway) throw new ServiceUnavailableError(PAYMENTS_NOT_CONFIGURED);
@@ -269,7 +272,7 @@ export function createAdBookingService(options: AdBookingOptions): AdBookingServ
       const now = clock();
       const window = validateWindow(input.startDate, input.endDate, now);
       if (!isHttpUrl(input.clickUrl)) throw new BadRequestError('clickUrl must be an http(s) URL');
-      if (!input.imageUrl.startsWith(cdnPrefix))
+      if (!(await options.isOwnCreative(input.imageUrl)))
         throw new BadRequestError('imageUrl must be a creative uploaded through our uploader');
       const quote = quoteFor(input.variant, window.days);
       const holdExpiresAt = new Date(now.getTime() + AD_HOLD_MINUTES * MINUTE_MS);
@@ -318,6 +321,7 @@ export function createAdBookingService(options: AdBookingOptions): AdBookingServ
           })
           .returning();
         if (!row) throw new Error('insert into ad_campaigns returned no row');
+        await enqueueReferenceSync(tx, 'ad_campaign', [row.id]);
         return row;
       });
 

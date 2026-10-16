@@ -1,12 +1,12 @@
 import {
   authorSlug,
   fediUsername,
-  writerAvatarPath,
   DEFAULT_EDITION_USERNAMES,
   SUPPORTED_LANGUAGES,
   WRITERS,
   type Language,
   type Writer,
+  writerPortraitPath,
 } from '@gwj/shared-types';
 import type { Env } from '../env';
 
@@ -130,11 +130,6 @@ function buildIdentity(input: IdentityBaseInput): ActorIdentity {
   };
 }
 
-/** Trim and join a CDN base URL with a relative path. */
-function cdnUrl(base: string, relativePath: string): string {
-  return `${base.replace(/\/+$/, '')}/${relativePath.replace(/^\/+/, '')}`;
-}
-
 /** Build one edition actor's identity. */
 function buildEditionIdentity(domain: string, language: Language, username: string): ActorIdentity {
   const origin = `https://${domain}`;
@@ -154,8 +149,11 @@ function buildEditionIdentity(domain: string, language: Language, username: stri
   });
 }
 
-/** Build one writer actor's identity. The avatar lives on the CDN. */
-function buildWriterIdentity(domain: string, cdnBaseUrl: string, writer: Writer): ActorIdentity {
+/**
+ * Build one writer actor's identity. The avatar is the portrait's stable API
+ * URL, which redirects to the file wherever it lives (`media/writerPortraits.ts`).
+ */
+function buildWriterIdentity(domain: string, apiBaseUrl: string, writer: Writer): ActorIdentity {
   const origin = `https://${domain}`;
   const beats = writer.beats.join(', ');
   return buildIdentity({
@@ -167,7 +165,7 @@ function buildWriterIdentity(domain: string, cdnBaseUrl: string, writer: Writer)
     summary: `${writer.title} · ${beats}`,
     // Keep the existing HYPHENATED web slug for the public author page URL.
     url: `${origin}/author/${authorSlug(writer.name)}`,
-    iconUrl: cdnUrl(cdnBaseUrl, writerAvatarPath(writer.name)),
+    iconUrl: `${apiBaseUrl}${writerPortraitPath(writer.name)}`,
     imageUrl: `${origin}/logo-icon.svg`,
     iconMediaType: 'image/png',
     imageMediaType: 'image/svg+xml',
@@ -213,7 +211,7 @@ export function buildActorRegistry(env: Env): ActorRegistry {
   }
   const writerByAuthor = new Map<string, ActorIdentity>();
   for (const writer of WRITERS) {
-    const identity = buildWriterIdentity(domain, env.CDN_BASE_URL, writer);
+    const identity = buildWriterIdentity(domain, env.API_BASE_URL, writer);
     // A writer username collision with an edition username would shadow the edition;
     // editions are inserted first, so guard against accidental overlap loudly.
     if (byUsername.has(identity.username)) {

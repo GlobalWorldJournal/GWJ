@@ -16,6 +16,7 @@ import { followerService } from './followerService';
 import type { InboxService } from './inboxService';
 import type { ActorIdentity, ActorRegistry } from './identity';
 import { NotFoundError } from '../errors';
+import type { MediaPresenter } from '../media/presentation';
 
 /** Software metadata advertised via NodeInfo. */
 const SOFTWARE_NAME = 'gwj';
@@ -55,6 +56,8 @@ export interface ActivityPubRouterDeps {
   countPublished: () => Promise<number>;
   /** Count of published articles for one actor's outbox (by language or author). */
   countForActor: (actor: ActorIdentity) => Promise<number>;
+  /** Shows articles' images as readers may see them. */
+  presenter: MediaPresenter;
 }
 
 /** The `ListOptions` that scope a listing to one actor's articles. */
@@ -157,7 +160,10 @@ export function createActivityPubRouter(deps: ActivityPubRouterDeps): Router {
       listQueryForActor(actor, page),
       listOptionsForActor(actor),
     );
-    sendActivityJson(res, buildOutboxPage(actor, result.data, page, total));
+    sendActivityJson(
+      res,
+      buildOutboxPage(actor, await deps.presenter.articles(result.data), page, total),
+    );
   });
 
   // --- Followers (OrderedCollection of actor ids), per actor ---

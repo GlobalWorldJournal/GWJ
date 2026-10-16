@@ -115,10 +115,19 @@ export function findWriterByFediUsername(username: string): Writer | undefined {
 }
 
 /**
- * CDN-relative path to a writer's avatar (512×512 PNG, pre-generated, one per
- * writer). Pure and env-free: the consumer joins it with the CDN base URL. The
- * path key is the writer's `fediUsername`, e.g. `writers/eleanorvance.png`.
+ * Key of a writer's avatar (512×512 PNG, pre-generated, one per writer) in the
+ * LEGACY media bucket, e.g. `writers/eleanorvance.png` — what the migration to
+ * Oxy Files copies, and where an uncopied portrait is still read from.
  */
 export function writerAvatarPath(name: string): string {
   return `writers/${fediUsername(name)}.png`;
+}
+
+/**
+ * The API path of a writer's portrait (joined with the API origin): a stable
+ * URL that redirects to the portrait wherever it is stored. Pages and the
+ * writers' fediverse icons use it, never a storage URL.
+ */
+export function writerPortraitPath(name: string): string {
+  return `/api/writers/${fediUsername(name)}/portrait`;
 }

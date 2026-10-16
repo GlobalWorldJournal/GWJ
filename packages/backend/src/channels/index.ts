@@ -1,6 +1,6 @@
 import type { Env } from '../env';
 import type { ActivityPubModule } from '../activitypub';
-import type { UploadService } from '../services/uploadService';
+import type { MediaService } from '../services/mediaService';
 import { mastodonChannel } from './mastodonChannel';
 import { telegramChannels } from './telegramChannel';
 import { facebookChannels } from './facebookChannel';
@@ -17,20 +17,19 @@ import type { PublishChannel } from './types';
  * credentials (or, for Mention, its stored OAuth grant) are absent. Add a destination (WhatsApp, another edition) by
  * extending this list or the relevant channel's own config — language
  * routing is the registry's, via each channel's `servesLanguage`.
- * `uploadService` is the same instance the admin API uploads article images
- * through — Instagram reuses it to store its generated social cards rather
- * than opening a second S3 client.
+ * `media` is the same service the admin API stores article images through —
+ * Instagram stores its generated social cards with it, as GWJ-owned Oxy files.
  */
 export function buildChannels(
   env: Env,
   activityPub: ActivityPubModule,
-  uploadService: UploadService,
+  media: MediaService,
 ): PublishChannel[] {
   return [
     mastodonChannel(activityPub),
     ...telegramChannels(env),
     ...facebookChannels(env),
-    ...instagramChannels(env, uploadService),
+    ...instagramChannels(env, media),
     mentionChannel(env),
     indexNowChannel(env),
   ];

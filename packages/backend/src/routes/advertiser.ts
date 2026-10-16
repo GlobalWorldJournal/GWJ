@@ -27,7 +27,7 @@ import { BadRequestError, UnauthorizedError } from '../errors';
 import { advertiserService, advertiserToDTO } from '../services/advertiserService';
 import type { AdBookingService } from '../services/adBookingService';
 import { WebhookSignatureError } from '../services/stripeGateway';
-import type { UploadService } from '../services/uploadService';
+import type { MediaService } from '../services/mediaService';
 import { creativeDimensionsFor, requireImageFile } from './admin';
 
 const BEARER_PREFIX = 'Bearer ';
@@ -74,7 +74,7 @@ function advertiserOf(req: Request): AdvertiserRow {
 /** The authenticated advertiser's own API: `/api/advertiser`. */
 export function createAdvertiserRouter(
   jwtSecret: string,
-  uploadService: UploadService,
+  media: MediaService,
   booking: AdBookingService,
 ): Router {
   const router = Router();
@@ -130,11 +130,11 @@ export function createAdvertiserRouter(
     async (req: Request, res: Response) => {
       const dimensions = creativeDimensionsFor(req.query.variant ?? req.body?.variant);
       const file = requireImageFile(req, dimensions);
-      const result: AdCreativeUpload = await uploadService.uploadImage(
+      const result: AdCreativeUpload = await media.upload(
         file.buffer,
         file.originalname,
         file.mimetype,
-        dimensions,
+        { uploadedBy: `advertiser:${advertiserOf(req).id}`, dimensions },
       );
       res.status(201).json(result);
     },

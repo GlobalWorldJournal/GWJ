@@ -93,8 +93,9 @@ export const PopularArticlesSchema = z.object({ data: z.array(PublicArticleSchem
 export type PopularArticles = z.infer<typeof PopularArticlesSchema>;
 
 /**
- * Copy a remote image onto our CDN. The BACKEND downloads it (behind its SSRF
- * guard, timeout and size cap), validates it and stores it like an upload.
+ * Copy a remote image into GWJ's media. Oxy Files downloads it (behind its
+ * SSRF-safe fetcher, timeout and size cap); the backend then validates it and
+ * stores it like an upload.
  */
 export const UploadFromUrlInputSchema = z.object({
   url: z.string().url(),
@@ -104,9 +105,9 @@ export const UploadFromUrlInputSchema = z.object({
 export type UploadFromUrlInput = z.infer<typeof UploadFromUrlInputSchema>;
 
 /**
- * An uploaded image on our CDN: its URL, its size and the narrower renditions
- * made for responsive images (none for a GIF, or for a re-upload made before
- * renditions existed).
+ * A stored image (a GWJ-owned Oxy file): its URL, its size and the narrower
+ * renditions for responsive images (none for a GIF, or for an image stored
+ * before renditions existed).
  */
 export const UploadResponseSchema = z.object({
   url: z.string().url(),

@@ -1,4 +1,4 @@
-import { LANGUAGE_LOCALES, type Language } from '@gwj/shared-types';
+import { LANGUAGE_LOCALES, type Language, writerPortraitPath } from '@gwj/shared-types';
 
 /** Average adult silent-reading speed, for "N min read". */
 const WORDS_PER_MINUTE = 230;
@@ -43,10 +43,10 @@ export function wasUpdated(publishedAt: string | null | undefined, updatedAt: st
   return Date.parse(updatedAt) - Date.parse(publishedAt) > UPDATE_THRESHOLD_MS;
 }
 
-/** The public URL of a roster writer's portrait on the media CDN, if configured. */
-export function writerPortraitUrl(avatarPath: string): string | null {
-  const base = import.meta.env.VITE_CDN_BASE_URL;
-  return base ? `${base.replace(/\/$/, '')}/${avatarPath}` : null;
+/** The public URL of a roster writer's portrait (the API redirects to the file). */
+export function writerPortraitUrl(writerName: string): string {
+  const base = import.meta.env.VITE_API_BASE_URL ?? '';
+  return `${base.replace(/\/$/, '')}${writerPortraitPath(writerName)}`;
 }
 
 const CENTS_PER_DOLLAR = 100;

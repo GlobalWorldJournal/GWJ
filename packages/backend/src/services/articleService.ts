@@ -44,6 +44,7 @@ import { errorFields, logger } from '../logger';
 import { enqueueJobs } from '../channels/jobRepository';
 import { findMostViewed, recordView, utcDay } from '../db/repositories/viewRepository';
 import { withImageMetadata } from './mediaService';
+import { enqueueReferenceSync } from '../media/referenceJobs';
 import type { ChannelJobAction } from '../db/schema/channelJobs';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -334,6 +335,8 @@ async function mutateArticle(
     await insertRevision(tx, id, snapshotOf(current), actor);
     const after = await updateArticle(tx, id, { ...changes, updatedAt: new Date() });
     await enqueueDistribution(tx, id, distributionPlan(current, after));
+    // The files it shows (and its history shows) may have changed.
+    await enqueueReferenceSync(tx, 'article', [id]);
     return { before: current, after };
   });
 }
@@ -473,6 +476,7 @@ export const articleService: ArticleService = {
       });
       // A story created directly in the published state is distributed at once.
       await enqueueDistribution(db, inserted.id, distributionPlan(null, inserted));
+      await enqueueReferenceSync(db, 'article', [inserted.id]);
       return inserted;
     });
     return rowToArticle(row);
@@ -655,6 +659,8 @@ export const articleService: ArticleService = {
       const current = await findArticleByIdForUpdate(tx, id);
       if (!current) throw new NotFoundError('Article not found');
       await deleteArticle(id, tx);
+      // Its files are released (Oxy collects a GWJ file nothing uses, ADR 0041 D5).
+      await enqueueReferenceSync(tx, 'article', [id]);
       // Whatever was ever distributed is taken down: retraction needs only the
       // id and the recorded posts, not the deleted row.
       if (current.firstPublishedAt !== null) {

@@ -29,7 +29,7 @@ import {
   type PaymentEvent,
   type StripeGateway,
 } from '../services/stripeGateway';
-import type { UploadService } from '../services/uploadService';
+import { createFakeOxyFiles, FAKE_CLOUD_URL } from '../test/fakeOxyFiles';
 import { useTestDatabase, type TestDatabase } from '../test/postgres';
 import { validPngBuffer } from './imageFixtures';
 
@@ -77,17 +77,7 @@ class FakeGateway implements StripeGateway {
 
 const gateway = new FakeGateway();
 
-const fakeUploadService: UploadService = {
-  async uploadImage(_buffer, filename) {
-    return { url: `${CDN}/articles/${filename}`, variants: [] };
-  },
-  async storeImage(_buffer, filename, _contentType, keyPrefix) {
-    return { url: `${CDN}/${keyPrefix}${filename}`, variants: [] };
-  },
-  async addRenditions() {
-    return null;
-  },
-};
+const oxyFiles = createFakeOxyFiles();
 
 function setTestEnv(): Env {
   process.env.NODE_ENV = 'test';
@@ -119,8 +109,8 @@ function day(offset: number): string {
 beforeAll(async () => {
   testDb = await useTestDatabase();
   const env = setTestEnv();
-  app = createApp(env, { uploadService: fakeUploadService, stripeGateway: gateway });
-  unconfiguredApp = createApp(env, { uploadService: fakeUploadService });
+  app = createApp(env, { oxyFiles, stripeGateway: gateway });
+  unconfiguredApp = createApp(env, { oxyFiles });
 });
 
 beforeEach(async () => {
@@ -504,6 +494,10 @@ describe('reserving a slot', () => {
     expect(
       (await book(account, { imageUrl: 'https://cdn.example.test.evil.example/a.png' })).status,
     ).toBe(400);
+    // An Oxy file GWJ never stored (anyone's public image) is not our creative either.
+    expect((await book(account, { imageUrl: `${FAKE_CLOUD_URL}/someoneelsesfile1` })).status).toBe(
+      400,
+    );
     expect((await book(account, { acceptTerms: false })).status).toBe(400);
     expect((await book(account, { startDate: day(-2), endDate: day(1) })).status).toBe(400);
     expect((await book(account, { startDate: day(9), endDate: day(2) })).status).toBe(400);
@@ -770,7 +764,7 @@ describe('creative upload', () => {
         contentType: 'image/png',
       });
     expect(res.status).toBe(201);
-    expect(res.body.url).toMatch(new RegExp(`^${CDN}/`));
+    expect(res.body.url.startsWith(`${FAKE_CLOUD_URL}/`)).toBe(true);
   });
 
   it('rejects a wrongly shaped image for a fixed-shape slot, and anonymous uploads', async () => {

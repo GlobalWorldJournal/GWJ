@@ -1,4 +1,4 @@
-import { authorSlug, findWriterByName, writerAvatarPath, type Category } from '@gwj/shared-types';
+import { authorSlug, findWriterByName, type Category } from '@gwj/shared-types';
 import { useLang } from '../lib/i18n';
 import { LocaleLink } from '../lib/locale';
 import { categoryLabel, writerTitle } from '../lib/dictionary';
@@ -31,7 +31,7 @@ export function Byline({
   const date = publishedAt ? formatDate(publishedAt, lang) : '';
   const section = category ? categoryLabel(category, lang) : '';
   const writer = showPortrait ? findWriterByName(author) : undefined;
-  const portrait = writer ? writerPortraitUrl(writerAvatarPath(writer.name)) : null;
+  const portrait = writer ? writerPortraitUrl(writer.name) : null;
   const updated =
     updatedAt && wasUpdated(publishedAt, updatedAt) ? formatDateTime(updatedAt, lang) : '';
 

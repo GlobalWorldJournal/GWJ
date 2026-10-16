@@ -21,6 +21,7 @@ import {
 import { adCampaignService } from '../services/adCampaignService';
 import { articleService } from '../services/articleService';
 import { takedownService } from '../services/takedownService';
+import type { MediaPresenter } from '../media/presentation';
 import { validate } from '../middleware/validate';
 import { requireParam } from '../middleware/params';
 import { BadRequestError, NotFoundError } from '../errors';
@@ -30,14 +31,25 @@ function readQuery(req: Request): PublicArticleListQuery {
   return req.validatedQuery as PublicArticleListQuery;
 }
 
-/** Drop the internal `source` provenance: it is for the newsroom, never readers. */
-function toPublicArticle(article: Article): PublicArticle {
-  const { source, ...publicFields } = article;
-  return publicFields;
-}
-
-function toPublicPage(page: PaginatedArticles): PaginatedPublicArticles {
-  return { data: page.data.map(toPublicArticle), pagination: page.pagination };
+/**
+ * Drop the internal `source` provenance (for the newsroom, never readers), and
+ * show the images as readers may see them (`media/presentation.ts`).
+ */
+function publicView(presenter: MediaPresenter) {
+  const articles = (list: Article[]): Promise<PublicArticle[]> =>
+    presenter.articles(list.map(({ source, ...publicFields }) => publicFields));
+  return {
+    articles,
+    article: async (article: Article): Promise<PublicArticle> => {
+      const [shown] = await articles([article]);
+      if (!shown) throw new Error('presenting one article returned none');
+      return shown;
+    },
+    page: async (page: PaginatedArticles): Promise<PaginatedPublicArticles> => ({
+      data: await articles(page.data),
+      pagination: page.pagination,
+    }),
+  };
 }
 
 /**
@@ -57,8 +69,9 @@ const AD_CACHE_CONTROL = 'public, max-age=60';
 const VIEW_WINDOW_MS = 15 * 60 * 1000;
 const VIEW_MAX = 60;
 
-export function createPublicRouter(): Router {
+export function createPublicRouter(presenter: MediaPresenter): Router {
   const router = Router();
+  const view = publicView(presenter);
 
   router.use((req: Request, res: Response, next: NextFunction) => {
     if (req.method === 'GET') res.set('Cache-Control', PUBLIC_CACHE_CONTROL);
@@ -70,7 +83,7 @@ export function createPublicRouter(): Router {
     validate(PublicArticleListQuerySchema, 'query'),
     async (req: Request, res: Response) => {
       const result = await articleService.list(readQuery(req));
-      res.json(toPublicPage(result));
+      res.json(await view.page(result));
     },
   );
 
@@ -81,7 +94,7 @@ export function createPublicRouter(): Router {
     async (req: Request, res: Response) => {
       const query = req.validatedQuery as PopularArticlesQuery;
       const body: PopularArticles = {
-        data: (await articleService.popular(query)).map(toPublicArticle),
+        data: await view.articles(await articleService.popular(query)),
       };
       res.json(body);
     },
@@ -103,7 +116,7 @@ export function createPublicRouter(): Router {
   router.get('/articles/:slug', async (req: Request, res: Response) => {
     const slug = requireParam(req, 'slug');
     try {
-      res.json(toPublicArticle(await articleService.getBySlug(slug)));
+      res.json(await view.article(await articleService.getBySlug(slug)));
     } catch (err) {
       if (!(err instanceof NotFoundError)) throw err;
       // A slug the article used to have: permanently redirect to its current one,
@@ -131,7 +144,7 @@ export function createPublicRouter(): Router {
       const q = query.q?.trim();
       if (!q) throw new BadRequestError('Query parameter "q" is required');
       const result = await articleService.search(q, query);
-      res.json(toPublicPage(result));
+      res.json(await view.page(result));
     },
   );
 
@@ -143,7 +156,9 @@ export function createPublicRouter(): Router {
     validate(ActiveAdQuerySchema, 'query'),
     async (req: Request, res: Response) => {
       const { variant } = req.validatedQuery as ActiveAdQuery;
-      const body: ActiveAdResponse = { campaign: await adCampaignService.findActive(variant) };
+      const body: ActiveAdResponse = {
+        campaign: await presenter.ad(await adCampaignService.findActive(variant)),
+      };
       res.set('Cache-Control', AD_CACHE_CONTROL);
       res.json(body);
     },
