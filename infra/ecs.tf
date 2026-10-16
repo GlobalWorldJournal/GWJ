@@ -54,6 +54,10 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "INSTAGRAM_ACCOUNT_ID", valueFrom = aws_ssm_parameter.instagram_account_id.arn },
       { name = "INSTAGRAM_ACCOUNT_ID_ES", valueFrom = aws_ssm_parameter.instagram_account_id_es.arn },
       { name = "MENTION_OAUTH_SEAL_KEY", valueFrom = aws_ssm_parameter.mention_oauth_seal_key.arn },
+      # Media on Oxy Files (docs/OXY-FILES.md).
+      { name = "OXY_APPLICATION_KEY", valueFrom = aws_ssm_parameter.oxy_application_key.arn },
+      { name = "OXY_APPLICATION_SECRET", valueFrom = aws_ssm_parameter.oxy_application_secret.arn },
+      { name = "OXY_FILES_WEBHOOK_SECRET", valueFrom = aws_ssm_parameter.oxy_files_webhook_secret.arn },
     ]
     logConfiguration = {
       logDriver = "awslogs"

@@ -14,7 +14,7 @@ Bun monorepo (`packages/*`), TypeScript strict.
 | `@gwj/mcp` | `@modelcontextprotocol/sdk` HTTP server (bearer token) for AI agents |
 | `@gwj/frontend` | Vite 6 + React 19 + Tailwind 4 SPA + Cloudflare `_worker.js` (SEO) |
 
-PostgreSQL 17 (`gwj` database) · S3 `gwj-media` + CloudFront `cdn.globalworldjournal.com` · AWS ECS Fargate (backend+mcp) · Cloudflare Pages (frontend).
+PostgreSQL 17 (`gwj` database) · media on Oxy Files (`docs/OXY-FILES.md`; legacy S3 `gwj-media` read-only until retired) · AWS ECS Fargate (backend+mcp) · Cloudflare Pages (frontend).
 
 ## Develop
 ```bash

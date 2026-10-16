@@ -82,6 +82,14 @@ TEST_POSTGRES_URL=postgres://gwj:gwj@127.0.0.1:5432/postgres bun run test
 | `takedown_requests` | `id` text, 24-hex | `article_id` is a plain 24-hex string with no FK: a request keeps naming a deleted article |
 | `ad_campaigns` | `id` text, 24-hex | directly sold bookings, one slot variant each; `ends_at > starts_at` |
 | `mention_oauth` | `resource` | the single sealed OAuth grant for the Mention channel |
+| `media_assets` | `url` | every stored image (one row per Oxy file): size, type, renditions, `oxy_file_id`, `uploaded_by` audit — `docs/OXY-FILES.md` |
+| `media_reference_jobs` | identity `id`; unique pending `(entity_type, entity_id)` | the reference outbox, written in the transaction of the change; `generation` keeps a change made while a job runs |
+| `media_file_references` | `(entity_type, entity_id, file_id)` | what GWJ has registered with Oxy; rebuilt nightly from the content |
+| `media_reconcile_runs` | `entity_type` | the nightly reconciliation's lease and last result |
+| `oxy_file_events` / `oxy_file_states` | `event_id` / `file_id` | file events received once (audit + dedupe) / the newest state per file, which hides an image from readers |
+| `writer_portraits` | `username` | each roster writer's portrait file |
+| `legacy_media_objects` | identity `id`; unique `key` | every object of the legacy bucket and the Oxy file it went to (migration state; the `/legacy-media/` redirect map) |
+| `legacy_media_reads` | `(day, surface)` | legacy URLs handed out per day — the gate for retiring the bucket |
 
 Categories are not a table: the closed `CATEGORIES` tuple serves `/api/categories`
 and backs `articles_category_check`.

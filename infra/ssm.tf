@@ -219,3 +219,41 @@ resource "aws_ssm_parameter" "mention_oauth_seal_key" {
     ignore_changes = [value]
   }
 }
+
+# Media on Oxy Files (docs/OXY-FILES.md). GWJ's own Oxy application (a
+# third-party application under GWJ's developer account) and its service
+# credential, with files:app:write, files:app:delete and files:references:write.
+# The backend REFUSES TO BOOT in production while the key or secret is the
+# placeholder: put the real values here BEFORE deploying the image that needs them.
+resource "aws_ssm_parameter" "oxy_application_key" {
+  name  = "/gwj/OXY_APPLICATION_KEY"
+  type  = "SecureString"
+  value = "-"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "oxy_application_secret" {
+  name  = "/gwj/OXY_APPLICATION_SECRET"
+  type  = "SecureString"
+  value = "-"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+# The signing secret of GWJ's file-events endpoint, shown ONCE when the endpoint
+# is registered (it must already be live to answer Oxy's challenge, so the
+# placeholder is valid: until it is replaced, events answer 503 and Oxy retries).
+resource "aws_ssm_parameter" "oxy_files_webhook_secret" {
+  name  = "/gwj/OXY_FILES_WEBHOOK_SECRET"
+  type  = "SecureString"
+  value = "-"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}

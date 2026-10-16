@@ -6,12 +6,12 @@
 
 **GWJ has NOTHING to do with the Oxy ecosystem.** It is Nate's personal company project (Global World Journal, globalworldjournal.com), separate from OxyHQ/Mention/Allo/Homiio/etc.
 
-- Do **NOT** use any `@oxyhq/*` package (core, services, auth, bloom, contracts). GWJ has its own types, auth, and UI.
-- Do **NOT** use Oxy SSO/FedCM, `cloud.oxy.so` media, the Oxy API, any Oxy database, or any Oxy application data.
+- Do **NOT** use any `@oxyhq/*`/`@oxy.so/*` package (services, auth, bloom, contracts…), Oxy SSO/FedCM, any Oxy database or Oxy application data. GWJ has its own types, auth, and UI.
+- **One exception (user decision 2026-10-16, Oxy ADR 0041 stage 4): media lives on Oxy Files** as files of GWJ's OWN third-party Oxy application, through ONE adapter (`packages/backend/src/media/oxyFiles.ts`, the only `@oxy.so/core/server` importer) — store, import by URL, references, file events. Nothing else of Oxy. Details: `docs/OXY-FILES.md`.
 - Do **NOT** spawn the Oxy team agents (mention-*, oxy-*, bloom, allo, etc.) for GWJ work.
 - The global `~/AGENTS.md` Oxy rules (Oxy SDK versions, SSO architecture, agent-first Oxy team) **do not apply here**, except for universal quality standards (below).
 
-**Hosting (user decision, 2026-06-23):** GWJ is hosted ON the Oxy AWS account (`237343248947`, us-west-2, CLI `--profile oxy`) for convenience, but as **fully ISOLATED `gwj-*` resources** — its own ECR repos, ECS services, S3 bucket (`gwj-media`), CloudFront, and its **own PostgreSQL database `gwj`** (own login role `gwj`, SSM `/gwj/DATABASE_URL`) on the shared RDS instance `oxy-postgres` (user decision 2026-10-10). GWJ shares the instance only: no database, role, table, application data, SSO, or SDKs with Oxy. Frontend deploys to Cloudflare Pages (project `gwj`). **Infra is STANDALONE in `~/GWJ/infra/`** — its own terraform state (S3 key `gwj/terraform.tfstate`), its own IAM roles (`gwj-ecs-execution`/`gwj-ecs-task`), its own SSM `/gwj/*` and `gwj-tasks` security group. It consumes Oxy's shared VPC/ALB/ECS-cluster ONLY via read-only data sources, so a GWJ `plan`/`apply` can never modify Oxy's resources. Do NOT put GWJ resources in `oxy-infra`. (Sole cross-reference: `oxy-postgres-sg`, owned by oxy-infra with inline ingress, lists `gwj-tasks-sg` by id so GWJ can reach its database.)
+**Hosting (user decision, 2026-06-23):** GWJ is hosted ON the Oxy AWS account (`237343248947`, us-west-2, CLI `--profile oxy`) for convenience, but as **fully ISOLATED `gwj-*` resources** — its own ECR repos, ECS services, a LEGACY read-only S3 bucket (`gwj-media`, retired per `docs/OXY-FILES.md`), CloudFront, and its **own PostgreSQL database `gwj`** (own login role `gwj`, SSM `/gwj/DATABASE_URL`) on the shared RDS instance `oxy-postgres` (user decision 2026-10-10). GWJ shares the instance only: no database, role, table, application data, SSO, or SDKs with Oxy. Frontend deploys to Cloudflare Pages (project `gwj`). **Infra is STANDALONE in `~/GWJ/infra/`** — its own terraform state (S3 key `gwj/terraform.tfstate`), its own IAM roles (`gwj-ecs-execution`/`gwj-ecs-task`), its own SSM `/gwj/*` and `gwj-tasks` security group. It consumes Oxy's shared VPC/ALB/ECS-cluster ONLY via read-only data sources, so a GWJ `plan`/`apply` can never modify Oxy's resources. Do NOT put GWJ resources in `oxy-infra`. (Sole cross-reference: `oxy-postgres-sg`, owned by oxy-infra with inline ingress, lists `gwj-tasks-sg` by id so GWJ can reach its database.)
 
 ## What GWJ is
 WSJ-style news site for "Global World Journal". Public reader SPA + admin CMS + a remote MCP server so AI agents manage the newspaper.
@@ -26,13 +26,13 @@ Bun monorepo, `packages/` layout. Single Zod source of truth shared by all packa
 ```
 packages/
   shared-types/  @gwj/shared-types — Zod schemas + TS types
-  backend/       @gwj/backend     — Express 5 + Drizzle (PostgreSQL) + Zod; REST + service layer; admin JWT; S3 upload
+  backend/       @gwj/backend     — Express 5 + Drizzle (PostgreSQL) + Zod; REST + service layer; admin JWT; media on Oxy Files
   mcp/           @gwj/mcp         — @modelcontextprotocol/sdk HTTP server (bearer token); wraps backend
   frontend/      @gwj/frontend    — Vite 6 + React 19 + Tailwind 4 (SPA) + public/_worker.js (Cloudflare SEO)
 ```
 
 ## Stack
-TypeScript (strict), Vite 6, React 19, Tailwind 4, Express 5, Drizzle ORM + postgres.js, Zod, `@modelcontextprotocol/sdk`, bcrypt (`Bun.password`), jsonwebtoken, multer, `@aws-sdk/client-s3`, `bun test` + supertest (frontend: Vitest + jsdom). PostgreSQL 17 (database `gwj` on `oxy-postgres`). S3 `gwj-media` + CloudFront `cdn.globalworldjournal.com`. Backend+MCP on AWS ECS Fargate; frontend on Cloudflare Pages.
+TypeScript (strict), Vite 6, React 19, Tailwind 4, Express 5, Drizzle ORM + postgres.js, Zod, `@modelcontextprotocol/sdk`, bcrypt (`Bun.password`), jsonwebtoken, multer, `@oxy.so/core/server` (media only), `bun test` + supertest (frontend: Vitest + jsdom). PostgreSQL 17 (database `gwj` on `oxy-postgres`). Media: Oxy Files (`cloud.oxy.so`); legacy S3 `gwj-media` + CloudFront `cdn.globalworldjournal.com` read-only until retired. Backend+MCP on AWS ECS Fargate; frontend on Cloudflare Pages.
 
 ## Database (PostgreSQL) — rules (details: `docs/DATABASE.md`)
 - PostgreSQL is the only datastore. Never add a second database, driver or ORM beside Drizzle/postgres.js; `DATABASE_URL` is the only connection setting.

@@ -1,6 +1,6 @@
 # GWJ Infrastructure
 
-> Hosted ON the Oxy AWS account (`237343248947`, us-west-2, CLI `--profile oxy`) by user decision, but as fully ISOLATED `gwj-*` resources with its OWN PostgreSQL database `gwj` (own role) on the shared RDS instance `oxy-postgres` — GWJ shares no application data, database, role, SSO, or SDKs with Oxy. **Infra is STANDALONE terraform in `infra/`** (state: bucket `gwj-tf-state-237343248947`, key `gwj/terraform.tfstate`, us-west-2); Oxy's shared VPC/ALB/ECS cluster are read-only data sources, so a GWJ apply never touches Oxy. `plan`/`apply` are run by hand. Never commit secret values.
+> Hosted ON the Oxy AWS account (`237343248947`, us-west-2, CLI `--profile oxy`) by user decision, but as fully ISOLATED `gwj-*` resources with its OWN PostgreSQL database `gwj` (own role) on the shared RDS instance `oxy-postgres` — GWJ shares no application data, database, role or SSO with Oxy; its only use of Oxy is media on Oxy Files as its own application (`docs/OXY-FILES.md`). **Infra is STANDALONE terraform in `infra/`** (state: bucket `gwj-tf-state-237343248947`, key `gwj/terraform.tfstate`, us-west-2); Oxy's shared VPC/ALB/ECS cluster are read-only data sources, so a GWJ apply never touches Oxy. `plan`/`apply` are run by hand. Never commit secret values.
 
 ## What runs where
 | Piece | Where | Managed by |
@@ -9,7 +9,7 @@
 | Backend `gwj-backend` (port 4000, 2–4 tasks, CPU autoscaling) | ECS Fargate arm64 on the shared `oxy-cluster`, behind `oxy-alb` (`api.globalworldjournal.com`) | terraform (`infra/ecs.tf`) + CI deploys |
 | MCP `gwj-mcp` (port 4100, 1 task) | same, `mcp.globalworldjournal.com` | same |
 | Database | logical db `gwj`, role `gwj`, on `oxy-postgres` (`postgres.internal.oxy.so:5432`, TLS) | created out-of-band on the instance; schema by the deploy's migration one-shots |
-| Media | private S3 `gwj-media-usw2-<acct>` (versioned) + CloudFront `cdn.globalworldjournal.com` | terraform (`infra/cdn.tf`) |
+| Media | Oxy Files, as GWJ's own Oxy application (`docs/OXY-FILES.md`); LEGACY private S3 `gwj-media-usw2-<acct>` (versioned, read-only) + CloudFront `cdn.globalworldjournal.com` until retired | Oxy console + terraform (`infra/cdn.tf`) |
 | Secrets | SSM `/gwj/*` | terraform-seeded (`infra/ssm.tf`); `DATABASE_URL`, `TELEGRAM_BOT_TOKEN` set out-of-band and imported |
 | Alarms | CloudWatch → SNS `gwj-alerts` | terraform (`infra/monitoring.tf`) |
 | DNS | Cloudflare: `api`, `mcp`, `cdn` CNAMEs (DNS-only), ACM validation records | by hand |

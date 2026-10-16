@@ -49,34 +49,26 @@ resource "aws_iam_role_policy" "ecs_execution_ssm" {
   policy = data.aws_iam_policy_document.ecs_execution_ssm.json
 }
 
-# === ECS task role (the running container: writes article media to S3) ===
+# === ECS task role (the running container) ===
 resource "aws_iam_role" "ecs_task" {
   name               = "${var.prefix}-ecs-task"
   assume_role_policy = data.aws_iam_policy_document.ecs_execution_assume.json
 }
 
+# The legacy media bucket is READ-ONLY: every image is a GWJ-owned Oxy file
+# since docs/OXY-FILES.md, and nothing in GWJ writes the bucket. The one-time
+# migration (src/media/migrateToOxy.ts, an ECS one-shot under this role) lists
+# and reads every object — writers/ included. Removed with the bucket.
 data "aws_iam_policy_document" "ecs_task_s3" {
   statement {
-    sid     = "GwjMediaArticlesRW"
-    actions = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
-    resources = [
-      "${aws_s3_bucket.media.arn}/articles/*",
-      # Instagram's generated headline-card images (instagramChannel.ts's
-      # SOCIAL_CARD_KEY_PREFIX) — never granted here when that channel
-      # shipped, so every Instagram publish has been failing outright on
-      # s3:PutObject, confirmed live in production logs.
-      "${aws_s3_bucket.media.arn}/social-cards/*",
-    ]
+    sid       = "GwjLegacyMediaRead"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.media.arn}/*"]
   }
   statement {
-    sid       = "GwjMediaList"
+    sid       = "GwjLegacyMediaList"
     actions   = ["s3:ListBucket"]
     resources = [aws_s3_bucket.media.arn]
-    condition {
-      test     = "StringLike"
-      variable = "s3:prefix"
-      values   = ["articles/*", "social-cards/*"]
-    }
   }
 }
 
