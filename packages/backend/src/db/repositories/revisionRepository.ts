@@ -25,6 +25,7 @@ export function snapshotOf(row: ArticleRow): ArticleSnapshot {
     tags: row.tags,
     seo: row.seo,
     source: row.source,
+    sources: row.sources,
   };
 }
 
