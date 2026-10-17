@@ -30,9 +30,9 @@ function readQuery(req: Request): PublicArticleListQuery {
   return req.validatedQuery as PublicArticleListQuery;
 }
 
-/** Drop the internal `source` provenance: it is for the newsroom, never readers. */
+/** Drop the internal `source`/`sources` provenance: it is for the newsroom, never readers. */
 function toPublicArticle(article: Article): PublicArticle {
-  const { source, ...publicFields } = article;
+  const { source, sources, ...publicFields } = article;
   return publicFields;
 }
 

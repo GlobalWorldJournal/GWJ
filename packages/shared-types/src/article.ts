@@ -177,8 +177,15 @@ export const ArticleInputSchema = z.object({
   tags: z.array(z.string()).default([]).describe('3-6 relevant tags.'),
   seo: SeoSchema,
   source: SourceSchema.optional().describe(
-    'Internal provenance only — never shown to readers. Record this on every article the newsroom writes from an outside source, so the story and its photo can be traced and re-attributed later.',
+    'Internal provenance only — never shown to readers. Record this on every article the newsroom writes from a single outside source, so the story and its photo can be traced and re-attributed later.',
   ),
+  sources: z
+    .array(SourceSchema)
+    .max(20)
+    .optional()
+    .describe(
+      'Internal provenance only — never shown to readers. For a piece drawn from MULTIPLE outlets (a commissioned long-form feature): every outlet it used. `source` remains the single primary source for an ordinary single-source story; this is the plural counterpart for when there is more than one. A reader-facing source list belongs in the body\'s own prose (attributed inline, e.g. "according to Reuters"), never as a separate section generated from this field.',
+    ),
   scheduledAt: z
     .string()
     .datetime()
@@ -236,9 +243,10 @@ export type Article = z.infer<typeof ArticleSchema>;
 
 /**
  * The article as the PUBLIC API serves it to readers: everything except the
- * internal `source` provenance, which is for the newsroom and admins only.
+ * internal `source`/`sources` provenance, which is for the newsroom and
+ * admins only.
  */
-export const PublicArticleSchema = ArticleSchema.omit({ source: true });
+export const PublicArticleSchema = ArticleSchema.omit({ source: true, sources: true });
 export type PublicArticle = z.infer<typeof PublicArticleSchema>;
 
 /**
@@ -275,6 +283,7 @@ export const ArticleSnapshotSchema = z.object({
   tags: z.array(z.string()),
   seo: SeoSchema,
   source: SourceSchema.nullable(),
+  sources: z.array(SourceSchema).nullable(),
 });
 export type ArticleSnapshot = z.infer<typeof ArticleSnapshotSchema>;
 

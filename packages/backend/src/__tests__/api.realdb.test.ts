@@ -226,32 +226,41 @@ describe('GWJ API', () => {
     expect(admin.body.data.map((a: { title: string }) => a.title)).toEqual(['Secret merger draft']);
   });
 
-  it('public responses omit the internal source provenance; admin responses keep it', async () => {
+  it('public responses omit the internal source/sources provenance; admin responses keep it', async () => {
     const token = await loginToken();
     const source = { name: 'Wire', articleUrl: 'https://example.com/original' };
+    const sources = [
+      { name: 'Reuters', articleUrl: 'https://example.com/a' },
+      { name: 'El País', articleUrl: 'https://example.com/b' },
+    ];
     const created = await request(app)
       .post('/api/admin/articles')
       .set('authorization', `Bearer ${token}`)
-      .send({ ...validArticle(), title: 'Provenance story', status: 'published', source });
+      .send({ ...validArticle(), title: 'Provenance story', status: 'published', source, sources });
     expect(created.status).toBe(201);
     expect(created.body.source).toEqual(source);
+    expect(created.body.sources).toEqual(sources);
 
     const list = await request(app).get('/api/articles');
     expect(list.body.data).toHaveLength(1);
     expect(list.body.data[0]).not.toHaveProperty('source');
+    expect(list.body.data[0]).not.toHaveProperty('sources');
 
     const single = await request(app).get(`/api/articles/${created.body.slug}`);
     expect(single.status).toBe(200);
     expect(single.body).not.toHaveProperty('source');
+    expect(single.body).not.toHaveProperty('sources');
 
     const search = await request(app).get('/api/search?q=provenance');
     expect(search.body.data).toHaveLength(1);
     expect(search.body.data[0]).not.toHaveProperty('source');
+    expect(search.body.data[0]).not.toHaveProperty('sources');
 
     const admin = await request(app)
       .get(`/api/admin/articles/${created.body.id}`)
       .set('authorization', `Bearer ${token}`);
     expect(admin.body.source).toEqual(source);
+    expect(admin.body.sources).toEqual(sources);
   });
 
   it('?featured=false does not filter to featured stories only', async () => {

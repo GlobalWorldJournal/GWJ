@@ -48,6 +48,9 @@ export function rowToArticle(row: ArticleRow): Article {
   const source: Source | undefined = row.source
     ? { name: row.source.name, articleUrl: row.source.articleUrl, imageUrl: row.source.imageUrl }
     : undefined;
+  const sources: Source[] | undefined = row.sources
+    ? row.sources.map((s) => ({ name: s.name, articleUrl: s.articleUrl, imageUrl: s.imageUrl }))
+    : undefined;
 
   return {
     id: row.id,
@@ -66,6 +69,7 @@ export function rowToArticle(row: ArticleRow): Article {
     tags: row.tags,
     seo,
     source,
+    sources,
     publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
     firstPublishedAt: row.firstPublishedAt ? row.firstPublishedAt.toISOString() : null,
     scheduledAt: row.scheduledAt ? row.scheduledAt.toISOString() : null,

@@ -465,6 +465,7 @@ export const articleService: ArticleService = {
         tags: input.tags,
         seo: input.seo,
         source: input.source,
+        sources: input.sources,
         publishedAt: input.status === 'published' ? now : null,
         firstPublishedAt: input.status === 'published' ? now : null,
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
@@ -493,6 +494,7 @@ export const articleService: ArticleService = {
         tags: patch.tags,
         seo: patch.seo ? mergeSeo(current.seo, patch.seo) : undefined,
         source: patch.source,
+        sources: patch.sources,
       };
 
       // Slugs are frozen once an article has ever been live, so links shared on
@@ -644,6 +646,7 @@ export const articleService: ArticleService = {
         tags: snapshot.tags,
         seo: snapshot.seo,
         source: snapshot.source,
+        sources: snapshot.sources,
       };
     });
     return withTranslations(after, false);
