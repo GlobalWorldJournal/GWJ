@@ -1,5 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { CATEGORIES, type ArticleInput, type ArticleListQuery } from '@gwj/shared-types';
+import { eq, sql } from 'drizzle-orm';
+import { getDb } from '../../db/client';
+import { articleRevisions } from '../../db/schema/articleRevisions';
 import { articleService, setDeliveryPlanner } from '../articleService';
 import { jobsFor } from '../../channels/jobRepository';
 import { NotFoundError } from '../../errors';
@@ -324,6 +327,29 @@ describe('articleService — corrections', () => {
 
     const publicView = await articleService.getBySlug(article.slug);
     expect(publicView.corrections).toHaveLength(1);
+  });
+});
+
+describe('articleService.restoreRevision — photo credits', () => {
+  it('drops the outlet credits that history recorded before the rule', async () => {
+    const article = await articleService.create(
+      baseInput({
+        heroImage: { url: 'https://cdn.example.test/a.webp', alt: 'Traders', caption: 'Traders.' },
+      }),
+    );
+    await articleService.update(article.id, { title: 'Later title' });
+    const [revision] = await articleService.listRevisions(article.id);
+    const revisionId = revision?.id ?? 0;
+    await getDb()
+      .update(articleRevisions)
+      .set({
+        snapshot: sql`jsonb_set(jsonb_set(${articleRevisions.snapshot}, '{heroImage,caption}', '"Traders in New York. Brendan McDermid | Reuters"'), '{body}', to_jsonb(${articleRevisions.snapshot}->>'body' || E'\n\n_(AP Photo/Hadi Mizban)_'))`,
+      })
+      .where(eq(articleRevisions.id, revisionId));
+
+    const restored = await articleService.restoreRevision(article.id, revisionId);
+    expect(restored.heroImage?.caption).toBe('Traders in New York.');
+    expect(restored.body).toBe('# Markets\n\nMarkets rose **today**.');
   });
 });
 
