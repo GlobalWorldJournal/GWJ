@@ -2,6 +2,28 @@ import { z } from 'zod';
 import { CategorySchema } from './category';
 import { LanguageSchema } from './language';
 
+/** The label an outlet's photo credit starts with: "Foto:", "Photograph:", "(Crédit photo :", "Source:"… */
+const CREDIT_LABEL = String.raw`(?:photo(?:graph)?(?:\s+credit)?|foto(?:graf[ií]a)?|cr[ée]dits?(?:\s+photo)?|cr[ée]dito(?:\s+de\s+la\s+foto)?|source|fuente)`;
+const TRAILING_CREDIT = new RegExp(
+  String.raw`\s*\|?\s*[(\[]?\s*${CREDIT_LABEL}\s*:[^()\[\]\n]*[)\]]?\s*\.?\s*$`,
+  'i',
+);
+const CREDIT_LINE = new RegExp(String.raw`^[ \t]*[_*]*${CREDIT_LABEL}[ \t]*:[^\n]*$\n?`, 'gim');
+
+/**
+ * A caption without the photo credit an outlet appended to it ("… Foto: EFE",
+ * "(Crédit : X / AFP)"): GWJ prints no credit lines. Migration 0019 applies the
+ * same pattern to the stories stored before this rule.
+ */
+export function stripPhotoCredit(caption: string): string {
+  return caption.replace(TRAILING_CREDIT, '').trim();
+}
+
+/** A body without its credit-only lines ("Source: Reuters" under an inline image). */
+export function stripCreditLines(body: string): string {
+  return body.replace(CREDIT_LINE, '');
+}
+
 /** Ordered content blocks that make up an article body. */
 export const ContentBlockSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('paragraph'), text: z.string().min(1) }),
@@ -9,7 +31,7 @@ export const ContentBlockSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('image'),
     url: z.string().url(),
-    caption: z.string().optional(),
+    caption: z.string().transform(stripPhotoCredit).optional(),
     alt: z.string().default(''),
   }),
   z.object({
@@ -44,8 +66,11 @@ export const HeroImageSchema = z.object({
     ),
   caption: z
     .string()
+    .transform(stripPhotoCredit)
     .optional()
-    .describe('Optional caption shown under the image on the article page.'),
+    .describe(
+      'Optional caption shown under the image on the article page: what the photo shows, never a credit (a trailing "Photo: …" is removed).',
+    ),
   alt: z.string().default('').describe('Descriptive alt text for accessibility and SEO.'),
   // Filled in by the server from the upload (never needs to be sent).
   width: z.number().int().positive().optional().describe('Set by the server; do not send.'),
@@ -127,11 +152,10 @@ export const ArticleInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      'Clean Markdown prose only: headings, quotes, lists and images, nothing else. No HTML comments, JSON, source lists, credit lines or any other metadata inside it. HTML comments are stripped automatically if present, so they are silently lost rather than causing an error.',
+      'Clean Markdown prose only: headings, quotes, lists and images, nothing else. No HTML comments, JSON, source lists, credit lines or any other metadata inside it. HTML comments and credit-only lines are stripped automatically if present.',
     )
     .transform((s) =>
-      s
-        .replace(/<!--[\s\S]*?-->/g, '')
+      stripCreditLines(s.replace(/<!--[\s\S]*?-->/g, ''))
         .replace(/\n{3,}/g, '\n\n')
         .trim(),
     ),

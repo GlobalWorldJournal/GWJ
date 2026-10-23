@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import {
   ArticleInputSchema,
+  stripPhotoCredit,
   ArticleUpdateSchema,
   ContentBlockSchema,
   ArticleListQuerySchema,
@@ -118,5 +119,41 @@ describe('ArticleInputSchema — no provenance', () => {
     expect(r).not.toHaveProperty('source');
     expect(r).not.toHaveProperty('sources');
     expect(r.heroImage).not.toHaveProperty('credit');
+  });
+});
+
+describe('photo credits', () => {
+  it('strips the credit an outlet appended to a caption, in any edition', () => {
+    for (const [caption, clean] of [
+      ['Pedro Sánchez en Bruselas. Foto: Europa Press', 'Pedro Sánchez en Bruselas.'],
+      [
+        'Des manifestants à Paris. (Crédit : Sarah Meyssonnier / REUTERS)',
+        'Des manifestants à Paris.',
+      ],
+      ['Leaders in Berlin. Photograph: Tobias Schwarz/AFP/Getty Images', 'Leaders in Berlin.'],
+      ['El alcalde. (crédito de la foto: MARC ISRAEL SELLEM)', 'El alcalde.'],
+      ['Le maire adjoint. (crédit photo : MARC ISRAEL SELLEM)', 'Le maire adjoint.'],
+      ['Madrid, el 14 de octubre. | Foto: Europa Press', 'Madrid, el 14 de octubre.'],
+      ['A photo of the protest: thousands marched.', 'A photo of the protest: thousands marched.'],
+    ]) {
+      expect(stripPhotoCredit(caption ?? '')).toBe(clean ?? '');
+    }
+  });
+
+  it('applies on input: caption credits and credit-only body lines are dropped', () => {
+    const r = ArticleInputSchema.parse({
+      title: 'A story',
+      category: 'World',
+      author: 'Nate',
+      body: 'Lede.\n\n![Heat](https://cdn.example.test/a.webp)\n\n_Source: Reuters_\n\nThe source of the leak: unknown.',
+      heroImage: {
+        url: 'https://cdn.example.test/a.webp',
+        caption: 'Heat in Rome. Photo: Reuters',
+      },
+    });
+    expect(r.heroImage?.caption).toBe('Heat in Rome.');
+    expect(r.body).toBe(
+      'Lede.\n\n![Heat](https://cdn.example.test/a.webp)\n\nThe source of the leak: unknown.',
+    );
   });
 });
