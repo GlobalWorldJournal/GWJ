@@ -70,7 +70,7 @@ TEST_POSTGRES_URL=postgres://gwj:gwj@127.0.0.1:5432/postgres bun run test
 
 | table | key | notes |
 |---|---|---|
-| `articles` | `id` text, 24-hex | The id is embedded in every federated Note/Create/Announce id, admin URLs and MCP history, so its format is fixed (`src/db/ids.ts`). `heroImage`, `seo`, `source`, `corrections` are `jsonb`; `tags` is `text[]`; `translation_group_id` links the language editions of one story (unique per language); `search_vector` is a generated `tsvector`. |
+| `articles` | `id` text, 24-hex | The id is embedded in every federated Note/Create/Announce id, admin URLs and MCP history, so its format is fixed (`src/db/ids.ts`). `heroImage`, `seo`, `corrections` are `jsonb`; `tags` is `text[]`; `translation_group_id` links the language editions of one story (unique per language); `search_vector` is a generated `tsvector`. |
 | `article_slug_history` | `slug` | former slugs, kept so old URLs 301 to the current one; FK to `articles`, cascade |
 | `article_revisions` | identity `id` | the editable state before each change and who made it, written in the same transaction; FK to `articles`, cascade |
 | `article_channel_posts` | identity `id`; unique `(article_id, channel)` | where each article was delivered per distribution channel; no FK (a retraction runs after the article row is gone) |

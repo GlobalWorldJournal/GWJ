@@ -17,8 +17,8 @@
  *      the old URL keeps serving from cache and there is zero downtime.
  *   5. Verify the new URL returns HTTP 200 + `image/webp` BEFORE pointing the
  *      article at it.
- *   6. PATCH the article with the new `heroImage.url` (preserving alt/caption/
- *      credit) and the body rewritten to reference the new body-image URLs.
+ *   6. PATCH the article with the new `heroImage.url` (preserving alt/caption)
+ *      and the body rewritten to reference the new body-image URLs.
  *
  * Safety / idempotency:
  *   - READ-ONLY against anything not ours: images NOT on our CDN are skipped.
@@ -64,7 +64,6 @@ interface ApiHeroImage {
   url?: string;
   alt?: string;
   caption?: string;
-  credit?: string;
 }
 
 interface ApiArticle {
@@ -285,7 +284,7 @@ async function processArticle(article: ApiArticle): Promise<ArticleResult> {
   if (heroUrl) {
     const outcome = await optimizeImage(heroUrl);
     if (outcome.kind === 'optimized') {
-      // Preserve all other hero fields (alt/caption/credit); only swap the url.
+      // Preserve all other hero fields (alt/caption); only swap the url.
       patch.heroImage = { ...article.heroImage, url: outcome.newUrl };
       bytesBefore += outcome.before;
       bytesAfter += outcome.after;

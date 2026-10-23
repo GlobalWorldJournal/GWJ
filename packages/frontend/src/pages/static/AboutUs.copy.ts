@@ -20,7 +20,7 @@ export const ABOUT_US_COPY: Record<Language, AboutUsCopy> = {
       },
       {
         heading: 'How we work',
-        body: 'Our newsroom is AI-assisted and human-led. We use modern tools to help us gather, organize, and draft at the speed the news demands, but every story is shaped, verified, and approved by editors who answer for its accuracy. Our human editorial standards are not optional features layered on top of automation. They are the foundation, and they govern everything we publish.',
+        body: 'Every story we publish is reported, checked against the record, and edited before it runs, by editors who answer for its accuracy. When we get something wrong, we correct it openly. Our editorial standards are not a final layer added at the end. They are the foundation, and they govern everything we publish.',
       },
     ],
   },
@@ -37,7 +37,7 @@ export const ABOUT_US_COPY: Record<Language, AboutUsCopy> = {
       },
       {
         heading: 'Cómo trabajamos',
-        body: 'Nuestra redacción cuenta con asistencia de inteligencia artificial y está dirigida por personas. Usamos herramientas modernas para reunir, organizar y redactar a la velocidad que exige la actualidad, pero cada noticia es elaborada, verificada y aprobada por editores que responden de su exactitud. Nuestros estándares editoriales humanos no son funciones opcionales añadidas a la automatización: son el cimiento y rigen todo lo que publicamos.',
+        body: 'Cada noticia que publicamos se elabora, se contrasta con los hechos y se edita antes de salir, bajo la responsabilidad de editores que responden de su exactitud. Cuando nos equivocamos, lo corregimos abiertamente. Nuestros estándares editoriales no son un último retoque: son el cimiento y rigen todo lo que publicamos.',
       },
     ],
   },
@@ -54,7 +54,7 @@ export const ABOUT_US_COPY: Record<Language, AboutUsCopy> = {
       },
       {
         heading: 'Notre façon de travailler',
-        body: 'Notre rédaction est assistée par l’IA et dirigée par des humains. Nous utilisons des outils modernes pour collecter, organiser et rédiger à la vitesse qu’exige l’actualité, mais chaque article est façonné, vérifié et approuvé par des rédacteurs qui répondent de son exactitude. Nos standards éditoriaux humains ne sont pas des options superposées à l’automatisation : ils en sont le fondement et gouvernent tout ce que nous publions.',
+        body: 'Chaque article que nous publions est enquêté, vérifié et relu avant parution, sous la responsabilité de rédacteurs qui répondent de son exactitude. Lorsque nous nous trompons, nous le corrigeons ouvertement. Nos standards éditoriaux ne sont pas une touche finale : ils en sont le fondement et gouvernent tout ce que nous publions.',
       },
     ],
   },

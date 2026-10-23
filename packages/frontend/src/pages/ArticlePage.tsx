@@ -159,15 +159,9 @@ export function ArticlePage() {
                 fetchPriority="high"
                 decoding="async"
               />
-              {article.heroImage.caption || article.heroImage.credit ? (
-                <figcaption className="label mt-2 text-[0.6875rem] text-muted">
-                  {article.heroImage.caption ? (
-                    <span className="text-ink-soft">{article.heroImage.caption}</span>
-                  ) : null}
-                  {article.heroImage.caption && article.heroImage.credit ? ' ' : null}
-                  {article.heroImage.credit ? (
-                    <span className="text-muted">{article.heroImage.credit}</span>
-                  ) : null}
+              {article.heroImage.caption ? (
+                <figcaption className="label mt-2 text-[0.6875rem] text-ink-soft">
+                  {article.heroImage.caption}
                 </figcaption>
               ) : null}
             </figure>

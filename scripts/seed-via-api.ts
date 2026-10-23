@@ -20,7 +20,6 @@ if (!API || !USER || !PASS) {
 const hero = (seed: string) => ({
   url: `https://picsum.photos/seed/${seed}/1200/675`,
   alt: '',
-  credit: 'Photo: Demo',
 });
 
 const DEMO = [

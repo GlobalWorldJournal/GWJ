@@ -31,7 +31,7 @@ export const REPORT_COPY: Record<Language, ReportContentCopy> = {
     receivedAfter:
       ') has been logged for review. We take these reports seriously and will act on genuine claims; we may contact you at the email address you provided if we need more detail.',
     intro:
-      'Our newsroom credits every photograph to its original source, but attribution is not the same as a license. If you hold the rights to an image or article of yours that appears here without permission, or if something we published about you violates your rights, tell us below and we will review it.',
+      'We take the rights of photographers, writers and the people we cover seriously. If you believe something we published infringes your copyright, or that something we published about you violates your rights, tell us below and we will review it.',
     nameLabel: 'Your name',
     emailLabel: 'Your email (so we can follow up)',
     articleLabel: 'Link to the article (if applicable)',
@@ -56,7 +56,7 @@ export const REPORT_COPY: Record<Language, ReportContentCopy> = {
     receivedAfter:
       ') ha quedado registrada para su revisión. Nos tomamos estas denuncias en serio y actuaremos ante las reclamaciones legítimas; es posible que nos pongamos en contacto con usted en el correo electrónico que indicó si necesitamos más detalles.',
     intro:
-      'Nuestra redacción atribuye cada fotografía a su fuente original, pero la atribución no equivale a una licencia. Si usted posee los derechos de una imagen o un artículo suyo que aparece aquí sin permiso, o si algo que publicamos sobre usted vulnera sus derechos, cuéntenoslo a continuación y lo revisaremos.',
+      'Nos tomamos en serio los derechos de fotógrafos, autores y de las personas sobre las que informamos. Si cree que algo que hemos publicado infringe sus derechos de autor, o que algo que publicamos sobre usted vulnera sus derechos, cuéntenoslo a continuación y lo revisaremos.',
     nameLabel: 'Su nombre',
     emailLabel: 'Su correo electrónico (para poder responderle)',
     articleLabel: 'Enlace al artículo (si corresponde)',
@@ -82,7 +82,7 @@ export const REPORT_COPY: Record<Language, ReportContentCopy> = {
     receivedAfter:
       ') a été enregistrée pour examen. Nous prenons ces signalements au sérieux et donnerons suite aux réclamations légitimes ; nous pourrons vous contacter à l’adresse e-mail indiquée si nous avons besoin de précisions.',
     intro:
-      'Notre rédaction attribue chaque photographie à sa source d’origine, mais l’attribution ne vaut pas licence. Si vous détenez les droits d’une image ou d’un article qui apparaît ici sans autorisation, ou si un contenu que nous avons publié à votre sujet porte atteinte à vos droits, dites-le-nous ci-dessous et nous l’examinerons.',
+      'Nous prenons au sérieux les droits des photographes, des auteurs et des personnes dont nous parlons. Si vous estimez qu’un contenu que nous avons publié porte atteinte à vos droits d’auteur, ou qu’un contenu publié à votre sujet porte atteinte à vos droits, dites-le-nous ci-dessous et nous l’examinerons.',
     nameLabel: 'Votre nom',
     emailLabel: 'Votre adresse e-mail (pour que nous puissions vous répondre)',
     articleLabel: 'Lien vers l’article (le cas échéant)',

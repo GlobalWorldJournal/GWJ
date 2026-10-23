@@ -470,9 +470,6 @@ function EditorForm({ initial, article }: EditorFormProps) {
           onCaptionChange={(caption) =>
             update('heroImage', form.heroImage ? { ...form.heroImage, caption } : null)
           }
-          onCreditChange={(credit) =>
-            update('heroImage', form.heroImage ? { ...form.heroImage, credit } : null)
-          }
           onRemove={() => update('heroImage', null)}
         />
 
@@ -514,8 +511,6 @@ function EditorForm({ initial, article }: EditorFormProps) {
           </div>
         </fieldset>
 
-        {saved?.source ? <ProvenancePanel source={saved.source} /> : null}
-
         {saved ? (
           <>
             <TranslationsPanel article={saved} onLinked={setSaved} />
@@ -531,45 +526,6 @@ function EditorForm({ initial, article }: EditorFormProps) {
         ) : null}
       </div>
     </div>
-  );
-}
-
-/* ---------- provenance (read-only, never shown to readers) ---------- */
-
-function ProvenancePanel({ source }: { source: NonNullable<Article['source']> }) {
-  return (
-    <fieldset className="border border-rule p-4">
-      <legend className="label px-2 text-[0.625rem] text-ink-soft">Provenance (internal)</legend>
-      <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-[0.85rem] text-ink-soft">
-        {source.name ? (
-          <>
-            <dt className="label text-[0.625rem]">Outlet</dt>
-            <dd>{source.name}</dd>
-          </>
-        ) : null}
-        {source.articleUrl ? (
-          <>
-            <dt className="label text-[0.625rem]">Article</dt>
-            <dd className="break-all">
-              <a
-                href={source.articleUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="underline"
-              >
-                {source.articleUrl}
-              </a>
-            </dd>
-          </>
-        ) : null}
-        {source.imageUrl ? (
-          <>
-            <dt className="label text-[0.625rem]">Image</dt>
-            <dd className="break-all">{source.imageUrl}</dd>
-          </>
-        ) : null}
-      </dl>
-    </fieldset>
   );
 }
 
@@ -603,7 +559,6 @@ interface HeroImageFieldProps {
   onUpload: (file: File) => void;
   onAltChange: (alt: string) => void;
   onCaptionChange: (caption: string) => void;
-  onCreditChange: (credit: string) => void;
   onRemove: () => void;
 }
 
@@ -613,7 +568,6 @@ function HeroImageField({
   onUpload,
   onAltChange,
   onCaptionChange,
-  onCreditChange,
   onRemove,
 }: HeroImageFieldProps) {
   return (
@@ -627,9 +581,6 @@ function HeroImageField({
           </Field>
           <Field label="Caption">
             <TextInput value={heroImage.caption ?? ''} onChange={onCaptionChange} />
-          </Field>
-          <Field label="Credit">
-            <TextInput value={heroImage.credit ?? ''} onChange={onCreditChange} />
           </Field>
           <button
             type="button"

@@ -83,15 +83,15 @@ const DISTRIBUTED_FIELDS = [
 /**
  * A field as a distributed post shows it. The hero image's size and renditions
  * are server metadata (recorded on upload, backfilled for older images): a post
- * shows the picture, its words and credit, so only those count as a change.
+ * shows the picture and its words, so only those count as a change.
  */
 function distributedValue(
   state: DistributionState,
   field: (typeof DISTRIBUTED_FIELDS)[number],
 ): unknown {
   if (field !== 'heroImage' || !state.heroImage) return state[field];
-  const { url, alt, caption, credit } = state.heroImage;
-  return { url, alt, caption, credit };
+  const { url, alt, caption } = state.heroImage;
+  return { url, alt, caption };
 }
 
 type DistributionState = Pick<
@@ -464,8 +464,6 @@ export const articleService: ArticleService = {
         featured: input.featured,
         tags: input.tags,
         seo: input.seo,
-        source: input.source,
-        sources: input.sources,
         publishedAt: input.status === 'published' ? now : null,
         firstPublishedAt: input.status === 'published' ? now : null,
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
@@ -493,8 +491,6 @@ export const articleService: ArticleService = {
         featured: patch.featured,
         tags: patch.tags,
         seo: patch.seo ? mergeSeo(current.seo, patch.seo) : undefined,
-        source: patch.source,
-        sources: patch.sources,
       };
 
       // Slugs are frozen once an article has ever been live, so links shared on
@@ -645,8 +641,6 @@ export const articleService: ArticleService = {
         featured: snapshot.featured,
         tags: snapshot.tags,
         seo: snapshot.seo,
-        source: snapshot.source,
-        sources: snapshot.sources,
       };
     });
     return withTranslations(after, false);

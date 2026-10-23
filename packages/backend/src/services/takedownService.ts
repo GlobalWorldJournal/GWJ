@@ -1,4 +1,4 @@
-import { count, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type {
   PaginatedTakedownRequests,
   TakedownAction,
@@ -34,8 +34,8 @@ export function takedownRequestToDTO(row: TakedownRequestRow): TakedownRequestRe
 
 /**
  * Best-effort match of a submitted URL to one of our own articles: either it
- * names the story's own page (`/article/<slug>`), or it is the CDN/original
- * URL we recorded internally when the newsroom copied the image. Returns
+ * names the story's own page (`/article/<slug>`), or it is the story's hero
+ * image on our CDN. Returns
  * null rather than guessing when nothing matches — a request with no
  * resolved article still gets reviewed, just without a one-click action.
  */
@@ -53,19 +53,14 @@ async function resolveArticleId(input: TakedownRequestInput): Promise<string | n
   }
   const urls = [input.articleUrl, input.imageUrl].filter((u): u is string => !!u);
   if (urls.length === 0) return null;
-  const provenance: SQL[] = [
-    inArray(sql`${articles.heroImage}->>'url'`, urls),
-    inArray(sql`${articles.source}->>'articleUrl'`, urls),
-    inArray(sql`${articles.source}->>'imageUrl'`, urls),
-  ];
   // Oldest first, so the match is deterministic when several articles carry the URL.
-  const [byProvenance] = await db
+  const [byImage] = await db
     .select({ id: articles.id })
     .from(articles)
-    .where(or(...provenance))
+    .where(inArray(sql`${articles.heroImage}->>'url'`, urls))
     .orderBy(articles.createdAt, articles.id)
     .limit(1);
-  return byProvenance?.id ?? null;
+  return byImage?.id ?? null;
 }
 
 async function findRowById(id: string): Promise<TakedownRequestRow> {

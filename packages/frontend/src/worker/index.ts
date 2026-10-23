@@ -387,10 +387,10 @@ function articleContentHtml(article: PublicArticle, image: string): string {
   if (article.deck) parts.push(`<p>${escapeHtml(article.deck)}</p>`);
   parts.push(`<p>By ${escapeHtml(article.author)}</p>`);
   if (image) {
-    const credit = article.heroImage?.credit ?? '';
+    const caption = article.heroImage?.caption ?? '';
     parts.push(
       `<figure><img src="${escapeHtml(image)}" alt="${escapeHtml(article.heroImage?.alt || article.title)}" />` +
-        (credit ? `<figcaption>${escapeHtml(credit)}</figcaption>` : '') +
+        (caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : '') +
         '</figure>',
     );
   }

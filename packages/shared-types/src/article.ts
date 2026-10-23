@@ -10,7 +10,6 @@ export const ContentBlockSchema = z.discriminatedUnion('type', [
     type: z.literal('image'),
     url: z.string().url(),
     caption: z.string().optional(),
-    credit: z.string().optional(),
     alt: z.string().default(''),
   }),
   z.object({
@@ -47,10 +46,6 @@ export const HeroImageSchema = z.object({
     .string()
     .optional()
     .describe('Optional caption shown under the image on the article page.'),
-  credit: z
-    .string()
-    .optional()
-    .describe('Photo credit shown under the image, e.g. "Source: Reuters".'),
   alt: z.string().default('').describe('Descriptive alt text for accessibility and SEO.'),
   // Filled in by the server from the upload (never needs to be sent).
   width: z.number().int().positive().optional().describe('Set by the server; do not send.'),
@@ -78,26 +73,6 @@ export const SeoSchema = z
   })
   .default({});
 export type Seo = z.infer<typeof SeoSchema>;
-
-/**
- * Provenance for internal record-keeping (not shown to readers). Captures where
- * the story and its hero image originally came from so we can trace/attribute
- * later. `imageUrl` is the ORIGINAL image URL before we copied it to our CDN.
- */
-export const SourceSchema = z.object({
-  name: z.string().optional().describe('The original outlet\'s name, e.g. "Reuters".'),
-  articleUrl: z
-    .string()
-    .url()
-    .optional()
-    .describe("The original news article's URL, for later tracing/re-attribution."),
-  imageUrl: z
-    .string()
-    .url()
-    .optional()
-    .describe('The ORIGINAL image URL passed to upload_image, before it was copied to our CDN.'),
-});
-export type Source = z.infer<typeof SourceSchema>;
 
 /** A URL slug: lowercase ASCII words joined by single dashes (what `slugify` emits). */
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -152,7 +127,7 @@ export const ArticleInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      'Clean Markdown prose only: headings, quotes, lists and images, nothing else. No HTML comments, JSON, provenance notes or any other metadata inside it — provenance belongs in `source`, image credit in `heroImage.credit`. HTML comments are stripped automatically if present, so they are silently lost rather than causing an error; put that information in the right field instead.',
+      'Clean Markdown prose only: headings, quotes, lists and images, nothing else. No HTML comments, JSON, source lists, credit lines or any other metadata inside it. HTML comments are stripped automatically if present, so they are silently lost rather than causing an error.',
     )
     .transform((s) =>
       s
@@ -161,7 +136,7 @@ export const ArticleInputSchema = z.object({
         .trim(),
     ),
   heroImage: HeroImageSchema.optional().describe(
-    "Required in practice: every article needs one. Upload the source's lead photo with upload_image first and use the CDN url this returns; never a raw external image url.",
+    'Required in practice: every article needs one. Upload the lead photo with upload_image first and use the CDN url this returns; never a raw external image url.',
   ),
   status: ArticleStatusSchema.default('draft').describe(
     "Normally left to create_article's own draft:false/true flag rather than set directly.",
@@ -176,16 +151,6 @@ export const ArticleInputSchema = z.object({
     ),
   tags: z.array(z.string()).default([]).describe('3-6 relevant tags.'),
   seo: SeoSchema,
-  source: SourceSchema.optional().describe(
-    'Internal provenance only — never shown to readers. Record this on every article the newsroom writes from a single outside source, so the story and its photo can be traced and re-attributed later.',
-  ),
-  sources: z
-    .array(SourceSchema)
-    .max(20)
-    .optional()
-    .describe(
-      'Internal provenance only — never shown to readers. For a piece drawn from MULTIPLE outlets (a commissioned long-form feature): every outlet it used. `source` remains the single primary source for an ordinary single-source story; this is the plural counterpart for when there is more than one. A reader-facing source list belongs in the body\'s own prose (attributed inline, e.g. "according to Reuters"), never as a separate section generated from this field.',
-    ),
   scheduledAt: z
     .string()
     .datetime()
@@ -241,12 +206,8 @@ export const ArticleSchema = ArticleInputSchema.omit({ translationOf: true }).ex
 });
 export type Article = z.infer<typeof ArticleSchema>;
 
-/**
- * The article as the PUBLIC API serves it to readers: everything except the
- * internal `source`/`sources` provenance, which is for the newsroom and
- * admins only.
- */
-export const PublicArticleSchema = ArticleSchema.omit({ source: true, sources: true });
+/** The article as the PUBLIC API serves it to readers (the same fields admins see). */
+export const PublicArticleSchema = ArticleSchema;
 export type PublicArticle = z.infer<typeof PublicArticleSchema>;
 
 /**
@@ -282,8 +243,6 @@ export const ArticleSnapshotSchema = z.object({
   featured: z.number().int(),
   tags: z.array(z.string()),
   seo: SeoSchema,
-  source: SourceSchema.nullable(),
-  sources: z.array(SourceSchema).nullable(),
 });
 export type ArticleSnapshot = z.infer<typeof ArticleSnapshotSchema>;
 

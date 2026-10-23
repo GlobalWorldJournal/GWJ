@@ -9,12 +9,8 @@ import {
   TakedownRequestInputSchema,
   type ActiveAdQuery,
   type ActiveAdResponse,
-  type Article,
-  type PaginatedArticles,
-  type PaginatedPublicArticles,
   type PopularArticles,
   type PopularArticlesQuery,
-  type PublicArticle,
   type PublicArticleListQuery,
   type TakedownRequestInput,
 } from '@gwj/shared-types';
@@ -28,16 +24,6 @@ import { BadRequestError, NotFoundError } from '../errors';
 function readQuery(req: Request): PublicArticleListQuery {
   // `validate(..., 'query')` has already parsed and stashed the typed value.
   return req.validatedQuery as PublicArticleListQuery;
-}
-
-/** Drop the internal `source`/`sources` provenance: it is for the newsroom, never readers. */
-function toPublicArticle(article: Article): PublicArticle {
-  const { source, sources, ...publicFields } = article;
-  return publicFields;
-}
-
-function toPublicPage(page: PaginatedArticles): PaginatedPublicArticles {
-  return { data: page.data.map(toPublicArticle), pagination: page.pagination };
 }
 
 /**
@@ -69,8 +55,7 @@ export function createPublicRouter(): Router {
     '/articles',
     validate(PublicArticleListQuerySchema, 'query'),
     async (req: Request, res: Response) => {
-      const result = await articleService.list(readQuery(req));
-      res.json(toPublicPage(result));
+      res.json(await articleService.list(readQuery(req)));
     },
   );
 
@@ -81,7 +66,7 @@ export function createPublicRouter(): Router {
     async (req: Request, res: Response) => {
       const query = req.validatedQuery as PopularArticlesQuery;
       const body: PopularArticles = {
-        data: (await articleService.popular(query)).map(toPublicArticle),
+        data: await articleService.popular(query),
       };
       res.json(body);
     },
@@ -103,7 +88,7 @@ export function createPublicRouter(): Router {
   router.get('/articles/:slug', async (req: Request, res: Response) => {
     const slug = requireParam(req, 'slug');
     try {
-      res.json(toPublicArticle(await articleService.getBySlug(slug)));
+      res.json(await articleService.getBySlug(slug));
     } catch (err) {
       if (!(err instanceof NotFoundError)) throw err;
       // A slug the article used to have: permanently redirect to its current one,
@@ -130,8 +115,7 @@ export function createPublicRouter(): Router {
       const query = readQuery(req);
       const q = query.q?.trim();
       if (!q) throw new BadRequestError('Query parameter "q" is required');
-      const result = await articleService.search(q, query);
-      res.json(toPublicPage(result));
+      res.json(await articleService.search(q, query));
     },
   );
 

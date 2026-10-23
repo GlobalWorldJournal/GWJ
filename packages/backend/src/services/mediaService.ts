@@ -52,7 +52,6 @@ export async function withImageMetadata(image: HeroImage): Promise<HeroImage> {
     url: image.url,
     alt: image.alt,
     ...(image.caption !== undefined ? { caption: image.caption } : {}),
-    ...(image.credit !== undefined ? { credit: image.credit } : {}),
   };
   const media = await findMediaByUrl(image.url);
   if (!media) return given;

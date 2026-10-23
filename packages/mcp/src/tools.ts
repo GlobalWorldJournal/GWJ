@@ -204,7 +204,7 @@ export function registerTools(server: McpServer, client: GwjClient): McpServer {
     'upload_image',
     {
       description:
-        'Copy an image to our CDN from a remote URL (preferred) or base64 data. It is validated first: a 422 means the source is unusable (not an image, truncated, too small or too large) — try another source. Returns the CDN url. Alt text belongs on the article (heroImage.alt or the Markdown image), not here.',
+        'Copy an image to our CDN from a remote URL (preferred) or base64 data. It is validated first: a 422 means the image is unusable (not an image, truncated, too small or too large) — try another image. Returns the CDN url. Alt text belongs on the article (heroImage.alt or the Markdown image), not here.',
       inputSchema: UploadImageShape,
     },
     (args) => guard(async () => jsonResult(await client.uploadImage(args))),
