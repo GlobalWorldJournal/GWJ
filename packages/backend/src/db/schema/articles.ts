@@ -20,7 +20,6 @@ import {
   type HeroImage,
   type Language,
   type Seo,
-  type Source,
 } from '@gwj/shared-types';
 import { RECORD_ID_SQL_PATTERN } from '../ids';
 import { sqlInList } from '../sqlLiterals';
@@ -75,10 +74,6 @@ export const articles = pgTable(
     featured: integer().notNull().default(0),
     tags: text().array().notNull().default(sql`'{}'::text[]`),
     seo: jsonb().$type<Seo>().notNull().default(sql`'{}'::jsonb`),
-    /** Internal provenance (never shown to readers): the single primary source for an ordinary story. */
-    source: jsonb().$type<Source>(),
-    /** Internal provenance (never shown to readers): every outlet for a piece drawn from more than one (a commissioned feature). */
-    sources: jsonb().$type<Source[]>(),
     publishedAt: timestamp({ withTimezone: true, mode: 'date' }),
     /**
      * When the article first went live. Never cleared (unpublish only clears

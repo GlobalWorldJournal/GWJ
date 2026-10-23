@@ -41,6 +41,9 @@ TypeScript (strict), Vite 6, React 19, Tailwind 4, Express 5, Drizzle ORM + post
 - DB tests are `*.realdb.test.ts` against real Postgres: `TEST_POSTGRES_URL=postgres://gwj:gwj@127.0.0.1:5432/postgres bun run test` (`docker compose up -d postgres`). No mocks, no skips.
 - Article/user ids stay 24-hex (federated Note ids embed them). SQLSTATE is on `err.cause` — use `src/db/pgErrors.ts`.
 
+## Editorial voice (user decision, 2026-10-23)
+Every story is GWJ's own reporting. Nothing published or stored may reveal outside provenance or AI drafting: no `source`/provenance fields, no outlet photo credits (there is no credit field), no source lists in bodies, no AI disclosures in copy. Name another outlet only for a direct quote or an exclusive given to it.
+
 ## Categories (fixed)
 `World, Business, Markets, Tech, Politics, Opinion, Arts`
 

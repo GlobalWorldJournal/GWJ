@@ -53,20 +53,14 @@ const validArticle = () => ({
   body: '# Wire Photo Story\n\nSomething happened, with a borrowed photo.',
   heroImage: {
     url: 'https://cdn.example.test/articles/wire.jpg',
-    credit: 'Source: Example Wire',
     alt: 'A photo',
-  },
-  source: {
-    name: 'Example Wire',
-    articleUrl: 'https://example.com/news/wire-story',
-    imageUrl: 'https://example.com/wire.jpg',
   },
 });
 
 const validRequest = (overrides: Record<string, unknown> = {}) => ({
   requesterName: 'Jamie Rights-Holder',
   requesterEmail: 'jamie@example.com',
-  imageUrl: 'https://example.com/wire.jpg',
+  imageUrl: 'https://cdn.example.test/articles/wire.jpg',
   claimType: 'copyright',
   explanation: 'That photograph is mine; it was used without a license.',
   goodFaithAssertion: true,

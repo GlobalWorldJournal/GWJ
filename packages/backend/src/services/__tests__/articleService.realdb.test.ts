@@ -154,7 +154,6 @@ describe('articleService — PostgreSQL semantics', () => {
     const article = await articleService.create(baseInput());
     expect('deck' in article && article.deck !== undefined).toBe(false);
     expect(article.heroImage).toBeUndefined();
-    expect(article.source).toBeUndefined();
     expect(article.seo).toEqual({
       metaTitle: undefined,
       metaDescription: undefined,
@@ -162,12 +161,11 @@ describe('articleService — PostgreSQL semantics', () => {
     });
   });
 
-  it('round-trips the sub-documents (heroImage, seo, source) and tags', async () => {
+  it('round-trips the sub-documents (heroImage, seo) and tags', async () => {
     const article = await articleService.create(
       baseInput({
-        heroImage: { url: 'https://cdn.example.test/a.jpg', alt: 'Alt', credit: 'AP' },
+        heroImage: { url: 'https://cdn.example.test/a.jpg', alt: 'Alt', caption: 'A caption' },
         seo: { metaTitle: 'Meta' },
-        source: { name: 'Wire', articleUrl: 'https://wire.example/a' },
         tags: ['a', 'b'],
       }),
     );
@@ -175,11 +173,9 @@ describe('articleService — PostgreSQL semantics', () => {
     expect(read.heroImage).toEqual({
       url: 'https://cdn.example.test/a.jpg',
       alt: 'Alt',
-      credit: 'AP',
-      caption: undefined,
+      caption: 'A caption',
     });
     expect(read.seo.metaTitle).toBe('Meta');
-    expect(read.source?.articleUrl).toBe('https://wire.example/a');
     expect(read.tags).toEqual(['a', 'b']);
   });
 

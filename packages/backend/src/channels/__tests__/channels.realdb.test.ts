@@ -52,7 +52,6 @@ function makeArticle(overrides: Partial<Article> = {}): Article {
     featured: 0,
     tags: [],
     seo: {},
-    source: undefined,
     publishedAt: new Date().toISOString(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

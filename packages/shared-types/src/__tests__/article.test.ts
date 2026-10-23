@@ -5,7 +5,6 @@ import {
   ContentBlockSchema,
   ArticleListQuerySchema,
   PublicArticleListQuerySchema,
-  PublicArticleSchema,
   slugify,
   CATEGORIES,
 } from '../index';
@@ -101,21 +100,23 @@ describe('PublicArticleListQuerySchema', () => {
   });
 });
 
-describe('PublicArticleSchema', () => {
-  it('strips internal source provenance', () => {
-    const r = PublicArticleSchema.parse({
-      id: 'a'.repeat(24),
-      slug: 'a-story',
+describe('ArticleInputSchema — no provenance', () => {
+  it('drops outlet provenance and photo credits a client still sends', () => {
+    const r = ArticleInputSchema.parse({
       title: 'A story',
       category: 'World',
       author: 'Nate',
       body: 'Body',
-      seo: {},
+      heroImage: {
+        url: 'https://cdn.example.test/a.webp',
+        alt: 'A',
+        credit: 'Source: wire.example',
+      },
       source: { name: 'Wire', articleUrl: 'https://example.com/a' },
-      publishedAt: null,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
+      sources: [{ name: 'Wire', articleUrl: 'https://example.com/a' }],
     });
     expect(r).not.toHaveProperty('source');
+    expect(r).not.toHaveProperty('sources');
+    expect(r.heroImage).not.toHaveProperty('credit');
   });
 });

@@ -12,7 +12,7 @@ function article(overrides: Partial<Article> = {}): Article {
     language: 'en',
     author: 'Eleanor Vance',
     body: 'Body',
-    heroImage: { url: 'https://cdn.example.test/hero.webp', alt: '', credit: '' },
+    heroImage: { url: 'https://cdn.example.test/hero.webp', alt: '' },
     ...overrides,
   } as Article;
 }

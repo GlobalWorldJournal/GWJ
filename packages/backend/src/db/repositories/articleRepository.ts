@@ -5,7 +5,6 @@ import {
   type HeroImage,
   type Language,
   type Seo,
-  type Source,
   type TranslationRef,
 } from '@gwj/shared-types';
 import { getDb, type Database } from '../client';
@@ -32,7 +31,6 @@ export function rowToArticle(row: ArticleRow): Article {
     ? {
         url: hero.url,
         caption: hero.caption,
-        credit: hero.credit,
         alt: hero.alt ?? '',
         // Server-recorded size and srcset renditions (see mediaService).
         ...(hero.width ? { width: hero.width } : {}),
@@ -45,12 +43,6 @@ export function rowToArticle(row: ArticleRow): Article {
     metaDescription: row.seo.metaDescription,
     ogImage: row.seo.ogImage,
   };
-  const source: Source | undefined = row.source
-    ? { name: row.source.name, articleUrl: row.source.articleUrl, imageUrl: row.source.imageUrl }
-    : undefined;
-  const sources: Source[] | undefined = row.sources
-    ? row.sources.map((s) => ({ name: s.name, articleUrl: s.articleUrl, imageUrl: s.imageUrl }))
-    : undefined;
 
   return {
     id: row.id,
@@ -68,8 +60,6 @@ export function rowToArticle(row: ArticleRow): Article {
     featured: row.featured,
     tags: row.tags,
     seo,
-    source,
-    sources,
     publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
     firstPublishedAt: row.firstPublishedAt ? row.firstPublishedAt.toISOString() : null,
     scheduledAt: row.scheduledAt ? row.scheduledAt.toISOString() : null,

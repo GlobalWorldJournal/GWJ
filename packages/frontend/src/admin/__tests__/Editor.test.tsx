@@ -48,7 +48,6 @@ function article(overrides: Partial<Article> = {}): Article {
     featured: 3,
     tags: ['nato'],
     seo: { metaTitle: 'Agent title', metaDescription: 'Agent description' },
-    source: { name: 'Wire', articleUrl: 'https://example.com/original' },
     publishedAt: '2026-06-23T10:00:00.000Z',
     firstPublishedAt: '2026-06-23T10:00:00.000Z',
     createdAt: '2026-06-23T09:00:00.000Z',
@@ -102,7 +101,6 @@ describe('Editor', () => {
     renderEditor();
     await waitFor(() => expect(screen.getByDisplayValue('Original headline')).toBeInTheDocument());
     expect(getAdminArticle).toHaveBeenCalledWith('test-token', ARTICLE_ID, expect.anything());
-    expect(screen.getByText('https://example.com/original')).toBeInTheDocument();
   });
 
   it('updating a live story never sends a status and keeps its SEO fields', async () => {

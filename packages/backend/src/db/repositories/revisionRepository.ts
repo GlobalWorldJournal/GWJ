@@ -24,8 +24,6 @@ export function snapshotOf(row: ArticleRow): ArticleSnapshot {
     featured: row.featured,
     tags: row.tags,
     seo: row.seo,
-    source: row.source,
-    sources: row.sources,
   };
 }
 

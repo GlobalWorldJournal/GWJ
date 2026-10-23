@@ -20,13 +20,7 @@ const baseArticle = (overrides: Partial<ArticleInput> = {}): ArticleInput => ({
   seo: {},
   heroImage: {
     url: 'https://cdn.globalworldjournal.com/articles/photo.jpg',
-    credit: 'Source: Example Wire',
     alt: 'A photo',
-  },
-  source: {
-    name: 'Example Wire',
-    articleUrl: 'https://example.com/news/story',
-    imageUrl: 'https://example.com/photo.jpg',
   },
   ...overrides,
 });
@@ -69,14 +63,6 @@ describe('takedownService', () => {
     expect(record.articleId).toBe(article.id);
   });
 
-  it('resolves the article by the original source image URL we recorded internally', async () => {
-    const article = await articleService.create(baseArticle());
-    const record = await takedownService.create(
-      baseInput({ imageUrl: 'https://example.com/photo.jpg' }),
-    );
-    expect(record.articleId).toBe(article.id);
-  });
-
   it('resolves the article by our own CDN hero image URL', async () => {
     const article = await articleService.create(baseArticle());
     const record = await takedownService.create(
@@ -88,7 +74,7 @@ describe('takedownService', () => {
   it('action("dismissed") records a resolution without touching the article', async () => {
     const article = await articleService.create(baseArticle());
     const record = await takedownService.create(
-      baseInput({ imageUrl: 'https://example.com/photo.jpg' }),
+      baseInput({ imageUrl: 'https://cdn.globalworldjournal.com/articles/photo.jpg' }),
     );
     const dismissed = await takedownService.action(record.id, {
       status: 'dismissed',
@@ -105,7 +91,7 @@ describe('takedownService', () => {
   it('action("actioned", apply: "unpublish") takes the whole article down', async () => {
     const article = await articleService.create(baseArticle());
     const record = await takedownService.create(
-      baseInput({ imageUrl: 'https://example.com/photo.jpg' }),
+      baseInput({ imageUrl: 'https://cdn.globalworldjournal.com/articles/photo.jpg' }),
     );
     await takedownService.action(record.id, { status: 'actioned', apply: 'unpublish' });
     const after = await articleService.getById(article.id);
@@ -115,7 +101,7 @@ describe('takedownService', () => {
   it('action("actioned", apply: "clear-hero-image") removes just the image, leaves the article published', async () => {
     const article = await articleService.create(baseArticle());
     const record = await takedownService.create(
-      baseInput({ imageUrl: 'https://example.com/photo.jpg' }),
+      baseInput({ imageUrl: 'https://cdn.globalworldjournal.com/articles/photo.jpg' }),
     );
     const actioned = await takedownService.action(record.id, {
       status: 'actioned',
@@ -132,7 +118,7 @@ describe('takedownService', () => {
     try {
       const article = await articleService.create(baseArticle());
       const record = await takedownService.create(
-        baseInput({ imageUrl: 'https://example.com/photo.jpg' }),
+        baseInput({ imageUrl: 'https://cdn.globalworldjournal.com/articles/photo.jpg' }),
       );
       await takedownService.action(
         record.id,
@@ -164,14 +150,6 @@ describe('takedownService', () => {
 });
 
 describe('takedownService — PostgreSQL semantics', () => {
-  it('resolves by source.articleUrl too (all three jsonb provenance paths are searched)', async () => {
-    const article = await articleService.create(baseArticle());
-    const record = await takedownService.create(
-      baseInput({ articleUrl: 'https://example.com/news/story' }),
-    );
-    expect(record.articleId).toBe(article.id);
-  });
-
   it('a malformed or unknown id is a 404', async () => {
     await expect(takedownService.getById('nope')).rejects.toBeInstanceOf(NotFoundError);
     await expect(
@@ -182,7 +160,7 @@ describe('takedownService — PostgreSQL semantics', () => {
   it('clear-hero-image stamps the article updatedAt', async () => {
     const article = await articleService.create(baseArticle());
     const record = await takedownService.create(
-      baseInput({ imageUrl: 'https://example.com/photo.jpg' }),
+      baseInput({ imageUrl: 'https://cdn.globalworldjournal.com/articles/photo.jpg' }),
     );
     await new Promise((r) => setTimeout(r, 15));
     await takedownService.action(record.id, { status: 'actioned', apply: 'clear-hero-image' });

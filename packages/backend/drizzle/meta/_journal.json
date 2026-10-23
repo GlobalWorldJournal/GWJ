@@ -127,6 +127,13 @@
       "when": 1792202471796,
       "tag": "0017_talented_iceman",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792743127793,
+      "tag": "0018_familiar_dorian_gray",
+      "breakpoints": true
     }
   ]
 }
