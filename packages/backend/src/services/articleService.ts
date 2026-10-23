@@ -12,6 +12,8 @@ import {
   type Language,
   type Seo,
   slugify,
+  stripCreditLines,
+  stripPhotoCredit,
 } from '@gwj/shared-types';
 import { getDb } from '../db/client';
 import { isRecordId, newRecordId } from '../db/ids';
@@ -636,8 +638,14 @@ export const articleService: ArticleService = {
         category: snapshot.category,
         language: snapshot.language,
         author: snapshot.author,
-        body: snapshot.body,
-        heroImage: snapshot.heroImage,
+        // History recorded before the credit rule still holds outlet credits.
+        body: stripCreditLines(snapshot.body),
+        heroImage: snapshot.heroImage && {
+          ...snapshot.heroImage,
+          ...(snapshot.heroImage.caption !== undefined
+            ? { caption: stripPhotoCredit(snapshot.heroImage.caption) }
+            : {}),
+        },
         featured: snapshot.featured,
         tags: snapshot.tags,
         seo: snapshot.seo,

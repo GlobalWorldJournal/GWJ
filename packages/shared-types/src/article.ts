@@ -1,28 +1,7 @@
 import { z } from 'zod';
 import { CategorySchema } from './category';
 import { LanguageSchema } from './language';
-
-/** The label an outlet's photo credit starts with: "Foto:", "Photograph:", "(Crédit photo :", "Source:"… */
-const CREDIT_LABEL = String.raw`(?:photo(?:graph)?(?:\s+credit)?|foto(?:graf[ií]a)?|cr[ée]dits?(?:\s+photo)?|cr[ée]dito(?:\s+de\s+la\s+foto)?|source|fuente)`;
-const TRAILING_CREDIT = new RegExp(
-  String.raw`\s*\|?\s*[(\[]?\s*${CREDIT_LABEL}\s*:[^()\[\]\n]*[)\]]?\s*\.?\s*$`,
-  'i',
-);
-const CREDIT_LINE = new RegExp(String.raw`^[ \t]*[_*]*${CREDIT_LABEL}[ \t]*:[^\n]*$\n?`, 'gim');
-
-/**
- * A caption without the photo credit an outlet appended to it ("… Foto: EFE",
- * "(Crédit : X / AFP)"): GWJ prints no credit lines. Migration 0019 applies the
- * same pattern to the stories stored before this rule.
- */
-export function stripPhotoCredit(caption: string): string {
-  return caption.replace(TRAILING_CREDIT, '').trim();
-}
-
-/** A body without its credit-only lines ("Source: Reuters" under an inline image). */
-export function stripCreditLines(body: string): string {
-  return body.replace(CREDIT_LINE, '');
-}
+import { stripCreditLines, stripPhotoCredit } from './photoCredit';
 
 /** Ordered content blocks that make up an article body. */
 export const ContentBlockSchema = z.discriminatedUnion('type', [
@@ -69,7 +48,7 @@ export const HeroImageSchema = z.object({
     .transform(stripPhotoCredit)
     .optional()
     .describe(
-      'Optional caption shown under the image on the article page: what the photo shows, never a credit (a trailing "Photo: …" is removed).',
+      'Optional caption shown under the image on the article page: what the photo shows, never a credit (a photographer or agency credit such as "© X / AFP" or "(AP Photo/X)" is removed).',
     ),
   alt: z.string().default('').describe('Descriptive alt text for accessibility and SEO.'),
   // Filled in by the server from the upload (never needs to be sent).

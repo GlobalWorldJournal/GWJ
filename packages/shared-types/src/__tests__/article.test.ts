@@ -135,6 +135,43 @@ describe('photo credits', () => {
       ['Le maire adjoint. (crédit photo : MARC ISRAEL SELLEM)', 'Le maire adjoint.'],
       ['Madrid, el 14 de octubre. | Foto: Europa Press', 'Madrid, el 14 de octubre.'],
       ['A photo of the protest: thousands marched.', 'A photo of the protest: thousands marched.'],
+      [
+        'Gendarmes à Paris, le 20 octobre 2026. © Abdul Saboor, Reuters',
+        'Gendarmes à Paris, le 20 octobre 2026.',
+      ],
+      [
+        'Damage in Baghdad on March 14, 2026. (AP Photo/Hadi Mizban)',
+        'Damage in Baghdad on March 14, 2026.',
+      ],
+      ['Daños en Bagdad. (Foto de la AP / Hadi Mizban)', 'Daños en Bagdad.'],
+      ['Traders on Sept. 28, 2026. Brendan McDermid | Reuters', 'Traders on Sept. 28, 2026.'],
+      [
+        'Troy Jackson in South Portland. Photo by Robert F. Bukaty/AP.',
+        'Troy Jackson in South Portland.',
+      ],
+      ['Felipe VI y Letizia en Ceuta. EFE', 'Felipe VI y Letizia en Ceuta.'],
+      ['Traders at the NYSE. Atta Kenare | Afp | Getty Images', 'Traders at the NYSE.'],
+      [
+        'A voter with a sticker. Jeff Taylor—The Winchester Star via AP.',
+        'A voter with a sticker.',
+      ],
+      ['The MOAB bomb. [Getty]', 'The MOAB bomb.'],
+      ['Urnas. (Europa Press)', 'Urnas.'],
+      ['FILE PHOTO: A trader works. REUTERS/Jeenah Moon/File Photo', 'A trader works.'],
+      ['Kevin Dietsch, Getty Images file', ''],
+      [
+        'Le spread a atteint un sommet, selon les données de Bloomberg.',
+        'Le spread a atteint un sommet, selon les données de Bloomberg.',
+      ],
+      [
+        'Christopher Waller speaks before a Reuters NEXT Newsmaker interview in Washington.',
+        'Christopher Waller speaks before a Reuters NEXT Newsmaker interview in Washington.',
+      ],
+      [
+        "Photo d'illustration montrant une employée de l'usine Duralex.",
+        "Photo d'illustration montrant une employée de l'usine Duralex.",
+      ],
+      ['Pedro Sánchez, en una imagen de archivo.', 'Pedro Sánchez, en una imagen de archivo.'],
     ]) {
       expect(stripPhotoCredit(caption ?? '')).toBe(clean ?? '');
     }
@@ -145,7 +182,7 @@ describe('photo credits', () => {
       title: 'A story',
       category: 'World',
       author: 'Nate',
-      body: 'Lede.\n\n![Heat](https://cdn.example.test/a.webp)\n\n_Source: Reuters_\n\nThe source of the leak: unknown.',
+      body: 'Lede.\n\n![Heat](https://cdn.example.test/a.webp)\n\n_Source: Reuters_\n\n*(AP Photo/Hadi Mizban)*\n\nThe source of the leak: unknown.\n\nReuters',
       heroImage: {
         url: 'https://cdn.example.test/a.webp',
         caption: 'Heat in Rome. Photo: Reuters',

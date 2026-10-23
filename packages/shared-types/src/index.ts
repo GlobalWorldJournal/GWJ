@@ -1,6 +1,7 @@
 export * from './category';
 export * from './language';
 export * from './article';
+export * from './photoCredit';
 export * from './user';
 export * from './dto';
 export * from './writers';
