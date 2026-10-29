@@ -598,9 +598,12 @@ export const articleService: ArticleService = {
   },
 
   async publish(id, actor = SYSTEM_ACTOR) {
-    const { after } = await mutateArticle(id, actor, async (current) =>
-      current.status === 'published' ? {} : publishStamps(current, new Date()),
-    );
+    const { after } = await mutateArticle(id, actor, async (current) => {
+      if (current.status === 'published') return {};
+      // A draft written before the language rule may still be in another language.
+      assertEditionLanguage(current.language, editionText(current));
+      return publishStamps(current, new Date());
+    });
     return rowToArticle(after);
   },
 
@@ -648,11 +651,16 @@ export const articleService: ArticleService = {
         // Re-checked under the row lock: a schedule cancelled or moved since the
         // lookup is respected, and two backend tasks running this at once publish
         // (and queue its distribution) exactly once.
-        const { before, after } = await mutateArticle(id, SCHEDULER_ACTOR, async (current) =>
-          current.status === 'draft' && current.scheduledAt !== null && current.scheduledAt <= now
-            ? publishStamps(current, now)
-            : {},
-        );
+        const { before, after } = await mutateArticle(id, SCHEDULER_ACTOR, async (current) => {
+          if (
+            current.status !== 'draft' ||
+            current.scheduledAt === null ||
+            current.scheduledAt > now
+          )
+            return {};
+          assertEditionLanguage(current.language, editionText(current));
+          return publishStamps(current, now);
+        });
         if (after.status === 'published' && before.status !== 'published') published.push(id);
       } catch (err) {
         logger.error('scheduled publish failed', { articleId: id, ...errorFields(err) });
@@ -681,6 +689,7 @@ export const articleService: ArticleService = {
       if (snapshot.language !== current.language) {
         await assertEditionFree(tx, current.translationGroupId, snapshot.language, id);
       }
+      assertEditionLanguage(snapshot.language, editionText(snapshot));
       // Content only. Whether the story is live, and its URL, are not history
       // to roll back: those change through publish/unpublish and an explicit slug.
       return {

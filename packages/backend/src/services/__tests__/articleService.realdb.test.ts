@@ -3,6 +3,7 @@ import { CATEGORIES, type ArticleInput, type ArticleListQuery } from '@gwj/share
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../../db/client';
 import { articleRevisions } from '../../db/schema/articleRevisions';
+import { articles } from '../../db/schema/articles';
 import { articleService, setDeliveryPlanner } from '../articleService';
 import { jobsFor } from '../../channels/jobRepository';
 import { NotFoundError } from '../../errors';
@@ -385,6 +386,20 @@ describe('articleService — edition language', () => {
     });
     const edited = await articleService.update(article.id, { title: 'Markets rise again' });
     expect(edited.title).toBe('Markets rise again');
+  });
+
+  it('will not publish a draft stored in another language than its edition', async () => {
+    const draft = await articleService.create(baseInput({ body: 'Markets rose on Tuesday.' }));
+    // A draft saved before the rule existed, mislabeled as French.
+    await getDb()
+      .update(articles)
+      .set({
+        language: 'fr',
+        body: 'Markets rose on Tuesday as the dollar fell against the euro and the yen.',
+      })
+      .where(eq(articles.id, draft.id));
+    await expect(articleService.publish(draft.id)).rejects.toMatchObject({ status: 400 });
+    expect((await articleService.getById(draft.id)).status).toBe('draft');
   });
 });
 
