@@ -10,8 +10,10 @@ import {
   type ArticleRevisionSummary,
   type ArticleStatus,
   type Language,
+  type EditionText,
   type Seo,
   slugify,
+  wrongLanguageFields,
   stripCreditLines,
   stripPhotoCredit,
 } from '@gwj/shared-types';
@@ -397,6 +399,39 @@ export interface ArticleService {
   publishDue(now?: Date): Promise<string[]>;
 }
 
+/**
+ * Every field of an edition is in that edition's language. Caught live: an
+ * English edition published with an English body under a French title and
+ * deck. `fields` holds only what is being written, so an edit is judged on
+ * what it changes.
+ */
+function assertEditionLanguage(edition: Language, fields: EditionText): void {
+  const wrong = wrongLanguageFields(fields, edition);
+  if (wrong.length === 0) return;
+  throw new BadRequestError(
+    `This is the "${edition}" edition, but ${wrong.map((w) => `${w.field} is written in "${w.language}"`).join(', ')}. Write every field in the edition's language.`,
+    { wrongLanguage: wrong },
+  );
+}
+
+/** The reader-visible text of an article (or of a patch), field by field. */
+function editionText(a: {
+  title?: string;
+  deck?: string | null;
+  body?: string;
+  heroImage?: { caption?: string; alt?: string } | null;
+  seo?: { metaDescription?: string } | null;
+}): EditionText {
+  return {
+    title: a.title,
+    deck: a.deck,
+    body: a.body,
+    'heroImage.caption': a.heroImage?.caption,
+    'heroImage.alt': a.heroImage?.alt,
+    'seo.metaDescription': a.seo?.metaDescription,
+  };
+}
+
 export const articleService: ArticleService = {
   async list(query, options) {
     const filter: ArticleFilter = {};
@@ -442,6 +477,7 @@ export const articleService: ArticleService = {
 
   async create(input) {
     assertSchedulable(input.scheduledAt, input.status);
+    assertEditionLanguage(input.language, editionText(input));
     const now = new Date();
     const id = newRecordId(now);
     const row = await getDb().transaction(async (db) => {
@@ -481,6 +517,22 @@ export const articleService: ArticleService = {
 
   async update(id, patch, actor = SYSTEM_ACTOR) {
     const { after } = await mutateArticle(id, actor, async (current, tx) => {
+      // A move to another edition re-judges all the text; otherwise only what changes.
+      const movesEdition = patch.language !== undefined && patch.language !== current.language;
+      assertEditionLanguage(
+        patch.language ?? current.language,
+        editionText(
+          movesEdition
+            ? {
+                title: patch.title ?? current.title,
+                deck: patch.deck === undefined ? current.deck : patch.deck,
+                body: patch.body ?? current.body,
+                heroImage: patch.heroImage === undefined ? current.heroImage : patch.heroImage,
+                seo: { ...current.seo, ...patch.seo },
+              }
+            : patch,
+        ),
+      );
       const changes: Partial<NewArticleRow> = {
         title: patch.title,
         deck: patch.deck,

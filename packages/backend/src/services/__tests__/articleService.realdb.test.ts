@@ -353,6 +353,41 @@ describe('articleService.restoreRevision — photo credits', () => {
   });
 });
 
+describe('articleService — edition language', () => {
+  it('refuses text written in another language than the edition', async () => {
+    await expect(
+      articleService.create(
+        baseInput({
+          title: 'Collision ferroviaire en Espagne : au moins 68 morts et plus de 100 blessés',
+          body: 'Two high-speed trains collided south of Madrid on Wednesday, killing at least 68 people.',
+        }),
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      details: { wrongLanguage: [{ field: 'title', language: 'fr' }] },
+    });
+  });
+
+  it('judges an edit on what it changes, and a move to another edition on all of it', async () => {
+    const article = await articleService.create(
+      baseInput({
+        body: 'Markets rose on Tuesday as the dollar fell against the euro and the yen.',
+      }),
+    );
+    await expect(
+      articleService.update(article.id, {
+        deck: 'Les marchés ont progressé mardi après la baisse du dollar.',
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(articleService.update(article.id, { language: 'fr' })).rejects.toMatchObject({
+      status: 400,
+      details: { wrongLanguage: [{ field: 'body', language: 'en' }] },
+    });
+    const edited = await articleService.update(article.id, { title: 'Markets rise again' });
+    expect(edited.title).toBe('Markets rise again');
+  });
+});
+
 describe('articleService.list — sort', () => {
   it('latest ignores the featured rank; the default stays editorial', async () => {
     const lead = await articleService.create(
