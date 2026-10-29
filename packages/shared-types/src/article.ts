@@ -121,7 +121,7 @@ export const ArticleInputSchema = z.object({
     .describe('A short section/topic label shown above the headline, e.g. "Markets".'),
   category: CategorySchema,
   language: LanguageSchema.default('en').describe(
-    'The edition this article belongs to. Readers only see content for the edition they selected; publish the same story in another language as a separate article with that language set, and link the two with `translationOf`.',
+    'The edition this article belongs to. Every field (title, deck, body, caption, alt, meta description) must be written in its language; text clearly in another one is rejected. Readers only see content for the edition they selected; publish the same story in another language as a separate article with that language set, and link the two with `translationOf`.',
   ),
   author: z
     .string()

@@ -1,5 +1,6 @@
 export * from './category';
 export * from './language';
+export * from './editionLanguage';
 export * from './article';
 export * from './photoCredit';
 export * from './user';

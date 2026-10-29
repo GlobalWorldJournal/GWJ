@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'bun:test';
 import {
   ArticleInputSchema,
+  otherLanguageOf,
   stripPhotoCredit,
+  wrongLanguageFields,
   ArticleUpdateSchema,
   ContentBlockSchema,
   ArticleListQuerySchema,
@@ -192,5 +194,36 @@ describe('photo credits', () => {
     expect(r.body).toBe(
       'Lede.\n\n![Heat](https://cdn.example.test/a.webp)\n\nThe source of the leak: unknown.',
     );
+  });
+});
+
+describe('edition language', () => {
+  it('names each field written in another language than the edition', () => {
+    expect(
+      wrongLanguageFields(
+        {
+          title: 'Collision ferroviaire en Espagne : au moins 68 morts et plus de 100 blessés',
+          deck: 'Two high-speed trains collided south of Madrid, killing at least 68 people.',
+          'heroImage.caption':
+            'El presidente estadounidense Donald Trump se dirige a la prensa desde la base de Andrews.',
+        },
+        'en',
+      ),
+    ).toEqual([
+      { field: 'title', language: 'fr' },
+      { field: 'heroImage.caption', language: 'es' },
+    ]);
+  });
+
+  it('leaves names, short labels and a quoted foreign phrase alone', () => {
+    for (const [text, edition] of [
+      ['Le Pen', 'en'],
+      ['Liga MX', 'fr'],
+      ['Macron says "liberté, égalité, fraternité" still binds the Republic', 'en'],
+      ['Andrew Garfield, Sam Altman, OpenAI', 'es'],
+      ['Ataques rusos matan a 10 en Ucrania mientras Trump urge a Zelenski a negociar', 'es'],
+    ] as const) {
+      expect(otherLanguageOf(text, edition)).toBeNull();
+    }
   });
 });
