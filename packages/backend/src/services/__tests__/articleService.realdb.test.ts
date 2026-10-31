@@ -3,6 +3,7 @@ import { CATEGORIES, type ArticleInput, type ArticleListQuery } from '@gwj/share
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../../db/client';
 import { articleRevisions } from '../../db/schema/articleRevisions';
+import { articles } from '../../db/schema/articles';
 import { articleService, setDeliveryPlanner } from '../articleService';
 import { jobsFor } from '../../channels/jobRepository';
 import { NotFoundError } from '../../errors';
@@ -350,6 +351,55 @@ describe('articleService.restoreRevision — photo credits', () => {
     const restored = await articleService.restoreRevision(article.id, revisionId);
     expect(restored.heroImage?.caption).toBe('Traders in New York.');
     expect(restored.body).toBe('# Markets\n\nMarkets rose **today**.');
+  });
+});
+
+describe('articleService — edition language', () => {
+  it('refuses text written in another language than the edition', async () => {
+    await expect(
+      articleService.create(
+        baseInput({
+          title: 'Collision ferroviaire en Espagne : au moins 68 morts et plus de 100 blessés',
+          body: 'Two high-speed trains collided south of Madrid on Wednesday, killing at least 68 people.',
+        }),
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      details: { wrongLanguage: [{ field: 'title', language: 'fr' }] },
+    });
+  });
+
+  it('judges an edit on what it changes, and a move to another edition on all of it', async () => {
+    const article = await articleService.create(
+      baseInput({
+        body: 'Markets rose on Tuesday as the dollar fell against the euro and the yen.',
+      }),
+    );
+    await expect(
+      articleService.update(article.id, {
+        deck: 'Les marchés ont progressé mardi après la baisse du dollar.',
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(articleService.update(article.id, { language: 'fr' })).rejects.toMatchObject({
+      status: 400,
+      details: { wrongLanguage: [{ field: 'body', language: 'en' }] },
+    });
+    const edited = await articleService.update(article.id, { title: 'Markets rise again' });
+    expect(edited.title).toBe('Markets rise again');
+  });
+
+  it('will not publish a draft stored in another language than its edition', async () => {
+    const draft = await articleService.create(baseInput({ body: 'Markets rose on Tuesday.' }));
+    // A draft saved before the rule existed, mislabeled as French.
+    await getDb()
+      .update(articles)
+      .set({
+        language: 'fr',
+        body: 'Markets rose on Tuesday as the dollar fell against the euro and the yen.',
+      })
+      .where(eq(articles.id, draft.id));
+    await expect(articleService.publish(draft.id)).rejects.toMatchObject({ status: 400 });
+    expect((await articleService.getById(draft.id)).status).toBe('draft');
   });
 });
 
