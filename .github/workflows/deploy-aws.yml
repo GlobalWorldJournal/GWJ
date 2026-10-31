@@ -24,7 +24,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write   # for OIDC role assumption
+  id-token: write # for OIDC role assumption
   contents: read
 
 # GWJ runs in its own isolated gwj-* resources on the Oxy AWS account. These are
