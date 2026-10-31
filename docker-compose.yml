@@ -14,11 +14,11 @@ services:
       POSTGRES_PASSWORD: gwj
       POSTGRES_DB: gwj
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - gwj_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U gwj -d gwj']
+      test: ["CMD-SHELL", "pg_isready -U gwj -d gwj"]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -29,7 +29,7 @@ services:
       dockerfile: packages/backend/Dockerfile
     environment:
       DATABASE_URL: postgres://gwj:gwj@postgres:5432/gwj
-    command: ['bun', 'run', 'src/db/migrate.ts', '--target-database=gwj']
+    command: ["bun", "run", "src/db/migrate.ts", "--target-database=gwj"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,7 +40,7 @@ services:
       dockerfile: packages/backend/Dockerfile
     restart: unless-stopped
     ports:
-      - '4000:4000'
+      - "4000:4000"
     environment:
       PORT: 4000
       NODE_ENV: development
@@ -64,7 +64,7 @@ services:
       dockerfile: packages/mcp/Dockerfile
     restart: unless-stopped
     ports:
-      - '4100:4100'
+      - "4100:4100"
     environment:
       MCP_PORT: 4100
       NODE_ENV: development
