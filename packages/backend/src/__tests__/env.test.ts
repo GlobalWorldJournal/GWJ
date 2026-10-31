@@ -116,9 +116,33 @@ describe('env — Telegram channel config (optional)', () => {
     expect(env.TELEGRAM_CHANNEL).toBe('@GWJTest');
   });
 
-  it("rejects the placeholder '-' for a non-empty TELEGRAM_BOT_TOKEN", () => {
-    applyEnv({ ...baseEnv(), TELEGRAM_BOT_TOKEN: '-' });
-    expect(() => loadEnv()).toThrow(/TELEGRAM_BOT_TOKEN/);
+  it("treats '-' and Terraform's 'set-out-of-band' as no token: the channel stays off", () => {
+    for (const placeholder of ['-', 'set-out-of-band']) {
+      applyEnv({ ...baseEnv(), TELEGRAM_BOT_TOKEN: placeholder });
+      expect(loadEnv().TELEGRAM_BOT_TOKEN).toBeUndefined();
+    }
+  });
+});
+
+describe('env — Facebook / Instagram channel config (optional)', () => {
+  it("reads Terraform's 'set-out-of-band' placeholder as not configured", () => {
+    applyEnv({
+      ...baseEnv(),
+      FACEBOOK_PAGE_ID: 'set-out-of-band',
+      FACEBOOK_PAGE_TOKEN: 'set-out-of-band',
+      INSTAGRAM_ACCOUNT_ID: 'set-out-of-band',
+    });
+    const env = loadEnv();
+    expect(env.FACEBOOK_PAGE_ID).toBeUndefined();
+    expect(env.FACEBOOK_PAGE_TOKEN).toBeUndefined();
+    expect(env.INSTAGRAM_ACCOUNT_ID).toBeUndefined();
+  });
+
+  it('keeps real credentials', () => {
+    applyEnv({ ...baseEnv(), FACEBOOK_PAGE_ID: '1234567890', FACEBOOK_PAGE_TOKEN: 'EAAB-real' });
+    const env = loadEnv();
+    expect(env.FACEBOOK_PAGE_ID).toBe('1234567890');
+    expect(env.FACEBOOK_PAGE_TOKEN).toBe('EAAB-real');
   });
 });
 

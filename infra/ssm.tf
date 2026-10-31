@@ -140,10 +140,9 @@ resource "aws_ssm_parameter" "stripe_webhook_secret" {
 # instagramChannel.ts), one pair of Page id/token per edition — Instagram
 # posting reuses the same Page token, only its own account id is separate.
 # Same externally-owned pattern as TELEGRAM_BOT_TOKEN above: each starts as
-# this placeholder (env.ts's optionalSecret only treats '-'/empty as "not
-# configured", so a channel stays effectively disabled — its calls to Meta's
-# Graph API just fail and retry via the outbox — until the real value is set
-# directly in SSM, out of band, which Terraform then never rewrites).
+# this placeholder, which env.ts reads as "not configured", so the channel
+# stays off until the real value is set directly in SSM, out of band, which
+# Terraform then never rewrites.
 resource "aws_ssm_parameter" "facebook_page_id" {
   name  = "/gwj/FACEBOOK_PAGE_ID"
   type  = "SecureString"

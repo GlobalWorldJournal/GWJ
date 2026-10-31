@@ -37,6 +37,20 @@ const optionalPlaceholderSecret = z
   .transform((v) => (v.length === 0 || v === '-' ? undefined : v))
   .optional();
 
+/** The value Terraform writes for a secret someone sets by hand in SSM (infra/ssm.tf). */
+const OUT_OF_BAND_PLACEHOLDER = 'set-out-of-band';
+
+/**
+ * A channel credential that starts in SSM as Terraform's `set-out-of-band`
+ * placeholder: that, empty or `'-'` means "not configured", so the channel
+ * stays off. Read as a real value, the placeholder switched Facebook and
+ * Instagram on and every post failed against `/set-out-of-band/photos`.
+ */
+const outOfBandSecret = z
+  .string()
+  .transform((v) => (v.length === 0 || v === '-' || v === OUT_OF_BAND_PLACEHOLDER ? undefined : v))
+  .optional();
+
 const DEFAULT_PORT = 4000;
 
 /** Default apex domain where the fediverse handles live (`@<user>@<domain>`). */
@@ -126,7 +140,7 @@ const EnvSchema = z.object({
   // The bot token authorizes posting to the channel. OPTIONAL: when absent (or
   // empty), the Telegram channel is disabled and publishing is a safe no-op — the
   // backend boots fine without it. A NON-empty placeholder `'-'` is rejected.
-  TELEGRAM_BOT_TOKEN: optionalSecret('TELEGRAM_BOT_TOKEN'),
+  TELEGRAM_BOT_TOKEN: outOfBandSecret,
   // Target channel for posts. Defaults to the canonical public handle
   // (`@GWJOfficial`); override for a different channel/numeric chat id.
   TELEGRAM_CHANNEL: z
@@ -147,17 +161,17 @@ const EnvSchema = z.object({
   // tied to a single Page — each edition needs its own id + token pair. Both
   // OPTIONAL per edition: absent/empty disables that edition's channel, same
   // "boots fine without it" rule as Telegram.
-  FACEBOOK_PAGE_ID: optionalSecret('FACEBOOK_PAGE_ID'),
-  FACEBOOK_PAGE_TOKEN: optionalSecret('FACEBOOK_PAGE_TOKEN'),
-  FACEBOOK_PAGE_ID_ES: optionalSecret('FACEBOOK_PAGE_ID_ES'),
-  FACEBOOK_PAGE_TOKEN_ES: optionalSecret('FACEBOOK_PAGE_TOKEN_ES'),
+  FACEBOOK_PAGE_ID: outOfBandSecret,
+  FACEBOOK_PAGE_TOKEN: outOfBandSecret,
+  FACEBOOK_PAGE_ID_ES: outOfBandSecret,
+  FACEBOOK_PAGE_TOKEN_ES: outOfBandSecret,
 
   // --- Instagram distribution channels ---
   // Posted through the same Graph API as the linked Facebook Page, authorized
   // by that Page's own token (FACEBOOK_PAGE_TOKEN(_ES) above) — only the
   // Instagram Business account id is Instagram's own. OPTIONAL per edition.
-  INSTAGRAM_ACCOUNT_ID: optionalSecret('INSTAGRAM_ACCOUNT_ID'),
-  INSTAGRAM_ACCOUNT_ID_ES: optionalSecret('INSTAGRAM_ACCOUNT_ID_ES'),
+  INSTAGRAM_ACCOUNT_ID: outOfBandSecret,
+  INSTAGRAM_ACCOUNT_ID_ES: outOfBandSecret,
 
   // --- Mention distribution channel ---
   // Unlike the static tokens above, Mention's own grant (an MCP OAuth
