@@ -738,6 +738,67 @@ describe('telegram channel', () => {
     expect(body.message_id).toBe(555);
   });
 
+  it('retract of a post too old to delete replaces it with the withdrawal notice', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
+    const cannotDelete = new Response(
+      JSON.stringify({ ok: false, description: "Bad Request: message can't be deleted" }),
+      { status: 400 },
+    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(cannotDelete)
+      .mockResolvedValueOnce(new Response('{"ok":true,"result":true}', { status: 200 }));
+    const tg = telegramChannels(env)[0];
+    if (!tg?.retract) throw new Error('telegram channel missing retract');
+
+    await tg.retract({ chatId: -1001234, messageId: 555, kind: 'photo' });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const [url, init] = fetchSpy.mock.calls[1] ?? [];
+    expect(String(url)).toBe('https://api.telegram.org/botBOT123/editMessageMedia');
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body.message_id).toBe(555);
+    expect(body.media.media).toBe('https://globalworldjournal.com/icon-512.png');
+    expect(body.media.caption).toBe('This story has been withdrawn.');
+  });
+
+  it('a withdrawn post of unknown kind that is not a photo is blanked as text, in its language', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123', TELEGRAM_CHANNEL_ES: '@gwj_ES' });
+    const refuse = (description: string) =>
+      new Response(JSON.stringify({ ok: false, description }), { status: 400 });
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(refuse("Bad Request: message can't be deleted"))
+      .mockResolvedValueOnce(refuse('Bad Request: there is no media in the message to edit'))
+      .mockResolvedValueOnce(new Response('{"ok":true,"result":true}', { status: 200 }));
+    const es = telegramChannels(env)[1];
+    if (!es?.retract) throw new Error('spanish telegram channel missing retract');
+
+    await es.retract({ chatId: -1009, messageId: 7 });
+
+    const [url, init] = fetchSpy.mock.calls[2] ?? [];
+    expect(String(url)).toBe('https://api.telegram.org/botBOT123/editMessageText');
+    expect(JSON.parse(String((init as RequestInit).body)).text).toBe(
+      'Esta noticia ha sido retirada.',
+    );
+  });
+
+  it('any other delete failure is still retried, never blanked', async () => {
+    const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response('{"ok":false,"description":"Too Many Requests"}', { status: 429 }),
+      );
+    const tg = telegramChannels(env)[0];
+    if (!tg?.retract) throw new Error('telegram channel missing retract');
+
+    await expect(tg.retract({ chatId: -1001234, messageId: 555, kind: 'photo' })).rejects.toThrow(
+      'deleteMessage',
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('retract is a no-op for a ref it does not recognize, and never fetches', async () => {
     const env = makeEnv({ TELEGRAM_BOT_TOKEN: 'BOT123' });
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
