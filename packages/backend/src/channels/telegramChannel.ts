@@ -55,6 +55,26 @@ const TELEGRAM_CHANNELS: readonly TelegramChannelConfig[] = [
 ];
 
 /**
+ * What a withdrawn post is replaced with when Telegram won't delete it. A bot
+ * can only delete a message for 48 hours after sending it; after that
+ * `deleteMessage` answers "message can't be deleted", so a retraction (an
+ * unpublish, a takedown) used to leave the post up for good. The bot can still
+ * edit its own posts, so the post is blanked instead: the site icon in place
+ * of the photo, and this notice in place of the title, deck and link.
+ */
+const WITHDRAWN_NOTICE: Record<Language, string> = {
+  en: 'This story has been withdrawn.',
+  es: 'Esta noticia ha sido retirada.',
+  fr: 'Cet article a été retiré.',
+};
+
+/** The image a withdrawn photo post shows instead of its photo: the site's own icon. */
+const WITHDRAWN_IMAGE_PATH = '/icon-512.png';
+
+/** Telegram's answer once a post is past the window in which a bot may delete it. */
+const CANNOT_DELETE = /message can't be deleted/i;
+
+/**
  * Build the HTML caption for a Telegram post: a bold title, the deck (when present),
  * then a "Read: <url>" line pointing at the canonical apex article URL. Title and
  * deck are HTML-escaped; the URL is already a controlled value.
@@ -100,6 +120,8 @@ export class TelegramError extends Error {
   constructor(
     readonly method: TelegramMethod,
     message: string,
+    /** Telegram's own `description` of the refusal, when it gave one. */
+    readonly description = '',
   ) {
     super(`telegram ${method}: ${message}`);
     this.name = 'TelegramError';
@@ -137,7 +159,7 @@ async function callTelegram(
     logger.info('telegram: nothing left to do', { method, description });
     return undefined;
   }
-  throw new TelegramError(method, `HTTP ${res.status} ${description}`.trim());
+  throw new TelegramError(method, `HTTP ${res.status} ${description}`.trim(), description);
 }
 
 /** Read `{ chatId, messageId }` out of a `send*` reply's `result` object. */
@@ -193,6 +215,37 @@ function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishC
     return { ...ref, kind };
   };
 
+  /**
+   * Replace a post Telegram won't delete with {@link WITHDRAWN_NOTICE}. A post
+   * recorded before posts carried their kind is tried as a photo first (most
+   * posts are), then as text.
+   */
+  const blankOut = async (
+    botToken: string,
+    target: { chat_id: number; message_id: number },
+    kind: TelegramPostKind | undefined,
+  ): Promise<void> => {
+    const notice = WITHDRAWN_NOTICE[language];
+    const asText = () => callTelegram(botToken, 'editMessageText', { ...target, text: notice });
+    if (kind === 'text') {
+      await asText();
+      return;
+    }
+    try {
+      await callTelegram(botToken, 'editMessageMedia', {
+        ...target,
+        media: {
+          type: 'photo',
+          media: `https://${env.FEDIVERSE_DOMAIN}${WITHDRAWN_IMAGE_PATH}`,
+          caption: notice,
+        },
+      });
+    } catch (err) {
+      if (kind === 'photo') throw err;
+      await asText();
+    }
+  };
+
   return {
     name: `telegram:${language}`,
     platform: 'telegram',
@@ -236,10 +289,16 @@ function buildTelegramChannel(env: Env, config: TelegramChannelConfig): PublishC
     },
     async retract(ref: Record<string, unknown>) {
       if (!token || !isTelegramRef(ref)) return;
-      await callTelegram(token, 'deleteMessage', {
-        chat_id: ref.chatId,
-        message_id: ref.messageId,
-      });
+      const target = { chat_id: ref.chatId, message_id: ref.messageId };
+      try {
+        await callTelegram(token, 'deleteMessage', target);
+      } catch (err) {
+        if (!(err instanceof TelegramError && CANNOT_DELETE.test(err.description))) throw err;
+        await blankOut(token, target, ref.kind);
+        logger.info('telegram: post too old to delete, replaced with a withdrawal notice', {
+          messageId: ref.messageId,
+        });
+      }
     },
   };
 }
