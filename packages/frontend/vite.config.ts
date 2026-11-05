@@ -49,17 +49,24 @@ function preloadAssets(patterns: readonly RegExp[]): Plugin {
 const config: UserConfig & { test: InlineConfig } = {
   plugins: [react(), tailwindcss(), preloadAssets(FIRST_PAINT_FONTS)],
   build: {
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         // Split rarely-changing vendor code into its own long-lived chunks so a
         // change to app code doesn't bust the whole bundle's cache. react +
         // react-dom + react-router share a chunk (router depends on react); the
         // data layer and the markdown renderer (only needed on article pages)
-        // are separate so they cache and load independently.
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'query-vendor': ['@tanstack/react-query'],
-          markdown: ['react-markdown', 'remark-gfm'],
+        // are separate so they cache and load independently. Vite 8 runs on
+        // Rolldown, which takes these as `codeSplitting` groups (object-form
+        // `manualChunks` is gone).
+        codeSplitting: {
+          groups: [
+            {
+              name: 'react-vendor',
+              test: /node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//,
+            },
+            { name: 'query-vendor', test: /node_modules\/@tanstack\/react-query\// },
+            { name: 'markdown', test: /node_modules\/(react-markdown|remark-gfm)\// },
+          ],
         },
       },
     },
