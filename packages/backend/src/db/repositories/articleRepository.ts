@@ -9,6 +9,7 @@ import {
 } from '@gwj/shared-types';
 import { getDb, type Database } from '../client';
 import {
+  ARTICLE_COLUMNS,
   articles,
   TEXT_SEARCH_CONFIG,
   type ArticleRow,
@@ -186,13 +187,63 @@ export interface ArticlePage {
  * newest; otherwise by featured weight, newest publication, newest creation.
  * `published_at` sorts NULLS LAST, so never-published rows follow every dated
  * one; an `id` tie-break makes pagination deterministic.
+ *
+ * A search counts its matches in the same statement (`count(*) over ()`): the
+ * relevance order already has to rank every match before the page is cut, so
+ * the count costs nothing extra, where a separate `count(*)` ran the whole
+ * full-text match a second time (on production 25 ms a search, a third of the
+ * database's time). A page past the last match carries no row to read the
+ * total from, so only then is it counted on its own.
  */
 export async function listArticles(
   filter: ArticleFilter,
   page: number,
   limit: number,
 ): Promise<ArticlePage> {
+  const listing = listingQuery(filter);
+  if (!listing) return { rows: [], total: 0 };
+  const { where, order, searched } = listing;
   const db = getDb();
+
+  const countAll = async (): Promise<number> => {
+    const [row] = await db.select({ total: count() }).from(articles).where(where);
+    return row?.total ?? 0;
+  };
+
+  if (searched) {
+    const ranked = await db
+      .select({ ...ARTICLE_COLUMNS, total: sql<number>`count(*) over ()`.mapWith(Number) })
+      .from(articles)
+      .where(where)
+      .orderBy(...order)
+      .limit(limit)
+      .offset((page - 1) * limit);
+    const first = ranked[0];
+    if (!first) return { rows: [], total: page > 1 ? await countAll() : 0 };
+    return { rows: ranked.map(({ total: _total, ...row }) => row), total: first.total };
+  }
+
+  const [rows, total] = await Promise.all([
+    db
+      .select(ARTICLE_COLUMNS)
+      .from(articles)
+      .where(where)
+      .orderBy(...order)
+      .limit(limit)
+      .offset((page - 1) * limit),
+    countAll(),
+  ]);
+  return { rows, total };
+}
+
+/**
+ * A listing's WHERE and its complete ORDER BY (ending on the `id` tie-break),
+ * or null when the search can match nothing. Shared by {@link listArticles} and
+ * the test that holds its results equal to the plain two-query form.
+ */
+export function listingQuery(
+  filter: ArticleFilter,
+): { where: SQL | undefined; order: SQL[]; searched: boolean } | null {
   const conditions: SQL[] = [];
   if (filter.status) conditions.push(eq(articles.status, filter.status));
   if (filter.category) conditions.push(eq(articles.category, filter.category));
@@ -203,9 +254,8 @@ export async function listArticles(
     conditions.push(sql`${articles.tags} @> array[${filter.tag}]::text[]`);
 
   const search = filter.q ? searchQueries(filter.q, filter.language) : null;
-  if (filter.q && !search) return { rows: [], total: 0 };
+  if (filter.q && !search) return null;
   if (search) conditions.push(search.filter);
-  const where = and(...conditions);
 
   const order: SQL[] = search
     ? [sql`${search.rank} desc`, sql`${articles.publishedAt} desc nulls last`]
@@ -216,18 +266,7 @@ export async function listArticles(
           sql`${articles.publishedAt} desc nulls last`,
           desc(articles.createdAt),
         ];
-
-  const [rows, totals] = await Promise.all([
-    db
-      .select()
-      .from(articles)
-      .where(where)
-      .orderBy(...order, desc(articles.id))
-      .limit(limit)
-      .offset((page - 1) * limit),
-    db.select({ total: count() }).from(articles).where(where),
-  ]);
-  return { rows, total: totals[0]?.total ?? 0 };
+  return { where: and(...conditions), order: [...order, desc(articles.id)], searched: !!search };
 }
 
 export async function countArticles(
@@ -251,7 +290,7 @@ export async function findArticleBySlug(
   const where = publishedOnly
     ? and(eq(articles.slug, slug), eq(articles.status, 'published'))
     : eq(articles.slug, slug);
-  const [row] = await getDb().select().from(articles).where(where).limit(1);
+  const [row] = await getDb().select(ARTICLE_COLUMNS).from(articles).where(where).limit(1);
   return row ?? null;
 }
 
@@ -260,7 +299,12 @@ export async function findArticleByIdForUpdate(
   tx: Executor,
   id: string,
 ): Promise<ArticleRow | null> {
-  const [row] = await tx.select().from(articles).where(eq(articles.id, id)).limit(1).for('update');
+  const [row] = await tx
+    .select(ARTICLE_COLUMNS)
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1)
+    .for('update');
   return row ?? null;
 }
 
@@ -268,7 +312,11 @@ export async function findArticleById(
   id: string,
   executor: Executor = getDb(),
 ): Promise<ArticleRow | null> {
-  const [row] = await executor.select().from(articles).where(eq(articles.id, id)).limit(1);
+  const [row] = await executor
+    .select(ARTICLE_COLUMNS)
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
   return row ?? null;
 }
 
@@ -370,7 +418,7 @@ export async function insertArticle(
   executor: Executor,
   values: NewArticleRow,
 ): Promise<ArticleRow> {
-  const [row] = await executor.insert(articles).values(values).returning();
+  const [row] = await executor.insert(articles).values(values).returning(ARTICLE_COLUMNS);
   if (!row) throw new Error('insert into articles returned no row');
   return row;
 }
@@ -381,7 +429,11 @@ export async function updateArticle(
   id: string,
   changes: Partial<NewArticleRow>,
 ): Promise<ArticleRow> {
-  const [row] = await executor.update(articles).set(changes).where(eq(articles.id, id)).returning();
+  const [row] = await executor
+    .update(articles)
+    .set(changes)
+    .where(eq(articles.id, id))
+    .returning(ARTICLE_COLUMNS);
   if (!row) throw new Error(`update of article ${id} matched no row`);
   return row;
 }
