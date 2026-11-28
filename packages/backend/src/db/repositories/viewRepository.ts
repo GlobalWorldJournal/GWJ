@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, sql, sum } from 'drizzle-orm';
 import type { Language } from '@gwj/shared-types';
 import { getDb } from '../client';
-import { articles, type ArticleRow } from '../schema/articles';
+import { ARTICLE_COLUMNS, articles, type ArticleRow } from '../schema/articles';
 import { articleViewsDaily } from '../schema/articleViews';
 
 /** A UTC calendar day as Postgres `date` text: `YYYY-MM-DD`. */
@@ -54,12 +54,11 @@ export async function findMostViewed(
     .where(gte(articleViewsDaily.day, sinceDay))
     .groupBy(articleViewsDaily.articleId)
     .as('totals');
-  const rows = await db
-    .select({ article: articles })
+  return db
+    .select(ARTICLE_COLUMNS)
     .from(articles)
     .innerJoin(totals, eq(totals.articleId, articles.id))
     .where(and(eq(articles.status, 'published'), eq(articles.language, language)))
     .orderBy(desc(totals.views), desc(articles.publishedAt))
     .limit(limit);
-  return rows.map((row) => row.article);
 }
